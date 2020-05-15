@@ -1,0 +1,7 @@
+.idea/
+cmake-build-debug/
+build/
+src/sourcediffs.h
+game
+frontier
+SDL2.dll
