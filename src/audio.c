@@ -115,9 +115,6 @@ SDLCALL void Audio_Callback(void *userdata, Uint8 * stream, int bytesRequested) 
 }
 #endif
 
-#ifdef AMIGA
-#endif
-
 static void Audio_ModChannelInit(AudioContext* audio, u16 channelId);
 
 static void Audio_CopyAndFixSamples(AudioContext* audio) {
@@ -125,8 +122,6 @@ static void Audio_CopyAndFixSamples(AudioContext* audio) {
 #ifdef AMIGA
     // Allocate some chip ram that will be used to store the fixed up samples
     audio->samplesData = (u8*) AllocMem(audio->samplesDataSize, MEMF_PUBLIC | MEMF_CHIP);
-
-    MLogf("%x %x %x", audio, audio->samplesData, audio->samplesDataSize);
 #else
     audio->samplesData = (u8*) MMalloc(audio->samplesDataSize);
 #endif

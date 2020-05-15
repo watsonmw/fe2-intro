@@ -8652,8 +8652,8 @@ void Render_RenderScene(SceneSetup* sceneSetup) {
 
 MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf) {
     // Call render funcs until hit end byte code, or draw buffer is full
-#ifdef FINSPECTOR
     while (!ByteCodeIsDone(rf)) {
+#ifdef FINSPECTOR
         u32 byteCodeOffset = rf->byteCodePos - rf->fileDataStartAddress;
         if (renderContext->logLevel) {
             ByteCodeTrace trace;
@@ -8662,8 +8662,6 @@ MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf)
             MArrayAdd(*(renderContext->byteCodeTrace), trace);
         }
         renderContext->zTree->insOffsetTmp = byteCodeOffset;
-#else
-    while(1) {
 #endif
         u16 funcParam = ByteCodeRead16u(rf);
         u8 funcOffset = (funcParam & (u16)0x1f);

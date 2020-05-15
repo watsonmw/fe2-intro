@@ -494,8 +494,6 @@ static b32 PathAppend(char* dirInOut, u32 dirLen, const char* fileName) {
 
     memcpy(dirInOut + dirLen, fileName, fileNameLen + 1);
 
-    MLogf("%s", dirInOut);
-
     return TRUE;
 }
 
@@ -653,9 +651,10 @@ __stdargs int main(int argc, char** argv) {
 
     Intro_InitAmiga(&sIntro, &introSceneSetup, &assetsDataAmiga);
 
+    // Read RTG overrides if exists
     ModelsArray overrideModels;
     MArrayInit(overrideModels);
-    MReadFileRet overridesFile = Assets_LoadModelOverrides("vampire.dat", &overrideModels);
+    MReadFileRet overridesFile = Assets_LoadModelOverrides("overrides.dat", &overrideModels);
     for (int i = 0; i < MArraySize(overrideModels); i++) {
         if (overrideModels.arr[i]) {
             MArraySet(introSceneSetup.assets.models, i, overrideModels.arr[i]);
@@ -757,7 +756,6 @@ __stdargs int main(int argc, char** argv) {
             u64 delta = Intro_GetTimeForFrameOffset(&sIntro, sFrameOffset);
             sStartTime = sCurrentClock - (((delta + 1) * sClockTickInterval) / 100);
             Audio_ModStartAt(&sAudio, sModToPlay, (delta + 1) / 2);
-            MLogf("%lld", sStartTime);
         }
 
         b32 isDone = FALSE;

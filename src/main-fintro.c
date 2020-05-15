@@ -75,7 +75,7 @@ int main(int argc, char**argv) {
 
     ModelsArray overrideModels;
     MArrayInit(overrideModels);
-    MReadFileRet overridesFile = Assets_LoadModelOverrides("data/models-intro-le.dat", &overrideModels);
+    MReadFileRet overridesFile = Assets_LoadModelOverrides("data/overrides-le.dat", &overrideModels);
     for (int i = 0; i < MArraySize(overrideModels); i++) {
         if (overrideModels.arr[i]) {
             MArraySet(introSceneSetup.assets.models, i, overrideModels.arr[i]);
