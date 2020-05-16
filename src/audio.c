@@ -43,7 +43,7 @@ enum EffectEnum {
 
 static u16 sModInitializeEffect[2] = { MBIGENDIAN16(EffectType_NEXT_TRACK) }; // Switch track
 static u16 sModInitialTracks[4] = { 0, 0, 0, 0 }; // Play first track
-static u16 sVolumeRampBlank[3] = { 0, 0, 0xff }; // Zero volume recurring
+static u16 sVolumeRampBlank[3] = { 0, 0, MBIGENDIAN16(0xff) }; // Zero volume recurring
 static b32 sModLog = FALSE;
 
 typedef struct sAudioSample {
@@ -436,12 +436,13 @@ void Audio_ModStopChannel(AudioContext* audio, ChannelRegisters* hw, u16 channel
 }
 
 void Audio_ModChannelAdjustVolume(AudioContext* audio, u32 channelId, ModChannelData* modChannelData, ChannelRegisters* hw) {
-    if (MBIGENDIAN16(*modChannelData->volumeRamp) == 0xff) {
+    u16 volume = MBIGENDIAN16(*modChannelData->volumeRamp);
+    if (volume == 0xff) {
         // volume ramp end, replay last value
         modChannelData->volumeRamp -= 1;
     }
 
-    u16 volume = (u16)MBIGENDIAN16(*(modChannelData->volumeRamp++));
+    volume = MBIGENDIAN16(*(modChannelData->volumeRamp++));
 
     if (audio->modApplyVolumeSuppress) {
         if (audio->modVolumeSuppress > volume) {
@@ -743,7 +744,7 @@ static void Audio_ModChannelInit(AudioContext* audio, u16 channelId) {
     modData->nextEffect = audio->modDefaultEffects[channelId];
     audio->modChannel[channelId] = 0;
     modData->noteTimeRemaining = 0;
-    modData->volumeHW = 0;
+    modData->volumeHW = 0xff;
 }
 
 static void Audio_ProgressTickInternal(AudioContext* audio) {
