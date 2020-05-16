@@ -5,9 +5,10 @@ set(CMAKE_CXX_STANDARD 11)
 
 include_directories(src)
 
+# SDL based fintro
 add_executable(
         fintro
-        src/main-fintro.c
+        src/main-sdl.c
         src/render.h
         src/render.c
         src/renderinternal.h
@@ -23,6 +24,8 @@ add_executable(
         src/fmath.c
 )
 
+# Amiga fintro, this exe project is just to get IDE source code inspections - to actually build
+# use 'amiga/build-ami-gcc.sh' (I build on Debian with bebbo's gcc).
 add_executable(
         fintro-amiga
         src/main-amiga.c
@@ -48,10 +51,12 @@ IF(MINGW)
     target_compile_options(fintro PRIVATE -mconsole)
 ENDIF()
 
-target_compile_definitions(fintro PRIVATE -DUSE_SDL)
-target_compile_definitions(fintro-amiga PRIVATE -DAMIGA -DFINTRO_SCREEN_RES=2 -DSURFACE_HEIGHT=400)
-target_include_directories(fintro-amiga PRIVATE ../../m68k-amigaos/ndk-include ../../m68k-amigaos/include)
+target_compile_definitions(fintro PRIVATE -DUSE_SDL -DFINTRO_SCREEN_RES=3)
 target_compile_options(fintro PRIVATE -ggdb)
+
+# Point to your actual AmigaOS NDK
+target_compile_definitions(fintro-amiga PRIVATE -DAMIGA -DFINTRO_SCREEN_RES=2)
+target_include_directories(fintro-amiga PRIVATE ../../m68k-amigaos/ndk-include ../../m68k-amigaos/include)
 
 IF(APPLE)
     find_library(SDL2_LIBRARY SDL2 REQUIRED)

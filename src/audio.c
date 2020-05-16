@@ -16,6 +16,8 @@
 #define VOLUME_SCALE 128
 #define AUDIO_BUFFER_SIZE 4096
 
+#define VOLUME_UNSET 0xffffu
+
 #include "amigahw.h"
 
 // First hunk offset, this is to apply any fixups to absolute address pointers
@@ -264,9 +266,11 @@ u32 Audio_Init(AudioContext* audio, u8* data, u32 size) {
     audio->modDefaultEffects[3] = (u16*)(audio->data + 0xcc0);
 
     for (int i = 0; i < 8; ++i) {
-        audio->modChannelData[i].nextEffect = (u16*)sModInitializeEffect;
-        audio->modChannelData[i].nextTrack = (u16*)sModInitialTracks;
-        audio->modChannelData[i].trackList = (u16*)sModInitialTracks;
+        ModChannelData* channel = audio->modChannelData + i;
+        channel->nextEffect = (u16*)sModInitializeEffect;
+        channel->nextTrack = (u16*)sModInitialTracks;
+        channel->trackList = (u16*)sModInitialTracks;
+        channel->volumeHW = VOLUME_UNSET;
     }
 
 #ifdef AMIGA
@@ -343,18 +347,18 @@ void Audio_ModStartAt(AudioContext* audio, int modIndex, u32 tickOffset) {
 
         for (int i = 0; i < 4; ++i) {
             u32 offset = MBIGENDIAN32(*(moduleData++));
-            modChannelData[i].trackList = (u16*)DATA_OFFSET_TO_PTR(offset);
-            modChannelData[i].nextEffect = sModInitializeEffect;
-            modChannelData[i].nextTrack = sModInitialTracks;
+
+            ModChannelData* channel = audio->modChannelData + i;
+            channel->trackList = (u16*)DATA_OFFSET_TO_PTR(offset);
+            channel->nextEffect = sModInitializeEffect;
+            channel->nextTrack = sModInitialTracks;
         }
     }
 
-    for (int i = 1; i <= 4; ++i) {
-        modChannelData[i].channelId = i;
-    }
-
-    for (int i = 8; i > 4; --i) {
-        modChannelData[i].channelId = i;
+    for (int i = 0; i < 8; ++i) {
+        ModChannelData* channel = audio->modChannelData + i;
+        channel->channelId = i;
+        channel->volumeHW = VOLUME_UNSET;
     }
 
 #ifdef USE_SDL
@@ -744,7 +748,7 @@ static void Audio_ModChannelInit(AudioContext* audio, u16 channelId) {
     modData->nextEffect = audio->modDefaultEffects[channelId];
     audio->modChannel[channelId] = 0;
     modData->noteTimeRemaining = 0;
-    modData->volumeHW = 0xff;
+    modData->volumeHW = VOLUME_UNSET;
 }
 
 static void Audio_ProgressTickInternal(AudioContext* audio) {

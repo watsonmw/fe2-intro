@@ -144,6 +144,9 @@ int main(int argc, char**argv) {
                     break;
                 case SDL_KEYUP:
                     break;
+                case SDL_MOUSEBUTTONDOWN:
+                    done = TRUE;
+                    break;
                 case SDL_WINDOWEVENT:
                     if (event.window.event == SDL_WINDOWEVENT_CLOSE &&
                         event.window.windowID == SDL_GetWindowID(window)) {

@@ -31,7 +31,7 @@ typedef struct sModChannelData {
     // Last period value written to hardware
     i16 periodHW;
 
-    // Last volume value written to hardware
+    // Last volume value written to hardware, 0xffff if no value written
     u16 volumeHW;
 
     // Current volume ramp, each tick read a new volume value
