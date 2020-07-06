@@ -24,7 +24,7 @@ To run on an Amiga (with RTG), an LHA is available from the github pages:
 
     https://github.com/watsonmw/fe2-intro/releases
 
-It runs great on a Vampire and UAE.  If you run on real 68060 let me know!
+It runs great on a Vampire and UAE.  If you run on a real 68060 let me know!
 
 
 Why?

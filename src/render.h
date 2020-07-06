@@ -209,17 +209,6 @@ void Palette_CopyAllColoursRGB(PaletteContext* context, RGB* palette);
 void Palette_CopyDynamicColours16(PaletteContext* context, u16* palette);
 void Palette_CopyFixedColours16(PaletteContext* context, u16* palette);
 
-// Object Render functions
-typedef struct sByteCodeTrace {
-    u32 index;
-    u16 result;
-} ByteCodeTrace;
-
-#ifdef FINSPECTOR
-MARRAY_TYPEDEF(u32, u32Array)
-MARRAY_TYPEDEF(ByteCodeTrace, ByteCodeTraceArray)
-#endif
-
 typedef struct MMemStack {
     u8* mem;
     u8* pos;

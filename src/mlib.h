@@ -167,7 +167,7 @@ MINLINE void MBreakpoint(const char* str) {
 #define MMACRO_QUOTE(name) __MMACRO_QUOTE(name)
 
 /////////////////////////////////////////////////////////
-// Mem buffer reading / writing
+// Memory reading / writing
 //
 typedef struct {
     u8* pos;  // current pos in memory buffer
@@ -176,11 +176,17 @@ typedef struct {
     u32 capacity; // size of memory buffer allocated
 } MMemIO;
 
-void MMemInit(MMemIO* memIO, u8* mem, u32 size);
+// Initialise MMemIO to write to existing memory
+// size is set to zero and pos set to 'mem'
+void MMemInit(MMemIO* memIO, u8* mem, u32 capacity);
 
-void MMemInit2(MMemIO* memIO, u8* mem, u32 size);
+// Initialise MMemIO to read from existing memory
+// capacity and size are initialized to the same value
+// and pos is the start of memory
+void MMemReadInit(MMemIO* memIO, u8* mem, u32 size);
 
-void MMemAlloc(MMemIO* memIO, u32 size);
+// Allocate the given amount of memory and
+void MMemInitAlloc(MMemIO* memIO, u32 size);
 
 MINTERNAL void MMemFree(MMemIO* memIO) {
     MFree(memIO->mem);
@@ -208,13 +214,26 @@ void MMemWriteI8CopyN(MMemIO* writer, i8* src, u32 size);
 
 // --- Reading ---
 // Read data at current pos and advance.
+i32 MMemReadI8(MMemIO* reader, i8* val);
+i32 MMemReadU8(MMemIO* reader, u8* val);
+
+i32 MMemReadI16(MMemIO* reader, i16* val);
+i32 MMemReadI16BE(MMemIO* reader, i16* val);
+i32 MMemReadI16LE(MMemIO* reader, i16* val);
+i32 MMemReadU16(MMemIO* reader, u16* val);
 i32 MMemReadU16BE(MMemIO* reader, u16* val);
+i32 MMemReadU16LE(MMemIO* reader, u16* val);
 
+i32 MMemReadI32(MMemIO* reader, i32* val);
+i32 MMemReadI32BE(MMemIO* reader, i32* val);
+i32 MMemReadI32LE(MMemIO* reader, i32* val);
+i32 MMemReadU32(MMemIO* reader, u32* val);
 i32 MMemReadU32BE(MMemIO* reader, u32* val);
+i32 MMemReadU32LE(MMemIO* reader, u32* val);
 
-i32 MMemReadU8CopyN(MMemIO* reader, u8* dest, u32 size);
+i32 MMemReadU8CopyN(MMemIO* reader, u8* dst, u32 size);
 
-i32 MMemReadI8CopyN(MMemIO* reader, i8* dest, u32 size);
+i32 MMemReadI8CopyN(MMemIO* reader, i8* dst, u32 size);
 
 // Read a string
 char* MMemReadStr(MMemIO* reader);
@@ -351,6 +370,9 @@ MINLINE i32 M_ArrayInsertSpace(MEMDEBUG_SOURCE_DEFINE void** arr, MArrayInfo* p,
     return 1;
 }
 
+MARRAY_TYPEDEF(u32, u32Array)
+MARRAY_TYPEDEF(u64, u64Array)
+
 /////////////////////////////////////////////////////////
 // File Reading / Writing
 
@@ -409,6 +431,9 @@ MINTERNAL u32 MStrLen(const char* str) {
     while (*str++) n++;
     return n;
 }
+
+i32 MStringAppend(MMemIO* memIo, const char* str);
+i32 MStringAppendf(MMemIO* memIo, const char* format, ...);
 
 /////////////////////////////////////////////////////////
 // Simple ini file reading / Writing

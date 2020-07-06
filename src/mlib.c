@@ -396,7 +396,7 @@ void M_MemResize(MMemIO* memIO, u32 newMinSize) {
     memIO->capacity = newSize;
 }
 
-void MMemAlloc(MMemIO* memIO, u32 size) {
+void MMemInitAlloc(MMemIO* memIO, u32 size) {
     u8* mem = (u8*)MMalloc(size);
     MMemInit(memIO, mem, size);
 }
@@ -408,7 +408,7 @@ void MMemInit(MMemIO* memIO, u8* mem, u32 size) {
     memIO->size = 0;
 }
 
-void MMemInit2(MMemIO* memIO, u8* mem, u32 size) {
+void MMemReadInit(MMemIO* memIO, u8* mem, u32 size) {
     memIO->pos = mem;
     memIO->mem = mem;
     memIO->capacity = size;
@@ -520,30 +520,174 @@ void MMemWriteI8CopyN(MMemIO* memIO, i8* src, u32 size) {
     memIO->size = newSize;
 }
 
-i32 MMemReadU16BE(MMemIO* memIO, u16* val) {
-    if (memIO->pos + 2 > memIO->mem + memIO->size) {
-        memIO->pos += 2;
+i32 MMemReadI8(MMemIO* memIO, i8* val) {
+    if (memIO->pos >= memIO->mem + memIO->size) {
         return -1;
     }
 
-    u16 b1 = *(memIO->pos++);
-    u16 b2 = *(memIO->pos++);
-    *(val) = (b1 << 8) + b2;
+    *(val) = *((i8*)(memIO->pos++));
+
+    return 0;
+}
+
+i32 MMemReadU8(MMemIO* memIO, u8* val) {
+    if (memIO->pos >= memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    *(val) = *(memIO->pos++);
+
+    return 0;
+}
+
+i32 MMemReadI16(MMemIO* memIO, i16* val) {
+    if (memIO->pos + 2 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    *(val) = *((i16*)memIO->pos);
+
+    memIO->pos += 2;
+
+    return 0;
+}
+
+i32 MMemReadI16BE(MMemIO* memIO, i16* val) {
+    if (memIO->pos + 2 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    i16 v = *((i16*)memIO->pos);
+    *(val) = MLITTLEENDIAN16(v);
+
+    memIO->pos += 2;
+
+    return 0;
+}
+
+i32 MMemReadI16LE(MMemIO* memIO, i16* val) {
+    if (memIO->pos + 2 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    i16 v = *((i16*)memIO->pos);
+    *(val) = MLITTLEENDIAN16(v);
+
+    memIO->pos += 2;
+
+    return 0;
+}
+
+i32 MMemReadU16(MMemIO* memIO, u16* val) {
+    if (memIO->pos + 2 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    *(val) = *((u16*)memIO->pos);
+
+    memIO->pos += 2;
+
+    return 0;
+}
+
+i32 MMemReadU16BE(MMemIO* memIO, u16* val) {
+    if (memIO->pos + 2 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    u16 v = *((u16*)memIO->pos);
+    *(val) = MLITTLEENDIAN16(v);
+
+    memIO->pos += 2;
+
+    return 0;
+}
+
+i32 MMemReadU16LE(MMemIO* memIO, u16* val) {
+    if (memIO->pos + 2 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    u16 v = *((u16*)memIO->pos);
+    *(val) = MLITTLEENDIAN16(v);
+
+    memIO->pos += 2;
+
+    return 0;
+}
+
+i32 MMemReadI32(MMemIO* memIO, i32* val) {
+    if (memIO->pos + 4 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    *(val) = *((i32*)memIO->pos);
+
+    memIO->pos += 4;
+
+    return 0;
+}
+
+i32 MMemReadI32LE(MMemIO* memIO, i32* val) {
+    if (memIO->pos + 4 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    i32 v = *((i32*)memIO->pos);
+    *(val) = MLITTLEENDIAN32(v);
+
+    memIO->pos += 4;
+
+    return 0;
+}
+
+i32 MMemReadI32BE(MMemIO* memIO, i32* val) {
+    if (memIO->pos + 4 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    i32 v = *((i32*)memIO->pos);
+    *(val) = MBIGENDIAN32(v);
+
+    memIO->pos += 4;
+
+    return 0;
+}
+
+i32 MMemReadU32(MMemIO* memIO, u32* val) {
+    if (memIO->pos + 4 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    *(val) = *((u32*)memIO->pos);
+
+    memIO->pos += 4;
+
+    return 0;
+}
+
+i32 MMemReadU32LE(MMemIO* memIO, u32* val) {
+    if (memIO->pos + 4 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+    u32 v = *((u32*)memIO->pos);
+    *(val) = MLITTLEENDIAN32(v);
+
+    memIO->pos += 4;
 
     return 0;
 }
 
 i32 MMemReadU32BE(MMemIO* memIO, u32* val) {
     if (memIO->pos + 4 > memIO->mem + memIO->size) {
-        memIO->pos += 4;
         return -1;
     }
 
-    u16 b1 = *(memIO->pos++);
-    u16 b2 = *(memIO->pos++);
-    u16 b3 = *(memIO->pos++);
-    u16 b4 = *(memIO->pos++);
-    *(val) = (((((b1 << 8) + b2) << 8) + b3) << 8) + b4;
+    u32 v = *((u32*)memIO->pos);
+    *(val) = MBIGENDIAN32(v);
+
+    memIO->pos += 4;
 
     return 0;
 }
@@ -706,6 +850,71 @@ void MStrU32ToBinary(u32 val, int size, char* out) {
         char c = ((val & z) == z) ? '1' : '0';
         out[i] = c;
     }
+}
+
+i32 MStringAppend(MMemIO* memIo, const char* str) {
+    i32 len = MStrLen(str);
+
+    i32 newSize = memIo->size + len + 1;
+    if (newSize > memIo->capacity) {
+        M_MemResize(memIo, newSize);
+    }
+
+    memcpy(memIo->pos, str, len + 1);
+    memIo->size += len;
+    memIo->pos += len;
+
+    return len;
+}
+
+// -1 is returned in some cases when the size of the buffer is too small,
+// Windows only does this when the encoding is incorrect, but GCC will do it
+// when the buffer is too small to contain the output.
+#define VSNPRINTF_MINUS_1_RETRY 1
+
+i32 MStringAppendf(MMemIO* memIo, const char* format, ...) {
+    i32 writableLen = memIo->capacity - memIo->size;
+    i32 size = 0;
+    va_list vargs;
+    va_start(vargs, format);
+    if (writableLen <= 1) {
+        size = vsnprintf(NULL, 0, format, vargs);
+        if (size > 0) {
+            i32 newSize = memIo->size + size + 1;
+            M_MemResize(memIo, newSize);
+            writableLen = memIo->capacity - memIo->size;
+            size = vsnprintf((char*)memIo->pos, writableLen, format, vargs);
+        }
+    } else {
+        size = vsnprintf((char*)memIo->pos, writableLen, format, vargs);
+        if (size >= writableLen) {
+            i32 newSize = memIo->size + size + 1;
+            M_MemResize(memIo, newSize);
+            size = vsnprintf((char*) memIo->pos, writableLen, format, vargs);
+        }
+#if VSNPRINTF_MINUS_1_RETRY == 1
+        else if (size < 0) {
+            size = vsnprintf(NULL, 0, format, vargs);
+            if (size > 0) {
+                i32 newSize = memIo->size + size + 1;
+                M_MemResize(memIo, newSize);
+                writableLen = memIo->capacity - memIo->size;
+                size = vsnprintf((char*)memIo->pos, writableLen, format, vargs);
+            }
+        }
+#endif
+    }
+
+    if (size < 0) {
+        MLogf("Encoding error for sprintf format: %s", format);
+    } else {
+        memIo->size += size;
+        memIo->pos += size;
+    }
+
+    va_end(vargs);
+
+    return size;
 }
 
 i32 MIniLoadFile(MIni* ini, const char* fileName) {

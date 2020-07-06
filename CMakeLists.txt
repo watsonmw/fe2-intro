@@ -22,6 +22,8 @@ add_executable(
         src/assets.c
         src/fmath.h
         src/fmath.c
+        src/modelcode.h
+        src/modelcode.c
 )
 
 # Amiga fintro, this exe project is just to get IDE source code inspections - to actually build

@@ -95,7 +95,6 @@ static u64 sCurrentClock;
 
 static u16 sModToPlay = Audio_ModEnum_FRONTIER_THEME_INTRO;
 static const char* sFrontierExePath;
-static b32 sDisableOs;
 static b32 sProfile;
 static b32 sProfileFrame;
 static b32 sProfileSteps;
@@ -513,9 +512,6 @@ static i32 ParseCommandLine(int argc, char** argv) {
                         sModToPlay = mod;
                     }
                 }
-            } else if (strcmp("hw", arg + 1) == 0) {
-                MLog("disable os");
-                sDisableOs = TRUE;
             } else if (strcmp("f", arg + 1) == 0) {
                 i++;
                 if (i >= argc) {
@@ -668,7 +664,7 @@ __stdargs int main(int argc, char** argv) {
 
     MMemIO stats;
     if (sProfile) {
-        MMemAlloc(&stats, 1000);
+        MMemInitAlloc(&stats, 1000);
     }
 
     if (sProfileFrame) {
