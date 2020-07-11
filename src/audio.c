@@ -24,6 +24,12 @@
 #define FILE_MAP_OFFSET 0x228
 #define DATA_OFFSET_TO_PTR(n) ((u8*)(audio->data + FILE_MAP_OFFSET + n))
 
+#ifdef AMIGA
+#define WRITE_SAMPLE_PTR(hwReg, val) HW_WRITE32(hwReg, val)
+#else
+#define WRITE_SAMPLE_PTR(hwReg, val) *hwReg = val
+#endif
+
 enum EffectEnum {
     EffectType_DONE = 0,
     EffectType_NOTE = 1 << 2,
@@ -473,7 +479,7 @@ void Audio_ModChannelProgress(AudioContext* audio, ModChannelData* modChannelDat
             }
         } else {
             if (modChannelData->noteSetState == 3) {
-                HW_WRITE32(&hw->pos, modChannelData->nextSampleData);
+                WRITE_SAMPLE_PTR(&hw->pos, modChannelData->nextSampleData);
                 HW_WRITE16(&hw->len, modChannelData->nextSampleLen);
                 if (sModLog) {
                     u32 fileOffset = hw->pos - audio->data;
@@ -556,7 +562,7 @@ void Audio_ModChannelProgress(AudioContext* audio, ModChannelData* modChannelDat
                         u16* noteData = (u16*)DATA_OFFSET_TO_PTR(offset);
                         if (*noteData == 0) {
                             modChannelData->noteSetState = MBIGENDIAN16(*(noteData++));
-                            HW_WRITE32(&hw->pos, Audio_GetSampleData(MBIGENDIAN32(*((u32*)noteData))));
+                            WRITE_SAMPLE_PTR(&hw->pos, Audio_GetSampleData(MBIGENDIAN32(*((u32*)noteData))));
                             noteData += 2;
                             HW_WRITE16(&hw->len, MBIGENDIAN16(*(noteData)));
                             if (sModLog) {
@@ -697,7 +703,7 @@ void Audio_ModChannelProgress(AudioContext* audio, ModChannelData* modChannelDat
                 HW_WRITE16(&hw->period, wordCode);
                 if (modChannelData->noteSetState) {
                     modChannelData->noteSetState = 3;
-                    HW_WRITE32(&hw->pos, modChannelData->sampleData);
+                    WRITE_SAMPLE_PTR(&hw->pos, modChannelData->sampleData);
                     HW_WRITE16(&hw->len, modChannelData->sampleLen);
                 }
 
@@ -915,8 +921,6 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
     cvt.len = hw->len * 2;
     cvt.buf = (Uint8 *) MMalloc(cvt.len * cvt.len_mult);
 
-    // Sample quality is pretty bad, do some basic cleanups to reduce clicking.
-    // Some samples are changed to correctly line up phase when looping.
     memcpy(cvt.buf, hw->pos, cvt.len);
 
     int r = SDL_ConvertAudio(&cvt);
