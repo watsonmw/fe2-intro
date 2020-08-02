@@ -35,9 +35,14 @@ typedef struct sDebugModelParams {
     ByteCodeTraceArray* byteCodeTrace;
 } DebugModelParams;
 
-void DecompileModel(ModelData* model, u32 modelIndex, DebugModelParams* debugModelParams, DebugModelInfo* modelInfo, MMemIO* strOutput);
+typedef enum eModelType {
+    ModelType_OBJ,
+    ModelType_FONT,
+} ModelType;
 
-void DecompileModelToConsole(ModelData* modelData, u32 modelIndex);
+void DecompileModel(ModelData* model, u32 modelIndex, ModelType modelType, DebugModelParams* debugModelParams, DebugModelInfo* modelInfo, MMemIO* strOutput);
+
+void DecompileModelToConsole(ModelData* modelData, u32 modelIndex, ModelType modelType);
 
 typedef struct sModelCompileResult {
     u32 modelStartOffset;

@@ -207,36 +207,38 @@ static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, 
 
     MStringAppend(writer, "\n");
 
-    modelInfo->numNormals = (model->normalDataSize / 4) - 1;
-    MStringAppendf(writer, "normals: ; %d\n", modelInfo->numNormals);
+    if (model->normalDataSize > 0) {
+        modelInfo->numNormals = (model->normalDataSize / 4) - 1;
+        MStringAppendf(writer, "normals: ; %d\n", modelInfo->numNormals);
 
-    u16* normalDataPtr = (u16*) (((u8*)model) + model->normalsOffset);
-    for (int i = 0; i < modelInfo->numNormals; i++) {
-        u16 n1 = normalDataPtr[(i<<1)];
-        u16 n2 = normalDataPtr[(i<<1) + 1];
+        u16* normalDataPtr = (u16*) (((u8*) model) + model->normalsOffset);
+        for (int i = 0; i < modelInfo->numNormals; i++) {
+            u16 n1 = normalDataPtr[(i << 1)];
+            u16 n2 = normalDataPtr[(i << 1) + 1];
 
-        i8 x = (i8)(n1 & 0xff);
-        i8 y = (i8)(n2 >> 8);
-        i8 z = (i8)(n2 & 0xff);
+            i8 x = (i8) (n1 & 0xff);
+            i8 y = (i8) (n2 >> 8);
+            i8 z = (i8) (n2 & 0xff);
 
-        i8 vi = (i8)(n1 >> 8);
-        if (vi < 0) {
-            modelInfo->referencesParent = TRUE;
+            i8 vi = (i8) (n1 >> 8);
+            if (vi < 0) {
+                modelInfo->referencesParent = TRUE;
+            }
+
+            u8* preSize = writer->pos;
+
+            MStringAppendf(writer, "  %3d (%d, %d, %d)", vi, x, y, z);
+
+            int lenWrote = writer->pos - preSize;
+            while (lenWrote < 30) {
+                MStringAppend(writer, " ");
+                lenWrote++;
+            }
+            MStringAppendf(writer, "; %3d %04x:%04x\n", (1 + i) << 1, n1, n2);
         }
 
-        u8* preSize = writer->pos;
-
-        MStringAppendf(writer, "  %3d (%d, %d, %d)", vi, x, y, z);
-
-        int lenWrote = writer->pos - preSize;
-        while (lenWrote < 30) {
-            MStringAppend(writer, " ");
-            lenWrote++;
-        }
-        MStringAppendf(writer, "; %3d %04x:%04x\n", (1 + i) << 1, n1, n2);
+        MStringAppend(writer, "\n");
     }
-
-    MStringAppend(writer, "\n");
 }
 
 static void DumpComplexInfo(MMemIO* dataReader, u64 offsetBegin, ByteCodeTraceArray* byteCodeTrace, u32 onlyLabels, MMemIO* writer) {
@@ -436,25 +438,8 @@ static void DumpSubModelSetup(DebugModelInfo* modelInfo, MMemIO* writer,
     }
 }
 
-void DecompileModel(ModelData *model, u32 modelIndex, DebugModelParams* debugModelParams, DebugModelInfo* modelInfo, MMemIO* strOutput) {
-    u8* data = ((u8*)model) + model->codeOffset;
-
-    modelInfo->referencesParent = FALSE;
-
-    if (modelIndex) {
-        MStringAppendf(strOutput, "model: %d\n", modelIndex);
-    } else {
-        MStringAppend(strOutput, "model:\n");
-    }
-
-    MStringAppendf(strOutput, "  scale1: %d,\n  scale2: %d,\n  radius: %d,\n  colour: #%03x\n\n",
-                   model->scale1, model->scale2, model->radius, model->colour);
-
-    MArrayInit(modelInfo->modelIndexes);
-
-    DumpVerticesAndNormals(model, modelInfo, strOutput);
-
-    MStringAppend(strOutput, "code:\n");
+static void DumpModelCode(const ModelData* model, const u8* codeStart, const DebugModelParams* debugModelParams,
+                          DebugModelInfo* modelInfo, MMemIO* strOutput) {
 
     int buffSize = 256;
     char buff1[buffSize];
@@ -468,11 +453,11 @@ void DecompileModel(ModelData *model, u32 modelIndex, DebugModelParams* debugMod
     MArrayInit(codeOffsets);
 
     MMemIO dataReader;
-    MMemReadInit(&dataReader, (u8*) model + model->codeOffset, debugModelParams->maxSize);
+    MMemReadInit(&dataReader, (u8*) codeStart, debugModelParams->maxSize);
 
     while (!MMemReadDone(&dataReader)) {
         u8* begin = dataReader.pos;
-        u64 insOffset = offsetBegin + (dataReader.pos - data);
+        u64 insOffset = offsetBegin + (dataReader.pos - codeStart);
         if (lastWasDone && largestOffset < insOffset) {
             break;
         } else {
@@ -1475,7 +1460,41 @@ void DecompileModel(ModelData *model, u32 modelIndex, DebugModelParams* debugMod
     MArrayFree(codeOffsets);
 }
 
-void DecompileModelToConsole(ModelData* modelData, u32 modelIndex) {
+void DecompileModel(ModelData *model, u32 modelIndex, ModelType modelType, DebugModelParams* debugModelParams, DebugModelInfo* modelInfo, MMemIO* strOutput) {
+    u8* codeStart = ((u8*)model) + model->codeOffset;
+
+    modelInfo->referencesParent = FALSE;
+
+    if (modelIndex) {
+        MStringAppendf(strOutput, "model: %d\n", modelIndex);
+    } else {
+        MStringAppend(strOutput, "model:\n");
+    }
+
+    MStringAppendf(strOutput, "  scale1: %d,\n  scale2: %d,\n  radius: %d,\n  colour: #%03x\n\n",
+                   model->scale1, model->scale2, model->radius, model->colour);
+
+    MArrayInit(modelInfo->modelIndexes);
+
+    DumpVerticesAndNormals(model, modelInfo, strOutput);
+
+    if (modelType == ModelType_OBJ) {
+        MStringAppend(strOutput, "\ncode:\n");
+        DumpModelCode(model, codeStart, debugModelParams, modelInfo, strOutput);
+    } else {
+        FontModelData* fontModel = (FontModelData*) model;
+        u16* offsets = fontModel->offsets;
+        int i = 0;
+        do {
+            MStringAppendf(strOutput, "\nchar: '%c'\n", (char) (i + 0x20));
+            codeStart = ((u8*) model) + offsets[i++];
+            DumpModelCode(model, codeStart, debugModelParams, modelInfo, strOutput);
+        } while (i < 8); // 0x60
+ //       } while ((offsets[i] != 0 && i < 50)); // 0x60
+    }
+}
+
+void DecompileModelToConsole(ModelData* modelData, u32 modelIndex, ModelType modelType) {
     MMemIO writer;
     MMemInitAlloc(&writer, 100);
     DebugModelInfo modelInfo;
@@ -1483,7 +1502,7 @@ void DecompileModelToConsole(ModelData* modelData, u32 modelIndex) {
     memset(&params,  0, sizeof(DebugModelParams));
     params.maxSize = 0xfff;
     params.onlyLabels = 1;
-    DecompileModel(modelData, modelIndex, &params, &modelInfo, &writer);
+    DecompileModel(modelData, modelIndex, modelType, &params, &modelInfo, &writer);
     MLog((char*)writer.mem);
     MArrayFree(modelInfo.modelIndexes);
     MMemFree(&writer);
@@ -4063,6 +4082,9 @@ MARRAY_TYPEDEF(ModelOffset, ModelOffsetsArray)
 ModelCompileResult CompileMultipleModels(const char* dataIn, u32 sizeIn, MMemIO* memOutput, ModelsArray* outModels,
         ModelEndianEnum endian, b32 dumpModelsToConsole) {
 
+
+    ModelType modelType = ModelType_OBJ;
+
     ModelParserContext parserContext;
     parserContext.textCurr = dataIn;
     parserContext.textEnd = dataIn + sizeIn;
@@ -4092,7 +4114,7 @@ ModelCompileResult CompileMultipleModels(const char* dataIn, u32 sizeIn, MMemIO*
         } else {
             if (dumpModelsToConsole) {
                 ModelData* modelData = ((ModelData*)(memOutput->mem + parserContext.result.modelStartOffset));
-                DecompileModelToConsole(modelData, parserContext.result.modelIndex);
+                DecompileModelToConsole(modelData, parserContext.result.modelIndex, modelType);
             }
             ModelOffset* modelOffset = MArrayAddPtr(modelOffsets);
             modelOffset->modelIndex =parserContext.result.modelIndex;
@@ -4193,6 +4215,8 @@ void TestModelCompile(MMemIO* memOutput, const char* testData, u32 testDataLen,
 
     ModelCompileResult result = CompileModel(testData, testDataLen, memOutput);
 
+    ModelType modelType = ModelType_OBJ;
+
     if (error) {
         if (!result.error) {
             MLogf("Expected error: %s", error);
@@ -4211,7 +4235,7 @@ void TestModelCompile(MMemIO* memOutput, const char* testData, u32 testDataLen,
         }
 
         ModelData* modelData = ((ModelData*)(memOutput->mem + result.modelStartOffset));
-        DecompileModelToConsole(modelData, result.modelIndex);
+        DecompileModelToConsole(modelData, result.modelIndex, modelType);
     }
 
     if (result.error) {

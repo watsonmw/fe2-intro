@@ -47,7 +47,7 @@ static void RenderIntroAtTime(Intro* intro, SceneSetup* sceneSetup, int frameOff
     Palette_CopyDynamicColoursRGB(&sceneSetup->raster->paletteContext, (RGB*) sFIntroPalette);
 }
 
-MReadFileRet LoadAmigaExe() {
+static MReadFileRet LoadAmigaExe() {
     MReadFileRet amigaExeData;
     if (sFrontierExePath) {
         amigaExeData = MFileReadFully(sFrontierExePath);
@@ -107,9 +107,9 @@ static i32 ParseCommandLine(int argc, char** argv) {
     }
 }
 
-static void WriteAllModels(ModelsArray* modelsArray, u8* dataStart) {
-    size_t i = 2;
-    int foundNull = 0;
+static void WriteAllModels(ModelsArray* modelsArray, u8* dataStart, ModelType modelType, i32 start) {
+    i32 i = start;
+    i32 foundNull = 0;
     MMemIO writer;
     MMemInitAlloc(&writer, 100);
 
@@ -131,13 +131,16 @@ static void WriteAllModels(ModelsArray* modelsArray, u8* dataStart) {
             DebugModelInfo modelInfo;
             params.offsetBegin = byteCodeBegin;
 
-            DecompileModel(modelData, i, &params, &modelInfo, &writer);
+            DecompileModel(modelData, i, modelType, &params, &modelInfo, &writer);
 
             MArrayFree(modelInfo.modelIndexes);
 
             MLog((char*)writer.mem);
             writer.size = 0;
             writer.pos = writer.mem;
+            if (i == 2) {
+                break;
+            }
         }
 
         i++;
@@ -179,12 +182,12 @@ int main(int argc, char**argv) {
     Intro_InitAmiga(&intro, &introSceneSetup, &assetsDataAmiga);
 
     if (sDumpIntroModels) {
-        WriteAllModels(&introSceneSetup.assets.models, assetsDataAmiga.mainExeData);
+        WriteAllModels(&introSceneSetup.assets.models, assetsDataAmiga.mainExeData, ModelType_OBJ, 2);
         return 0;
     }
 
     if (sDumpFontModels) {
-        WriteAllModels(&introSceneSetup.assets.fontModels, assetsDataAmiga.mainExeData);
+        WriteAllModels(&introSceneSetup.assets.fontModels, assetsDataAmiga.mainExeData, ModelType_FONT, 0);
         return 0;
     }
 

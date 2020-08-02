@@ -25,7 +25,7 @@ typedef struct sModelData {
 } MSTRUCTPACKED ModelData;
 
 typedef struct sFontModelData {
-    u16 byteCodeOffset;   // 0
+    u16 codeOffset;       // 0
     u16 vertexDataOffset; // 2
     u16 verticesDataSize; // 4 - (* (64 - some size)
     u16 normalsOffset;    // 6
