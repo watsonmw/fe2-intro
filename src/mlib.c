@@ -890,6 +890,7 @@ i32 MStringAppendf(MMemIO* memIo, const char* format, ...) {
         if (size >= writableLen) {
             i32 newSize = memIo->size + size + 1;
             M_MemResize(memIo, newSize);
+            writableLen = memIo->capacity - memIo->size;
             size = vsnprintf((char*) memIo->pos, writableLen, format, vargs);
         }
 #if VSNPRINTF_MINUS_1_RETRY == 1

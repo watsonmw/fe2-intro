@@ -438,8 +438,8 @@ static void DumpSubModelSetup(DebugModelInfo* modelInfo, MMemIO* writer,
     }
 }
 
-static void DumpModelCode(const ModelData* model, const u8* codeStart, const DebugModelParams* debugModelParams,
-                          DebugModelInfo* modelInfo, MMemIO* strOutput) {
+static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugModelParams, DebugModelInfo* modelInfo,
+        MMemIO* strOutput) {
 
     int buffSize = 256;
     char buff1[buffSize];
@@ -1460,9 +1460,7 @@ static void DumpModelCode(const ModelData* model, const u8* codeStart, const Deb
     MArrayFree(codeOffsets);
 }
 
-void DecompileModel(ModelData *model, u32 modelIndex, ModelType modelType, DebugModelParams* debugModelParams, DebugModelInfo* modelInfo, MMemIO* strOutput) {
-    u8* codeStart = ((u8*)model) + model->codeOffset;
-
+void DecompileModel(ModelData *model, u32 modelIndex, DebugModelParams* debugModelParams, DebugModelInfo* modelInfo, MMemIO* strOutput) {
     modelInfo->referencesParent = FALSE;
 
     if (modelIndex) {
@@ -1478,20 +1476,61 @@ void DecompileModel(ModelData *model, u32 modelIndex, ModelType modelType, Debug
 
     DumpVerticesAndNormals(model, modelInfo, strOutput);
 
-    if (modelType == ModelType_OBJ) {
-        MStringAppend(strOutput, "\ncode:\n");
-        DumpModelCode(model, codeStart, debugModelParams, modelInfo, strOutput);
-    } else {
-        FontModelData* fontModel = (FontModelData*) model;
-        u16* offsets = fontModel->offsets;
-        int i = 0;
-        do {
-            MStringAppendf(strOutput, "\nchar: '%c'\n", (char) (i + 0x20));
-            codeStart = ((u8*) model) + offsets[i++];
-            DumpModelCode(model, codeStart, debugModelParams, modelInfo, strOutput);
-        } while (i < 8); // 0x60
- //       } while ((offsets[i] != 0 && i < 50)); // 0x60
-    }
+    MStringAppend(strOutput, "code:\n");
+    u8* codeStart = ((u8*)model) + model->codeOffset;
+    DumpModelCode(codeStart, debugModelParams, modelInfo, strOutput);
+
+    MStringAppend(strOutput, "\n");
+}
+
+void DecompileFontModel(FontModelData* model, u32 modelIndex, DebugModelParams* debugModelParams,
+        DebugModelInfo* modelInfo, MMemIO* strOutput) {
+
+    modelInfo->referencesParent = FALSE;
+
+    MStringAppendf(strOutput, "font: %d\n", modelIndex);
+
+    MStringAppendf(strOutput, "  scale1: %d,\n  scale2: %d,\n  radius: %d,\n  colour: #%03x,\n  newLineVector: %d\n\n",
+                   model->scale1, model->scale2, model->radius, model->colour, model->newLineVector);
+
+    MArrayInit(modelInfo->modelIndexes);
+
+    DumpVerticesAndNormals((ModelData*)model, modelInfo, strOutput);
+
+    FontModelData* fontModel = (FontModelData*) model;
+    u16* offsets = fontModel->offsets;
+    int i = 0;
+    u16 minOffset = 0xffff;
+
+    int maxChars = 256;
+    int lastPrintableChar = 127;
+    int startChars = 32;
+
+    u16 offsetsMemberOffset = (u8*)offsets - (u8*)fontModel;
+    do {
+        u16 offset = offsets[i++];
+        if (offset < minOffset) {
+            minOffset = offset;
+        }
+        if (offset < debugModelParams->maxSize) {
+            MStringAppend(strOutput, "\nchar: '");
+            u8 c = (u8) (i + startChars);
+            if (c == '\'') {
+                MStringAppend(strOutput, "\\'");
+            } else if (c >= lastPrintableChar) {
+                MStringAppendf(strOutput, "\\%d", c);
+            } else {
+                MStringAppendf(strOutput, "%c", (char)c);
+            }
+            MStringAppendf(strOutput, "' ; %d : 0x%04x \n", (int)c, offset);
+            u8* codeStart = ((u8*) model) + offset;
+            DumpModelCode(codeStart, debugModelParams, modelInfo, strOutput);
+            // Break if next offset is overlapping code we got previously
+            if (offsetsMemberOffset + (i * 2) > minOffset) {
+                break;
+            }
+        }
+    } while (i  + startChars < maxChars);
 }
 
 void DecompileModelToConsole(ModelData* modelData, u32 modelIndex, ModelType modelType) {
@@ -1502,7 +1541,11 @@ void DecompileModelToConsole(ModelData* modelData, u32 modelIndex, ModelType mod
     memset(&params,  0, sizeof(DebugModelParams));
     params.maxSize = 0xfff;
     params.onlyLabels = 1;
-    DecompileModel(modelData, modelIndex, modelType, &params, &modelInfo, &writer);
+    if (modelType == ModelType_OBJ) {
+        DecompileModel(modelData, modelIndex, &params, &modelInfo, &writer);
+    } else {
+        DecompileFontModel((FontModelData*)modelData, modelIndex, &params, &modelInfo, &writer);
+    }
     MLog((char*)writer.mem);
     MArrayFree(modelInfo.modelIndexes);
     MMemFree(&writer);

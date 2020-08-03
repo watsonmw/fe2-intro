@@ -18,6 +18,7 @@ static u64 sCurrentClock;
 
 static u16 sModToPlay = Audio_ModEnum_FRONTIER_THEME_INTRO;
 static b32 sDumpIntroModels = FALSE;
+static b32 sDumpMainModels = FALSE;
 static b32 sDumpFontModels = FALSE;
 static const char* sFrontierExePath;
 static RGB sFIntroPalette[256];
@@ -98,17 +99,21 @@ static i32 ParseCommandLine(int argc, char** argv) {
                 }
             } else if (strcmp("dump-intro-models", arg + 1) == 0) {
                 sDumpIntroModels = TRUE;
-            } else if (strcmp("dump-font-models", arg + 1) == 0) {
+            } else if (strcmp("dump-models", arg + 1) == 0) {
+                sDumpMainModels = TRUE;
+            } else if (strcmp("dump-fonts", arg + 1) == 0) {
                 sDumpFontModels = TRUE;
             }
         } else {
             sFrontierExePath = arg;
         }
     }
+
+    return 0;
 }
 
-static void WriteAllModels(ModelsArray* modelsArray, u8* dataStart, ModelType modelType, i32 start) {
-    i32 i = start;
+static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
+    i32 i = 2;
     i32 foundNull = 0;
     MMemIO writer;
     MMemInitAlloc(&writer, 100);
@@ -131,19 +136,46 @@ static void WriteAllModels(ModelsArray* modelsArray, u8* dataStart, ModelType mo
             DebugModelInfo modelInfo;
             params.offsetBegin = byteCodeBegin;
 
-            DecompileModel(modelData, i, modelType, &params, &modelInfo, &writer);
+            DecompileModel(modelData, i, &params, &modelInfo, &writer);
 
             MArrayFree(modelInfo.modelIndexes);
 
             MLog((char*)writer.mem);
             writer.size = 0;
             writer.pos = writer.mem;
-            if (i == 2) {
+            if (i == 0) {
                 break;
             }
         }
 
         i++;
+    }
+
+    MMemFree(&writer);
+}
+
+static void WriteAllFontModels(ModelsArray* modelsArray, const u8* dataStart) {
+    MMemIO writer;
+    MMemInitAlloc(&writer, 100);
+
+    DebugModelParams params;
+    memset(&params,  0, sizeof(DebugModelParams));
+    params.maxSize = 0xfff;
+    params.onlyLabels = 1;
+
+    for (i32 i = 0; i < 2; i++) {
+        FontModelData* modelData = (FontModelData*) MArrayGet(*modelsArray, i);
+        u64 byteCodeBegin = ((u8*)modelData - dataStart) + modelData->codeOffset;
+        DebugModelInfo modelInfo;
+        params.offsetBegin = byteCodeBegin;
+
+        DecompileFontModel(modelData, i, &params, &modelInfo, &writer);
+
+        MArrayFree(modelInfo.modelIndexes);
+
+        MLog((char*)writer.mem);
+        writer.size = 0;
+        writer.pos = writer.mem;
     }
 
     MMemFree(&writer);
@@ -182,12 +214,27 @@ int main(int argc, char**argv) {
     Intro_InitAmiga(&intro, &introSceneSetup, &assetsDataAmiga);
 
     if (sDumpIntroModels) {
-        WriteAllModels(&introSceneSetup.assets.models, assetsDataAmiga.mainExeData, ModelType_OBJ, 2);
+        WriteAllModels(&introSceneSetup.assets.models, assetsDataAmiga.mainExeData);
+        return 0;
+    }
+
+    if (sDumpMainModels) {
+        ModelsArray mainModels;
+
+        Assets_LoadModelPointers32BE(amigaExe.data + 0x28804, 300, &mainModels);
+
+        // Flip model words
+        ARRAY_REWRITE_BE16(amigaExe.data + 0x28c8c, 0x11698);
+
+        // Flip back planet byte code
+        // ARRAY_REWRITE_BE16(fileData + 0x28804, 28);
+
+        WriteAllModels(&mainModels, assetsDataAmiga.mainExeData);
         return 0;
     }
 
     if (sDumpFontModels) {
-        WriteAllModels(&introSceneSetup.assets.fontModels, assetsDataAmiga.mainExeData, ModelType_FONT, 0);
+        WriteAllFontModels(&introSceneSetup.assets.fontModels, assetsDataAmiga.mainExeData);
         return 0;
     }
 

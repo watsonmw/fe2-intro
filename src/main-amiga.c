@@ -547,6 +547,8 @@ static i32 ParseCommandLine(int argc, char** argv) {
             sFrontierExePath = arg;
         }
     }
+
+    return 0;
 }
 
 __stdargs int main(int argc, char** argv) {

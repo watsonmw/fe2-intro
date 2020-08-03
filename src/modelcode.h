@@ -40,7 +40,11 @@ typedef enum eModelType {
     ModelType_FONT,
 } ModelType;
 
-void DecompileModel(ModelData* model, u32 modelIndex, ModelType modelType, DebugModelParams* debugModelParams, DebugModelInfo* modelInfo, MMemIO* strOutput);
+void DecompileModel(ModelData* model, u32 modelIndex, DebugModelParams* debugModelParams,
+        DebugModelInfo* modelInfo, MMemIO* strOutput);
+
+void DecompileFontModel(FontModelData* model, u32 modelIndex, DebugModelParams* debugModelParams,
+        DebugModelInfo* modelInfo, MMemIO* strOutput);
 
 void DecompileModelToConsole(ModelData* modelData, u32 modelIndex, ModelType modelType);
 
