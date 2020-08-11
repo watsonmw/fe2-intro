@@ -52,14 +52,14 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData
     intro->creditsStringData = (u16*)(gameFileData + 0xa3);
 
 #ifdef FINSPECTOR
-    sceneSetup->fontModelDataFileStartAddress = assetsData->mainExeData;
+    sceneSetup->galmapModelDataFileStartAddress = assetsData->mainExeData;
     sceneSetup->modelDataFileStartAddress = assetsData->mainExeData;
 #endif
 
     sceneSetup->moduleStrings = Assets_LoadStringPointers16LE(introFileData + 0x1d8, 33);
 
     Assets_LoadModelPointers16LE(introFileData + 0x3b0, 120, &sceneSetup->assets.models);
-    Assets_LoadModelPointers16LE(assetsData->vectorFontData, 15, &sceneSetup->assets.fontModels);
+    Assets_LoadModelPointers16LE(assetsData->vectorFontData, 15, &sceneSetup->assets.galmapModels);
 
     sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
 
@@ -170,10 +170,10 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
 
 #ifdef FINSPECTOR
     sceneSetup->modelDataFileStartAddress = fileData;
-    sceneSetup->fontModelDataFileStartAddress = fileData;
+    sceneSetup->galmapModelDataFileStartAddress = fileData;
 #endif
 
-    sceneSetup->assets.fontModels = assetsData->fontModels;
+    sceneSetup->assets.galmapModels = assetsData->galmapModels;
     sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
     sceneSetup->assets.mainStrings = assetsData->mainStrings;
 

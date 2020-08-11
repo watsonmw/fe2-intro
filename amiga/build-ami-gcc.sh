@@ -41,7 +41,7 @@ set -x # echo on
 #
 # -mregparm - gives a 2% speedup and reduces exe size (less moves)
 # -fomit-frame-pointer? - gives a 2% speedup and reduces exe size (less moves)
-#
+# -fno-strict-aliasing ?
 
 GCC="/opt/amiga/bin/m68k-amigaos-gcc"
 VASM="/opt/amiga/bin/vasmm68k_mot"

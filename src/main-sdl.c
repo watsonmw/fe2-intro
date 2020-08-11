@@ -18,8 +18,8 @@ static u64 sCurrentClock;
 
 static u16 sModToPlay = Audio_ModEnum_FRONTIER_THEME_INTRO;
 static b32 sDumpIntroModels = FALSE;
-static b32 sDumpMainModels = FALSE;
-static b32 sDumpFontModels = FALSE;
+static b32 sDumpGameModels = FALSE;
+static b32 sDumpGalmapModels = FALSE;
 static const char* sFrontierExePath;
 static RGB sFIntroPalette[256];
 
@@ -99,10 +99,10 @@ static i32 ParseCommandLine(int argc, char** argv) {
                 }
             } else if (strcmp("dump-intro-models", arg + 1) == 0) {
                 sDumpIntroModels = TRUE;
-            } else if (strcmp("dump-models", arg + 1) == 0) {
-                sDumpMainModels = TRUE;
-            } else if (strcmp("dump-fonts", arg + 1) == 0) {
-                sDumpFontModels = TRUE;
+            } else if (strcmp("dump-game-models", arg + 1) == 0) {
+                sDumpGameModels = TRUE;
+            } else if (strcmp("dump-galmap-models", arg + 1) == 0) {
+                sDumpGalmapModels = TRUE;
             }
         } else {
             sFrontierExePath = arg;
@@ -113,7 +113,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
 }
 
 static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
-    i32 i = 2;
+    i32 modelIndex = 0;
     i32 foundNull = 0;
     MMemIO writer;
     MMemInitAlloc(&writer, 100);
@@ -124,11 +124,13 @@ static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
     params.onlyLabels = 1;
 
     while (TRUE) {
-        ModelData* modelData = MArrayGet(*modelsArray, i);
+        ModelData* modelData = MArrayGet(*modelsArray, modelIndex);
         if (modelData == NULL) {
-            foundNull++;
-            if (foundNull > 1) {
-                break;
+            if (modelIndex >= 2) {
+                foundNull++;
+                if (foundNull > 1) {
+                    break;
+                }
             }
         } else {
             foundNull = 0;
@@ -136,46 +138,21 @@ static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
             DebugModelInfo modelInfo;
             params.offsetBegin = byteCodeBegin;
 
-            DecompileModel(modelData, i, &params, &modelInfo, &writer);
+            if (modelIndex < 2) {
+                FontModelData* fontModelData = (FontModelData*)modelData;
+                DecompileFontModel(fontModelData, modelIndex, &params, &modelInfo, &writer);
+            } else {
+                DecompileModel(modelData, modelIndex, &params, &modelInfo, &writer);
+            }
 
             MArrayFree(modelInfo.modelIndexes);
 
             MLog((char*)writer.mem);
             writer.size = 0;
             writer.pos = writer.mem;
-            if (i == 0) {
-                break;
-            }
         }
 
-        i++;
-    }
-
-    MMemFree(&writer);
-}
-
-static void WriteAllFontModels(ModelsArray* modelsArray, const u8* dataStart) {
-    MMemIO writer;
-    MMemInitAlloc(&writer, 100);
-
-    DebugModelParams params;
-    memset(&params,  0, sizeof(DebugModelParams));
-    params.maxSize = 0xfff;
-    params.onlyLabels = 1;
-
-    for (i32 i = 0; i < 2; i++) {
-        FontModelData* modelData = (FontModelData*) MArrayGet(*modelsArray, i);
-        u64 byteCodeBegin = ((u8*)modelData - dataStart) + modelData->codeOffset;
-        DebugModelInfo modelInfo;
-        params.offsetBegin = byteCodeBegin;
-
-        DecompileFontModel(modelData, i, &params, &modelInfo, &writer);
-
-        MArrayFree(modelInfo.modelIndexes);
-
-        MLog((char*)writer.mem);
-        writer.size = 0;
-        writer.pos = writer.mem;
+        modelIndex++;
     }
 
     MMemFree(&writer);
@@ -216,9 +193,7 @@ int main(int argc, char**argv) {
     if (sDumpIntroModels) {
         WriteAllModels(&introSceneSetup.assets.models, assetsDataAmiga.mainExeData);
         return 0;
-    }
-
-    if (sDumpMainModels) {
+    } else if (sDumpGameModels) {
         ModelsArray mainModels;
 
         Assets_LoadModelPointers32BE(amigaExe.data + 0x28804, 300, &mainModels);
@@ -231,10 +206,8 @@ int main(int argc, char**argv) {
 
         WriteAllModels(&mainModels, assetsDataAmiga.mainExeData);
         return 0;
-    }
-
-    if (sDumpFontModels) {
-        WriteAllFontModels(&introSceneSetup.assets.fontModels, assetsDataAmiga.mainExeData);
+    } else if (sDumpGalmapModels) {
+        WriteAllModels(&introSceneSetup.assets.galmapModels, assetsDataAmiga.mainExeData);
         return 0;
     }
 

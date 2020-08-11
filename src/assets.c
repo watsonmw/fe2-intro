@@ -87,14 +87,14 @@ void Assets_LoadAmigaFiles(AssetsDataAmiga* assets, MReadFileRet* amigaExeData, 
 
     if (assetsRead == AssetsRead_Amiga_Orig) {
         // Load model data
-        Assets_LoadModelPointers16BE(amigaExeData->data + 0x387d6, 16, &assets->fontModels);
+        Assets_LoadModelPointers16BE(amigaExeData->data + 0x387d6, 16, &assets->galmapModels);
         ARRAY_REWRITE_BE16(amigaExeData->data + 0x387d6, 0x18fc);
 
         assets->bitmapFontData = amigaExeData->data + 0x3b034;
 
         assets->mainStrings = Assets_LoadStringPointers16BE(amigaExeData->data + 0x4c70d, 112);
     } else if (assetsRead == AssetsRead_Amiga_EliteClub || assetsRead == AssetsRead_Amiga_EliteClub2) {
-        Assets_LoadModelPointers32BE(amigaExeData->data + 0x39ea0, 16, &assets->fontModels);
+        Assets_LoadModelPointers32BE(amigaExeData->data + 0x39ea0, 16, &assets->galmapModels);
         ARRAY_REWRITE_BE16(amigaExeData->data + 0x3a328, 0x18fc);
 
         assets->bitmapFontData = amigaExeData->data + 0x3c9a6;
@@ -107,7 +107,7 @@ void Assets_LoadAmigaFiles(AssetsDataAmiga* assets, MReadFileRet* amigaExeData, 
 
 void Assets_FreeAmigaFiles(AssetsDataAmiga* assets) {
     MFree(assets->mainExeData); assets->mainExeData = 0;
-    MArrayFree(assets->fontModels);
+    MArrayFree(assets->galmapModels);
     MFree(assets->mainStrings);
 }
 

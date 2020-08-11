@@ -264,7 +264,7 @@ typedef struct sSceneSetup {
     ByteCodeTraceArray byteCodeTrace;
     b32 hideModel[200];
     u8* modelDataFileStartAddress;
-    u8* fontModelDataFileStartAddress;
+    u8* galmapModelDataFileStartAddress;
     u32 renderDataOffset;
 #endif
 } SceneSetup;

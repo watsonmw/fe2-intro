@@ -17,7 +17,7 @@ typedef struct sAssetsData {
     u8** mainStrings;
 
     ModelsArray models;
-    ModelsArray fontModels;
+    ModelsArray galmapModels;
 } AssetsData;
 
 typedef struct sAssetsDataPC {
@@ -47,7 +47,7 @@ typedef struct sAssetsDataAmiga {
     u8* mainExeData;
     u32 mainExeSize;
 
-    ModelsArray fontModels;
+    ModelsArray galmapModels;
     u8** mainStrings;
     u8* bitmapFontData;
     AssetsReadEnum assetsRead;

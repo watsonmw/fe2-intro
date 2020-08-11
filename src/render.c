@@ -3388,7 +3388,7 @@ MINTERNAL VertexData* TransformModelCoords(RenderContext* rc, RenderFrame* rf, i
 }
 
 MINTERNAL FontModelData* GetFontModel(SceneSetup* sceneSetup, u16 offset) {
-    return (FontModelData*)MArrayGet(sceneSetup->assets.fontModels, offset);
+    return (FontModelData*)MArrayGet(sceneSetup->assets.galmapModels, offset);
 }
 
 MINTERNAL u8* GetFontByteCodeForCharacter(FontModelData* fontModel, u16 offset) {
@@ -5993,7 +5993,7 @@ MINTERNAL int RenderVectorTextOneStack(RenderContext* rc, RenderFrame* rf, u16 p
     newRenderFrame->modelData = (ModelData*)font;
 
 #ifdef FINSPECTOR
-    newRenderFrame->fileDataStartAddress = rf->renderContext->fontModelDataFileStartAddress;
+    newRenderFrame->fileDataStartAddress = rf->renderContext->galmapModelDataFileStartAddress;
 #endif
 
 #ifdef FRAME_MEM_USE_STACK_ALLOC
