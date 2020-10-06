@@ -11,15 +11,54 @@
 extern "C" {
 #endif
 
-#define AUDIO_VOL_MAX 128
+// Frontier Amiga sound emulation for SDL
+// Also can be compiled for native Amiga playback
 
 enum Audio_ModEnum {
+    Audio_ModEnum_HALL_OF_THE_MOUNTAIN_KING = 1,
     Audio_ModEnum_FRONTIER_THEME = 2,
+    Audio_ModEnum_BABA_YAGA = 3,
+    Audio_ModEnum_NIGHT_ON_THE_BARE_MOUNTAIN = 4,
+    Audio_ModEnum_FRONTIER_SECOND_THEME = 5,
+    Audio_ModEnum_RIDE_OF_THE_VALKYRIES = 6,
+    Audio_ModEnum_BLUE_DANUBE = 7,
+    Audio_ModEnum_GREAT_GATES_OF_KIEV = 8,
     Audio_ModEnum_SILENCE = 9,
     Audio_ModEnum_FRONTIER_THEME_INTRO = 10,
 };
 
-typedef struct sModChannelData {
+enum Audio_SampleEnum {
+    Audio_SampleEnum_Engine1 = 1,
+    Audio_SampleEnum_Engine2 = 2,
+    Audio_SampleEnum_Engine3 = 3,
+    Audio_SampleEnum_Engine4 = 4,
+    Audio_SampleEnum_Explosion1 = 5,
+    Audio_SampleEnum_Explosion2 = 6,
+    Audio_SampleEnum_Explosion3 = 7,
+    Audio_SampleEnum_Explosion4 = 8,
+    Audio_SampleEnum_Explosion5 = 9,
+    Audio_SampleEnum_Lazer1 = 10,
+    Audio_SampleEnum_Plasma1 = 11,
+    Audio_SampleEnum_LandingGearUp = 12,
+    Audio_SampleEnum_LandingGearDown = 13,
+    Audio_SampleEnum_Wind1 = 14,
+    Audio_SampleEnum_Station = 14,
+    Audio_SampleEnum_AirLockClose1 = 18,
+    Audio_SampleEnum_AirLockClose2 = 19,
+    Audio_SampleEnum_UI_Beep = 20,
+    Audio_SampleEnum_UI_Ring = 21,
+    Audio_SampleEnum_UI_Connect = 22,
+    Audio_SampleEnum_UI_Beep2 = 23,
+    Audio_SampleEnum_UI_Eject = 23,
+    Audio_SampleEnum_Alert = 30,
+    Audio_SampleEnum_Explosion6 = 31,
+    Audio_SampleEnum_Hyperspace = 33,
+    Audio_SampleEnum_Lazer2 = 35,
+    Audio_SampleEnum_Plasma2 = 36,
+    Audio_SampleEnum_Wind2 = 37,
+};
+
+typedef struct sAudioChannelControl {
     i16 channelId;
 
     // Time in ticks (1/50th second) to play the note
@@ -31,7 +70,7 @@ typedef struct sModChannelData {
     // Last period value written to hardware
     i16 periodHW;
 
-    // Last volume value written to hardware, 0xffff if no value written
+    // Last volume value written to hardware (or 0xffff if no value written)
     u16 volumeHW;
 
     // Current volume ramp, each tick read a new volume value
@@ -46,7 +85,7 @@ typedef struct sModChannelData {
     // current position in track
     u16* nextEffect;
 
-    // First sample to play after the first has finished
+    // First sample to play
     u8* sampleData;
     u16 sampleLen;
 
@@ -55,7 +94,7 @@ typedef struct sModChannelData {
     u8* nextSampleData;
     u16 nextSampleLen;
 
-    // Vibrato effect
+    // Vibrato effect - oscillating pitch changes
     i16 vibratoMode;
     i16 vibratoPitchChangeDelay;
     i16 vibratoCountdown;
@@ -64,27 +103,27 @@ typedef struct sModChannelData {
     i16 vibratoInitialDelay;
     i16 adjustPeriodDelay;
 
-    // Portamento effect
+    // Portamento effect - linear pitch up / down changes
     // 0 - Disabled, 1 - Pitch down, 2 - Pitch up
     i16 portamentoMode;
     i16 portamentoSpeed;
     i16 portamentoFinalPeriod;
     i16 portamentoDelay;
 
-    u32 unused1;
-    i16 mod14Set;
-} ModChannelData;
+    u32 volumeRampValue;
+    i16 modEffect13Set;
+} AudioChannelControl;
 
-typedef struct sModAudio {
-    i16 field_0;
-    i16 field_2;
+typedef struct sAudioEngineSound {
+    i16 inUse;
+    i16 engineSoundId;
     u16 volume;
     u16 period;
-    i16 field_8;
-    u32 field_a;
+    i16 shipId;
+    // u8* ship;
     i16 channelId;
-    i16 field_10;
-} ModAudio;
+    i16 volumeDecayDelay;
+} AudioEngineSound;
 
 #ifdef USE_SDL
 typedef struct sSampleConvert {
@@ -102,7 +141,7 @@ typedef struct sSampleConvert {
 
 #ifdef AMIGA
 typedef struct sChannelRegisters {
-    volatile u8* pos;        // ptr to start of waveform data
+    volatile u8* pos;        // ptr to start of 8bit PCM data
     volatile u16 len;        // length of waveform in words
     volatile u16 period;     // sample period
     volatile u16 volume;     // volume
@@ -118,7 +157,9 @@ typedef struct sChannelRegisters {
 }  ChannelRegisters;
 #endif
 
-#define AUDIO_SAMPLE_CACHE_SIZE 20
+#define AUDIO_VOL_MAX 128
+#define AUDIO_SAMPLE_CACHE_SIZE 30
+#define AUDIO_NUM_CHANNELS 4
 
 typedef struct sAudio {
     // Main file data
@@ -134,14 +175,15 @@ typedef struct sAudio {
     SDL_AudioDeviceID sdlAudioID;
 #endif
 
-    u32 soundPlayingChannel[4];
-    u16 channelClear[4];
+    u32 soundToPlayChannel[AUDIO_NUM_CHANNELS];
+    u32 soundPlayingChannel[AUDIO_NUM_CHANNELS];
+    u32 engineSoundPlayingChannel[AUDIO_NUM_CHANNELS];
 
-    // Module playback
-    u16 modInitializing;
+    volatile u16 modificationsInProgress;
+
     u16 modStartTickOffset;
-    u32 modBankSelect;
-    u32 modBankSelectStore;
+    u32 modSilenceDuringPlayback;
+    u32 modSilenceDuringPlaybackStore;
 
     u32 modVolumeSuppress;
     u32 modVolumeFadeState;
@@ -149,38 +191,34 @@ typedef struct sAudio {
     u16 modVolumeFadeSpeed;
     u16 modApplyVolumeSuppress;
 
-    u16 mod1;
+    u16 playModOnly;
     u8 modDone;
 
-    u32 modChannel[4];
-
-    ModChannelData modChannelData[9];
-    ModAudio modAudio[4];
+    AudioChannelControl channelCtrl[9];
+    AudioEngineSound engineSound[AUDIO_NUM_CHANNELS];
 
     // Current mod tick time
     u32 modTick;
 
-    u16* modDefaultEffects[4];
-
     // Amiga hardware emulation
     u16 channelMask;
-    ChannelRegisters* hw[4];
+    ChannelRegisters* hw[AUDIO_NUM_CHANNELS];
     ChannelRegisters hwBypass;
 
     // low pass filter on/off (unused)
     u16 lowPassFilter;
 
     // Current sample positions
-    u32 samplePos[4];
+    u32 samplePos[AUDIO_NUM_CHANNELS];
 
     // Last value written in previous tick for each channel
-    i32 lastValue[4];
+    i32 lastValue[AUDIO_NUM_CHANNELS];
 
 #ifdef USE_SDL
-    ChannelRegisters channelRegisters[4];
+    ChannelRegisters channelRegisters[AUDIO_NUM_CHANNELS];
 
     // Sample conversion cache
-    SampleConvert* channelSamples[4];
+    SampleConvert* channelSamples[AUDIO_NUM_CHANNELS];
     SampleConvert sampleCache[AUDIO_SAMPLE_CACHE_SIZE];
     u32 sampleCacheCount;
     u32 sampleConvertClock;
@@ -203,11 +241,19 @@ MINLINE void Audio_SetVolume(AudioContext* audio, u8 volume) {
     audio->volume = volume;
 }
 
-void Audio_PlaySample(AudioContext* audio, int sampleIndex);
+void Audio_PlaySample(AudioContext* audio, u16 sampleIndex, u16 volume);
+
+void Audio_PlayEngineSound(AudioContext* audio, u16 engineSoundId, u16 volume, u16 period, u16 shipId);
+
+void Audio_CancelSample(AudioContext* audio, u16 sampleIndex);
+
+void Audio_StopSamples(AudioContext* audio);
+
+void Audio_SetFade(AudioContext* audio, i16 fadeSpeed);
 
 void Audio_ProgressTick(AudioContext* audio);
 
-void Audio_ModStartAt(AudioContext* audio, int modIndex, u32 tickOffset);
+void Audio_ModStartAt(AudioContext* audio, u16 modIndex, u32 tickOffset);
 
 MINLINE void Audio_ModStart(AudioContext* audio, int modIndex) {
     Audio_ModStartAt(audio, modIndex, 0);
