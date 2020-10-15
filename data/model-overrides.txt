@@ -1,0 +1,1212 @@
+; Scene: Courier Landing
+; Fix LERP to prevent bad view when vertex 8 / tmp[3] wraps to zero
+model: 20
+  scale1: 16,
+  scale2: 0,
+  radius: 115,
+  colour: #000
+
+vertices: ; 10
+  0, 0, 0                     ;   0
+  -7, -1, -4                  ;   2
+  -7, -115, 25                ;   4
+  15, 0, 0                    ;   6
+  lerp 0, 6, tmp[3]           ;   8
+  0, 0, 15                    ;  10
+  lerp 0, 10, tmp[4]          ;  12
+  lerp 2, 4, tmp[6]           ;  14
+  add 8, 14                   ;  16
+  add 12, 16                  ;  18
+
+normals: ; 0
+
+code:
+  tmp[2] = scene[0] << 5
+  tmp[3] = 32768 - 1
+  tmp[2] = tmp[2] & tmp[3]
+  tmp[6] = tmp[2] * 2
+  mident ; 8019
+  mcopy ; c01e
+  tmp[5] = tmp[6] >> 1
+  tmp[5] = 45056 - tmp[5]
+  mrotate flip:xyz axis:y angle:tmp[5]
+  tmp[3] = .4000 * cos(tmp[5])
+  tmp[3] = tmp[3] << 1
+  tmp[3] = 1 + tmp[3]; *** fix is here ***
+  tmp[3] = 32768 - tmp[3]
+  tmp[4] = .4000 * sine(tmp[5])
+  tmp[4] = tmp[4] << 1
+  tmp[4] = 32768 + tmp[4]
+  tmp[2] = 0 + tmp[2]
+  tmp[1] = 63 + 57344
+  tmp[6] = min(tmp[6], 49152)
+  tmp[6] = tmp[6] / 12
+  tmp[6] = tmp[6] << 3
+  tmp[6] = 32768 - tmp[6]
+  tmp[6] = tmp[6] >> 1
+  tmp[6] = tmp[6] + 32768
+  tmp[6] = .4000 * cos(tmp[6])
+  tmp[6] = 16384 + tmp[6]
+  tmp[6] = tmp[6] << 1
+  model index:40 v:18 light
+  done
+
+
+; Scene: First Eagle being destroyed
+; Fatten laser
+; Avoid Courier model flip due to overflow
+model: 34
+  scale1: 14,
+  scale2: 0,
+  radius: 73,
+  colour: #000
+
+vertices: ; 25
+  0, 0, 0                     ;   0
+  0, 61, 73                   ;   2
+  3, -7, 26                   ;   4
+  lerp 2, 4, tmp[4]           ;   6
+  -12, 12, 0                  ;   8
+  lerp 4, 8, tmp[4]           ;  10
+  0, 0, 0                     ;  12
+  0, 0, 0                     ;  14
+  0, 0, 0                     ;  16
+  0, 0, 0                     ;  18
+  -1, 0, 15                   ;  20
+  3, 1, 17                    ;  22
+  3, -30, 48                  ;  24
+  lerp 22, 24, tmp[4]         ;  26
+  0, 19, 0                    ;  28
+  lerp 0, 28, tmp[5]          ;  30
+  add 30, 20                  ;  32
+  0, 19, 0                    ;  34
+  lerp 0, 34, tmp[3]          ;  36
+  add 36, 26                  ;  38
+  -30, 30, -18                ;  40
+  lerp 0, 40, tmp[3]          ;  42
+  add 42, 32                  ;  44
+  rand 2, 0, 15               ;  46
+  rand 2, 0, 15               ;  48
+  1, 0, 0                     ;  50
+  -1, 0, 0                    ;  52
+  add 6, 50                   ;  54
+  add 6, 52                   ;  56
+  lerp 6, 54, 4200            ;  58
+  lerp 6, 56, 4200            ;  60
+
+normals: ; 2
+    2 (5, -104, -71)          ;   2
+   24 (0, -91, 88)            ;   4
+
+code:
+  tmp[2] = scene[0] << 7
+  tmp[6] = tmp[2] + 0
+  mident
+  mcopy
+  model index:104 v:0 light flip:xyz
+  tmp[2] = tmp[6] + 0
+  model index:54 v:0 light flip:xyz
+  tmp[5] = tmp[6] << 2
+  tmp[5] = .0800 * sine(tmp[5])
+  tmp[5] = tmp[5] + 2048
+  tmp[5] = 28672 - tmp[5]
+  mrotate flip:zy-x axis:y angle:49152
+  mrotate axis:x angle:40960
+  mrotate axis:z angle:tmp[5]
+  tmp[2] = 64512 + 3
+  tmp[1] = 64512 + 0
+  tmp[3] = tmp[6] > 34816
+  if !tmp[3] loc:0005c
+  tmp[3] = tmp[6] << 1
+  tmp[3] = tmp[3] >> 2
+  tmp[3] = 16384 - tmp[3]
+  tmp[3] = .4000 * sine(tmp[3])
+  tmp[3] = 16384 - tmp[3]
+  tmp[3] = tmp[3] << 2
+0005c: tmp[5] = tmp[6] * 5
+  tmp[5] = .0400 * cos(tmp[5])
+  tmp[5] = tmp[5] + 1024
+  model index:43 v:44 light
+  tmp[5] = tmp[6] * 3
+  tmp[5] = .1000 * sine(tmp[5])
+  tmp[5] = tmp[5] + 4096
+  tmp[5] = 28672 + tmp[5]
+  mrotate flip:zy-x axis:y angle:49152
+  mrotate axis:x angle:40960
+  mrotate axis:z angle:tmp[5]
+  tmp[2] = 64512 + 3
+  tmp[1] = 64512 + 0
+  tmp[4] = tmp[6] > 32768 ; c4bd:60c6
+  if !tmp[4] loc:000b4 ; 01d3:00c4
+  tmp[4] = tmp[6] - 32768
+  tmp[4] = tmp[4] >> 3
+  tmp[4] = tmp[4] * 8
+  tmp[2] = tmp[4] + 4096
+  tmp[1] = 0 - 1
+  model index:55 v:38 light flip:xyz
+  tmp[4] = 1 + 0
+000b4: if tmp[4] loc:000c8
+  tmp[3] = tmp[6] * 5
+  tmp[3] = .0400 * cos(tmp[3])
+  tmp[3] = tmp[3] + 1024
+  model index:43 v:38 light
+000c8: tmp[4] = tmp[6] > 32768
+  if !tmp[4] loc:00118
+  tmp[4] = tmp[6] - 32768
+  tmp[7] = 1024 >> 2
+  tmp[4] = tmp[4] + tmp[7]
+  tmp[4] = tmp[4] >> 1
+  tmp[4] = .4000 * cos(tmp[4])
+  tmp[4] = 16384 - tmp[4]
+  tmp[4] = tmp[4] << 2
+  tmp[5] = tmp[4] >> 3
+  tmp[5] = 0 - tmp[5]
+  tmp[5] = tmp[5] >> 1
+  tmp[5] = tmp[5] - 32768
+  mrotate flip:zy-x axis:y angle:49152
+  mrotate axis:x angle:40960
+  mrotate axis:x angle:tmp[5]
+  tmp[2] = 31744 + 1
+  tmp[1] = 64512 + 0
+  model index:38 v:10 light
+  tmp[4] = 1 + 0
+00118: if tmp[4] loc:00148
+  tmp[4] = tmp[6] >> 1
+  tmp[4] = .4000 * sine(tmp[4])
+  tmp[4] = tmp[4] << 2
+  tmp[5] = tmp[4] >> 1
+  tmp[5] = tmp[5] - 32768
+  mrotate flip:zy-x axis:y angle:49152
+  mrotate axis:x angle:40960
+  mrotate axis:x angle:tmp[5]
+  tmp[2] = 31744 + 1
+  tmp[1] = 64512 + 0
+  model index:38 v:6 light
+00148: tmp[1] = tmp[6] < 32768
+  tmp[1] = tmp[1] > 24576
+  if !tmp[1] loc:00170
+  batch begin vertex:38
+  tmp[1] = tmp[6] >> 7
+  tmp[1] = tmp[1] & 1
+  if !tmp[1] loc:0016e
+  highlight vertex:38 radius:30 colour:#f22
+  tri 58, 60, 38 colour:#f22
+0016e: batch end
+00170: done
+
+
+; Planet from afar
+; Tweak atmosphere colours to match ground atmosphere
+model: 39
+  scale1: 17,
+  scale2: 0,
+  radius: 117,
+  colour: #000
+
+vertices: ; 1
+  0, 0, 0                     ;   0
+
+normals: ; 0
+
+code:
+  batch begin z:58 vertex:0
+  planet v:0 size:29765 colours:[#448, #262, #000, #000] shade:3 atmosColour:#228 atmosBands:[16400 #548] spans:[[4, -6, [25, -58, -9], [33, -54, 5], [60, -19, -5], [61, 5, 16], [59, 16, -15], [57, -5, -26], [40, -8, -48], [48, -32, -27] ] ]
+  done
+
+
+; Ground Base
+; Replace ground poly with with actual planet & atmosphere shading
+model: 40
+  scale1: 17,
+  scale2: 0,
+  radius: 91,
+  colour: #000
+
+vertices: ; 51
+  0, 0, 0                     ;   0
+  7, 0, -18                   ;   2
+  -18, 0, 0                   ;   4
+  19, 0, 15                   ;   6
+  -22, 0, 22                  ;   8
+  27, 0, 47                   ;  10
+  -53, 0, 0                   ;  12
+  27, 0, 44                   ;  14
+  -50, 0, 3                   ;  16
+  68, 0, 53                   ;  18
+  -76, 0, 30                  ;  20
+  0, 0, 38                    ;  22
+  0, 0, 35                    ;  24
+  30, 0, 30                   ;  26
+  53, 0, 30                   ;  28
+  61, 0, 38                   ;  30
+  61, 0, 68                   ;  32
+  45, 0, 76                   ;  34
+  30, 0, 68                   ;  36
+  -48, 0, 53                  ;  38
+  38, 0, 6                    ;  40
+  39, 0, 0                    ;  42
+  48, 0, -4                   ;  44
+  38, 0, -10                  ;  46
+  33, 0, -21                  ;  48
+  45, 0, -25                  ;  50
+  22, 0, -38                  ;  52
+  33, 0, -41                  ;  54
+  36, 0, -33                  ;  56
+  18, 0, -45                  ;  58
+  -21, 0, 21                  ;  60
+  -24, 0, 24                  ;  62
+  3, 0, 0                     ;  64
+  11, 61, 22                  ;  66
+  lerp 64, 66, tmp[5]         ;  68
+  7, 61, -38                  ;  70
+  15, 0, -22                  ;  72
+  -3, 0, 7                    ;  74
+  lerp 72, 74, tmp[5]         ;  76
+  22, 0, -22                  ;  78
+  3, 0, 7                     ;  80
+  lerp 78, 80, tmp[5]         ;  82
+  91, -1, 0                   ;  84
+  45, -1, 79                  ;  86
+  45, -1, -79                 ;  88
+  3, 61, 0                    ;  90
+  lerp 64, 90, tmp[5]         ;  92
+  4, 7, 0                     ;  94
+  3, 10, -3                   ;  96
+  22, 9, 15                   ;  98
+  25, 10, 6                   ; 100
+
+normals: ; 0
+
+code:
+  tmp[6] = tmp[2] + 0
+  tmp[3] = tmp[1] + 0
+  model index:114 v:0 flip:xyz
+ztree push v:0
+  if !bit(tmp[3], 4) loc:82b44
+  batch begin vertex:8
+  complex colour:#008 loc:82b3e
+  cbezier 10, 22, 22, 62
+  cbezierc 16, 16, 20
+  cbezierc 12, 12, 60
+  cbezierc 24, 24, 14
+  cbezierc 26, 28, 30
+  cbezierc 18, 18, 32
+  cbezierc 34, 36, 10
+  cdone
+82b3e: model index:67 v:8 light flip:zy-x scale:4 colour:#444
+82b44: batch begin z:obj
+  if !bit(tmp[3], 2) loc:82b50
+  model index:68 v:55 light flip:-zyx scale:2 colour:#060
+82b50: if !bit(tmp[3], 1) loc:82b58
+  model index:69 v:40 light flip:zy-x
+82b58: if !bit(tmp[3], 6) loc:82b72
+  batch end ; 0006
+  model index:73 v:50 light flip:xyz
+  model index:73 v:52 light flip:xyz
+  model index:73 v:54 light flip:xyz
+  model index:73 v:56 light flip:xyz
+  model index:73 v:58 light flip:xyz
+82b72: if !bit(tmp[3], 3) loc:82b9c
+  model index:74 v:11 light flip:-xyz
+  model index:68 v:38 light flip:-zyx scale:1 colour:#060
+  model index:68 v:27 light flip:-xyz
+  model index:74 v:29 light flip:-xy-z
+  model index:75 v:31 light flip:xyz
+  model index:68 v:19 light flip:-xyz
+  model index:74 v:33 light flip:-zyx
+  model index:75 v:35 light flip:-xy-z
+  model index:68 v:37 light flip:xyz
+82b9c: if !bit(tmp[3], 5) loc:82bb4
+  model index:76 v:6 light flip:xyz
+  tmp[1] = 0 - 1
+  model index:78 v:4 light flip:xyz
+  tmp[1] = 10240 + 39
+  model index:82 v:2 light flip:xyz
+82bb4: if !bit(tmp[3], 15) loc:82bbc
+  model index:88 v:0 light flip:xyz
+82bbc: model index:93 v:94 light flip:zyx scale:2 colour:#888
+  model index:93 v:96 light flip:-zy-x scale:3 colour:#888
+  model index:93 v:98 light flip:-xy-z scale:2 colour:#888
+  model index:93 v:100 light flip:xyz scale:3 colour:#888
+  if !bit(tmp[3], 16) loc:82ce0
+  if bit(tmp[6], 16) loc:82c20
+  tmp[4] = min(tmp[6], 24576)
+  tmp[4] = tmp[4] / 6
+  tmp[4] = tmp[4] << 3
+  tmp[4] = 32768 - tmp[4]
+  tmp[5] = tmp[4] >> 1
+  tmp[5] = tmp[5] + 32768
+  tmp[5] = .4000 * cos(tmp[5])
+  tmp[5] = 16384 + tmp[5]
+  tmp[5] = tmp[5] << 1
+  tmp[1] = tmp[5] + 0
+  tmp[3] = tmp[5] << 2
+  mrotate flip:x-yz axis:y angle:tmp[3]
+  tmp[2] = tmp[5] & 64512
+  tmp[2] = tmp[2] + 1
+  tmp[4] = 59 << 1
+  tmp[5] = max(tmp[5], tmp[4])
+  model index:38 v:92 light
+82c20: if !bit(tmp[6], 16) loc:82ce0
+  tmp[4] = tmp[6] - 32768
+  tmp[3] = tmp[4] > 16384
+  if tmp[3] loc:82c88
+  tmp[5] = tmp[4] << 2
+  tmp[3] = tmp[6] >> 5
+  tmp[3] = tmp[3] & 2
+  if !tmp[3] loc:82c5c
+  batch begin vertex:76
+  tmp[1] = 1024 >> 3
+  tmp[2] = tmp[4] << 9
+  tmp[2] = tmp[2] >> 8
+  model index:94 v:76 flip:xz-y
+82c56: line 76, 70 colour:#f44
+  batch end ; 0006
+82c5c: tmp[3] = tmp[6] >> 5
+  tmp[3] = tmp[3] + 7
+  tmp[3] = tmp[3] & 1
+  if !tmp[3] loc:82c88
+  batch begin vertex:82
+  tmp[1] = 1024 >> 3
+  tmp[2] = tmp[4] << 9
+  tmp[2] = tmp[2] >> 8
+  model index:94 v:82 flip:xz-y
+82c82: line 82, 70 colour:#f44
+  batch end ; 0006
+82c88: tmp[4] = max(tmp[4], 8192)
+  tmp[4] = tmp[4] - 8192
+  tmp[4] = tmp[4] / 6
+  tmp[4] = tmp[4] << 3
+  tmp[5] = tmp[4] >> 1
+  tmp[5] = tmp[5] + 32768
+  tmp[5] = .4000 * cos(tmp[5])
+  tmp[5] = 16384 + tmp[5]
+  tmp[5] = tmp[5] << 1
+  tmp[3] = tmp[4] << 1
+  mrotate flip:x-yz axis:y angle:tmp[3]
+  tmp[3] = min(tmp[4], 16384)
+  mrotate axis:x angle:tmp[3]
+  tmp[2] = min(tmp[4], 32768)
+  tmp[2] = tmp[2] << 1
+  tmp[2] = tmp[2] & 64512
+  tmp[2] = tmp[2] + 1
+  tmp[1] = min(tmp[4], 8192)
+  tmp[1] = tmp[1] << 3
+  tmp[4] = 59 << 1
+  tmp[5] = max(tmp[5], tmp[4])
+  model index:38 v:68 light
+82ce0: ztree pop
+  done
+
+
+; Eagle ship model
+; Shade undercarriage like PC version (which has more colours available like we do)
+model: 43
+  scale1: 10,
+  scale2: 0,
+  radius: 93,
+  colour: #666
+
+vertices: ; 38
+  0, 0, 30                    ;   0
+  0, 4, -18                   ;   2
+  0, -4, -18                  ;   4
+  23, 0, 7                    ;   6
+  2, 0, -9                    ;   8
+  7, 0, 28                    ;  10
+  23, 0, 18                   ;  12
+  23, 1, -7                   ;  14
+  25, 0, 0                    ;  16
+  23, 4, -2                   ;  18
+  23, -4, -2                  ;  20
+  23, 0, -14                  ;  22
+  23, -1, -7                  ;  24
+  0, 1, 18                    ;  26
+  1, 4, -13                   ;  28
+  4, 3, -11                   ;  30
+  1, 3, -3                    ;  32
+  4, 2, -1                    ;  34
+  11, 0, -12                  ;  36
+  2, 2, -17                   ;  38
+  2, -2, -17                  ;  40
+  5, 0, -21                   ;  42
+  5, 0, -93                   ;  44
+  rand 44, 0, 21              ;  46
+  lerp 42, 46, tmp[1]         ;  48
+  5, -2, -4                   ;  50
+  0, -3, 0                    ;  52
+  0, 0, 0                     ;  54
+  0, 0, 0                     ;  56
+  0, 0, 0                     ;  58
+  0, 0, 0                     ;  60
+  11, -2, -4                  ;  62
+  4, -2, 4                    ;  64
+  0, 0, 0                     ;  66
+  0, 0, 0                     ;  68
+  0, 0, 0                     ;  70
+  0, 0, 0                     ;  72
+  23, 0, 0                    ;  74
+
+normals: ; 11
+    2 (12, 125, 11)           ;   2
+    4 (12, -125, 11)          ;   4
+    2 (56, 0, -113)           ;   6
+    0 (127, 0, 0)             ;   8
+    0 (127, 0, 0)             ;  10
+    0 (127, 0, 0)             ;  12
+    0 (127, 0, 0)             ;  14
+    0 (127, 0, 0)             ;  16
+    0 (127, 0, 0)             ;  18
+    0 (127, 0, 0)             ;  20
+    6 (127, 0, 0)             ;  22
+
+code:
+  batch end
+  tmp[5] = tmp[2] + 0
+  tmp[3] = tmp[5] & 64512
+  if !tmp[3] loc:82f14
+  tmp[1] = tmp[3] + 0
+  tmp[1] = tmp[1] > 5120
+  if !tmp[1] loc:82f14
+  teardrop radius:800 colour:#1ee 42, 48
+  teardrop radius:800 colour:#1ee 43, 49
+  82f14: if > z:937 loc:82f3c
+  ztree push v:52
+  if > normal:4 loc:82f2a
+  if !bit(tmp[5], 1) loc:82f2a
+  tmp[1] = 2 + 0
+  model index:95 v:62 light flip:xyz
+  82f2a: if > normal:5 loc:82f3a
+  if !bit(tmp[5], 2) loc:82f3a
+  tmp[1] = 2 + 0
+  model index:95 v:63 light flip:xyz
+  82f3a: ztree pop
+  82f3c: batch begin z:obj
+  complex normal:2 colour:#060 loc:82f4e
+  cbezier 0, 10, 8, 6
+  clinec 14
+  clinec 2
+  cdone
+  82f4e: complex normal:3 colour:#060 loc:82f5e
+  cbezier 0, 11, 9, 7
+  clinec 15
+  clinec 2
+  cdone
+  82f5e: complex normal:4 colour:#044 loc:82f6e
+  cbezier 0, 10, 8, 6
+  clinec 24
+  clinec 4
+  cdone
+  82f6e: complex normal:5 colour:#044 loc:82f7e
+  cbezier 0, 11, 9, 7
+  clinec 25
+  clinec 4
+  cdone
+  82f7e: if > z:527 loc:82f8a
+  quad2 30, 32, 28, 34 colour:#000 normal:2
+  82f8a: if > normal:2 loc:82f96
+  if > z:152 loc:82f96
+  model index:44 v:26 light flip:zyx
+  82f96: batch begin z:65534 vertex:52
+  quad2 4, 14, 2, 24 colour:#666 normal:6
+  82fa2: if > z:439 end ; 000b:036e
+  tri2 38, 40, 36 colour:#1ee normal:6
+  tri2 14, 24, 6 colour:#888 normal:22
+  82fb2: batch begin z:11 vertex:12
+  line 12, 6 colour:#888
+  batch begin z:11 vertex:13
+  line 13, 7 colour:#888
+  batch end
+  done
+
+
+; Eagles Incoming under Lynx
+; Dampen the Eagle movement jitter - at high frame rates ships were obviously moving on a sine wave
+model: 53
+  scale1: 12,
+  scale2: 0,
+  radius: 78,
+  colour: #000
+
+vertices: ; 25
+  0, 0, 0                     ;   0
+  0, 0, 0                     ;   2
+  0, 0, 0                     ;   4
+  0, 0, 0                     ;   6
+  0, 0, 0                     ;   8
+  0, 0, 0                     ;  10
+  0, 0, 0                     ;  12
+  0, 0, 0                     ;  14
+  0, 0, 0                     ;  16
+  0, 0, 0                     ;  18
+  -4, 3, -2                   ;  20
+  14, 7, 21                   ;  22
+  14, -7, 7                   ;  24
+  lerp 22, 24, tmp[4]         ;  26
+  0, 78, 0                    ;  28
+  lerp 0, 28, tmp[5]          ;  30
+  add 30, 20                  ;  32
+  0, 78, 0                    ;  34
+  lerp 0, 34, tmp[3]          ;  36
+  add 36, 26                  ;  38
+  -2, -2, 0                   ;  40
+  lerp 0, 40, tmp[3]          ;  42
+  add 42, 32                  ;  44
+  rand 2, 0, 15               ;  46
+  rand 2, 0, 15               ;  48
+
+normals: ; 1
+    2 (-83, 0, -95)           ;   2
+
+code:
+  tmp[6] = tmp[2] + 0
+  tmp[5] = tmp[6] << 1
+  tmp[5] = .0400 * sine(tmp[5])
+  tmp[5] = tmp[5] + 2048
+  tmp[5] = 61440 - tmp[5]
+  mrotate flip:xyz axis:z angle:tmp[5]
+  tmp[2] = 64512 + 3
+  tmp[1] = 64512 + 0
+  tmp[3] = .0400 * sine(tmp[6])
+  tmp[3] = tmp[3] + 16384
+  tmp[3] = tmp[3] << 1 ; 11366
+  tmp[5] = tmp[6] * 3 ; 4352
+  tmp[5] = .0400 * cos(tmp[5])
+  tmp[5] = tmp[5] + 1024
+  model index:43 v:44 light
+  tmp[5] = tmp[6] * 1
+  tmp[5] = .0400 * sine(tmp[5])
+  tmp[5] = tmp[5] + 4096
+  tmp[5] = 61440 + tmp[5]
+  mrotate flip:xyz axis:z angle:tmp[5]
+  tmp[2] = 64512 + 3
+  tmp[1] = 64512 + 0
+  tmp[4] = tmp[6] + 0
+  tmp[3] = tmp[6] * 3
+  tmp[3] = .0400 * cos(tmp[3])
+  tmp[3] = tmp[3] + 1024
+  model index:43 v:38 light
+  done
+
+
+; Courier & Eagle transforms in final Eagle kill
+; Don't draw laser after eagle is destroyed (previously laser jumped position when eagle was destroyed)
+model: 66
+  scale1: 13,
+  scale2: 0,
+  radius: 97,
+  colour: #000
+
+vertices: ; 25
+  0, 0, 0                     ;   0
+  0, -18, 61                  ;   2
+  0, -6, 24                   ;   4
+  lerp 2, 4, tmp[5]           ;   6
+  78, 0, 4                    ;   8
+  lerp 0, 8, tmp[3]           ;  10
+  0, 58, -2                   ;  12
+  lerp 0, 12, tmp[4]          ;  14
+  add 10, 6                   ;  16
+  add 14, 16                  ;  18
+  0, 0, 0                     ;  20
+  1, 3, 10                    ;  22
+  1, -3, 3                    ;  24
+  lerp 22, 24, tmp[4]         ;  26
+  9, -6, 24                   ;  28
+  0, 0, -97                   ;  30
+  lerp 28, 30, tmp[5]         ;  32
+  0, 39, 0                    ;  34
+  lerp 0, 34, tmp[3]          ;  36
+  add 36, 26                  ;  38
+  -12, -2, 0                  ;  40
+  lerp 0, 40, tmp[5]          ;  42
+  add 42, 38                  ;  44
+  rand 2, 0, 15               ;  46
+  rand 18, 0, 17              ;  48
+
+normals: ; 1
+    2 (0, 40, -120)           ;   2
+
+code:
+  tmp[6] = tmp[2] + 0
+  if bit(tmp[6], 16) loc:841e6
+  tmp[5] = tmp[6] << 1
+  tmp[5] = .2000 * sine(tmp[5])
+  tmp[5] = 0 - tmp[5]
+  mrotate flip:zy-x axis:y angle:16384
+  mrotate axis:x angle:29184
+  mrotate axis:z angle:tmp[5]
+  tmp[4] = tmp[6] << 1
+  tmp[3] = .1000 * cos(tmp[4])
+  tmp[4] = .1000 * sine(tmp[4])
+  mrotate axis:y angle:tmp[3]
+  mrotate axis:x angle:tmp[4]
+  tmp[3] = tmp[3] + 4096
+  tmp[4] = tmp[4] + 4096
+  tmp[5] = tmp[6] << 1
+  tmp[2] = 64512 + 3
+  tmp[1] = 64512 + 0
+  model index:43 v:18 light
+841e6: if !bit(tmp[6], 16) loc:84212
+  tmp[4] = tmp[6] - 32768
+  tmp[4] = tmp[4] >> 3
+  tmp[4] = tmp[4] * 15
+  tmp[2] = tmp[4] + 4096
+  tmp[4] = tmp[6] - 32768
+  tmp[5] = tmp[4] << 1
+  tmp[1] = 0 - 1
+  mrotate flip:y-z-x axis:x angle:16384
+  model index:55 v:32 light
+  tmp[4] = 1 + 0
+84212: tmp[5] = tmp[6] * 3
+  tmp[5] = .1000 * sine(tmp[5])
+  tmp[5] = tmp[5] + 4096
+  tmp[5] = scene[12] + tmp[5]
+  mrotate flip:xyz axis:z angle:tmp[5]
+  tmp[4] = tmp[6] + 0
+  tmp[3] = tmp[6] * 5
+  tmp[3] = .0400 * cos(tmp[3])
+  tmp[3] = tmp[3] + 1024
+  tmp[2] = 39936 + 1
+  tmp[1] = 0 - tmp[6]
+  tmp[1] = tmp[1] >> 2
+  tmp[5] = tmp[6] << 2
+  tmp[5] = tmp[1] * sine(tmp[5])
+  tmp[5] = tmp[5] + 16384
+  tmp[5] = tmp[5] << 1
+  tmp[1] = 64512 + 0
+  model index:38 v:44 light
+  tmp[1] = tmp[6] < 33000
+  tmp[1] = tmp[1] > 16384
+  if !tmp[1] loc:8427a
+  batch begin vertex:2
+  tmp[1] = tmp[6] >> 7
+  tmp[1] = tmp[1] & 2
+  if !tmp[1] loc:84278
+  line 44, 48 colour:#f44
+84278: batch end
+8427a: done
+
+
+; Ice-capped mountain
+; Remove negative height offsets so it looks more like it is resting on the ground
+model: 68
+  scale1: 14,
+  scale2: 0,
+  radius: 91,
+  colour: #170a
+
+vertices: ; 24
+  10, 23, 10                  ;   0
+  54, 0, 54                   ;   2
+  36, 0, -54                  ;   4
+  36, 0, -18                  ;   6
+  18, 0, -73                  ;   8
+  -54, 0, -54                 ;  10
+  73, 0, 18                   ;  12
+  18, 0, 36                   ;  14
+  -36, 0, 73                  ;  16
+  -18, 24, 18                 ;  18
+  -18, 0, 9                   ;  20
+  27, 24, 18                  ;  22
+  36, 0, 36                   ;  24
+  18, 21, -18                 ;  26
+  36, 0, -36                  ;  28
+  -18, 24, -18                ;  30
+  -9, 0, -45                  ;  32
+  11, 22, -11                 ;  34
+  0, 30, 0                    ;  36
+  0, 28, 0                    ;  38
+  9, 25, 9                    ;  40
+  9, 25, -9                   ;  42
+  18, 20, 18                  ;  44
+  18, 20, -18                 ;  46
+
+normals: ; 4
+    0 (0, 111, 61)            ;   2
+    0 (70, 105, -11)          ;   4
+   35 (0, 111, -61)           ;   6
+   35 (-75, 101, -12)         ;   8
+
+code:
+  batch begin z:obj
+  if < z:762 loc:844fe
+  tri 3, 36, 2 colour:#040 normal:2
+  tri 4, 36, 2 colour:#040 normal:4
+  tri 5, 36, 4 colour:#040 normal:6
+  tri 5, 36, 3 colour:#040 normal:8
+  done
+844fe: if < z:305 loc:84554 ; 052c:0262
+  complex normal:2 colour:#040 loc:84510
+  cline 1, 3
+  clinec 2
+  clinec 0
+  cdone
+84510: complex normal:4 colour:#040 loc:8451e
+  cline 0, 2
+  clinec 4
+  clinec 34
+  cdone
+8451e: complex normal:6 colour:#040 loc:8452c
+  cline 34, 4
+  clinec 5
+  clinec 35
+  cdone
+8452c: complex normal:8 colour:#040 loc:8453a
+  cline 35, 5
+  clinec 3
+  clinec 1
+  cdone
+8453a: tri 1, 36, 0 colour:#888 normal:2
+  tri 34, 36, 0 colour:#888 normal:4
+  tri 35, 36, 34 colour:#888 normal:6
+  tri 1, 36, 35 colour:#888 normal:8
+  done
+84554: complex normal:2 colour:#040 loc:8456c
+  cbezier 1, 18, 20, 3
+  cbezierc 16, 14, 2
+  cbezierc 24, 22, 0
+  cbezierc 44, 45, 1
+  cdone
+8456c: complex normal:4 colour:#040 loc:84584
+  cbezier 0, 22, 24, 2
+  cbezierc 12, 6, 4
+  cbezierc 28, 26, 34
+  cbezierc 46, 44, 0
+  cdone
+84584: complex normal:6 colour:#040 loc:8459c
+  cbezier 34, 26, 28, 4
+  cbezierc 8, 9, 5
+  cbezierc 32, 30, 35
+  cbezierc 47, 46, 34
+  cdone
+8459c: complex normal:8 colour:#040 loc:845b4
+  cbezier 35, 30, 32, 5
+  cbezierc 10, 7, 3
+  cbezierc 20, 18, 1
+  cbezierc 45, 47, 35
+  cdone
+845b4: complex normal:2 colour:#888 loc:845c8
+  cbezier 1, 38, 41, 36
+  cbezierc 40, 38, 0
+  cbezierc 44, 45, 1
+  cdone
+845c8: complex normal:4 colour:#888 loc:845dc
+  cbezier 0, 38, 40, 36
+  cbezierc 42, 38, 34
+  cbezierc 46, 44, 0
+  cdone
+845dc: complex normal:6 colour:#888 loc:845f0
+  cbezier 34, 38, 42, 36
+  cbezierc 43, 38, 35
+  cbezierc 47, 46, 34
+  cdone
+845f0: complex normal:8 colour:#888 loc:84604
+  cbezier 35, 38, 43, 36
+  cbezierc 41, 38, 1
+  cbezierc 45, 47, 35
+  cdone
+84604: done
+
+
+; Housing Estate
+; Remove houses that don't draw in correct draw order
+model: 78
+  scale1: 12,
+  scale2: 0,
+  radius: 122,
+  colour: #07a
+
+vertices: ; 58
+  2, 0, 122                   ;   0
+  -2, 0, -122                 ;   2
+  122, 0, 2                   ;   4
+  neg 4                       ;   6
+  12, 0, 109                  ;   8
+  -12, 0, -109                ;  10
+  12, 0, 85                   ;  12
+  -12, 0, -85                 ;  14
+  12, 0, 61                   ;  16
+  -12, 0, -61                 ;  18
+  12, 0, 36                   ;  20
+  -12, 0, -36                 ;  22
+  12, 0, 12                   ;  24
+  -12, 0, -12                 ;  26
+  36, 0, 12                   ;  28
+  -36, 0, -12                 ;  30
+  61, 0, 12                   ;  32
+  -61, 0, -12                 ;  34
+  85, 0, 12                   ;  36
+  -85, 0, -12                 ;  38
+  109, 0, 12                  ;  40
+  -109, 0, -12                ;  42
+  109, 0, 85                  ;  44
+  -109, 0, -85                ;  46
+  109, 0, 109                 ;  48
+  -109, 0, -109               ;  50
+  36, 0, 109                  ;  52
+  -36, 0, -109                ;  54
+  48, 0, 36                   ;  56
+  -48, 0, -36                 ;  58
+  80, 0, 80                   ;  60
+  -80, 0, -80                 ;  62
+  100, 0, 0                   ;  64
+  95, 0, 0                    ;  66
+  51, 0, 0                    ;  68
+  46, 0, 0                    ;  70
+  0, 0, 39                    ;  72
+  neg 72                      ;  74
+  0, 0, 36                    ;  76
+  neg 76                      ;  78
+  63, 0, 122                  ;  80
+  neg 80                      ;  82
+  24, 0, 97                   ;  84
+  neg 84                      ;  86
+  24, 0, 48                   ;  88
+  neg 88                      ;  90
+  36, 0, 24                   ;  92
+  neg 92                      ;  94
+  85, 0, 36                   ;  96
+  neg 96                      ;  98
+  122, 0, 63                  ; 100
+  neg 100                     ; 102
+  48, 0, 73                   ; 104
+  neg 104                     ; 106
+  122, 0, 58                  ; 108
+  neg 108                     ; 110
+  58, 0, 122                  ; 112
+  neg 112                     ; 114
+
+normals: ; 0
+
+code:
+  batch begin z:24414 vertex:24
+  complex colour:#160 loc:85188
+  cline 112, 84
+  clinec 88
+  clinec 92
+  clinec 96
+  clinec 108
+  cdone
+85188: if > z:732 end
+  quad 89, 81, 85, 105 colour:#160
+  tri 106, 82, 86 colour:#160
+  if > z:610 end
+  if !bit(tmp[1], 13) loc:851a6
+  model index:81 v:97 flip:xyz
+851a6: if < z:427 loc:851b4
+  line 3, 0 colour:#544
+  line 5, 4 colour:#544
+  done
+851b4: quad 1, 3, 0, 2 colour:#544
+  quad 5, 7, 4, 6 colour:#544
+  if < z:183 loc:851ec
+  line 108, 64 colour:#544
+  line 112, 108 colour:#544
+  line 111, 68 colour:#544
+  line 74, 115 colour:#544
+  line 110, 74 colour:#544
+  line 114, 110 colour:#544
+  line 65, 110 colour:#544
+  line 81, 69 colour:#544
+  line 101, 72 colour:#544
+851ec: if > z:183 loc:85238
+  quad 66, 108, 64, 100 colour:#544
+  quad 108, 80, 100, 112 colour:#544
+  quad 70, 111, 68, 103 colour:#544
+  quad 115, 78, 83, 74 colour:#544
+  quad 78, 102, 74, 110 colour:#544
+  quad 110, 82, 102, 114 colour:#544
+  quad 110, 67, 102, 65 colour:#544
+  quad 71, 81, 69, 113 colour:#544
+  quad 76, 101, 72, 109 colour:#544
+85238: model index:79 v:58 light flip:xyz
+  model index:80 v:59 light flip:xyz
+  model index:79 v:62 light flip:xyz
+  model index:80 v:63 light flip:xyz
+85250: if > z:213 end
+  model index:79 v:8 light flip:xyz
+  model index:79 v:9 light flip:xyz
+  model index:79 v:10 light flip:xyz
+  model index:79 v:11 light flip:xyz
+  model index:79 v:12 light flip:xyz
+  model index:79 v:13 light flip:xyz
+  model index:99 v:14 light flip:zy-x
+  model index:79 v:15 light flip:xyz
+  model index:79 v:16 light flip:xyz
+  model index:79 v:17 light flip:xyz
+  model index:79 v:18 light flip:xyz
+  model index:79 v:19 light flip:xyz
+  model index:79 v:20 light flip:xyz
+  model index:79 v:21 light flip:xyz
+  model index:79 v:22 light flip:xyz
+  model index:79 v:23 light flip:xyz
+  model index:79 v:24 light flip:xyz
+  model index:79 v:25 light flip:xyz
+  model index:79 v:26 light flip:xyz
+  model index:79 v:27 light flip:xyz
+  model index:79 v:28 light flip:xyz
+  model index:79 v:29 light flip:xyz
+  model index:79 v:30 light flip:xyz
+  model index:79 v:31 light flip:xyz
+  model index:79 v:32 light flip:xyz
+  model index:79 v:33 light flip:xyz
+  model index:99 v:34 light flip:xyz
+  model index:79 v:35 light flip:xyz
+  model index:79 v:36 light flip:xyz
+  model index:79 v:38 light flip:xyz
+  model index:79 v:40 light flip:xyz
+  model index:79 v:41 light flip:xyz
+  model index:79 v:42 light flip:xyz
+  model index:79 v:44 light flip:xyz
+  model index:79 v:45 light flip:xyz
+  model index:79 v:46 light flip:xyz
+  model index:100 v:104 flip:xyz
+85324: done
+
+
+; Laser Damage Splash
+; Rotate the splash over time, so that it looks more random
+model: 94
+  scale1: 18,
+  scale2: 0,
+  radius: 122,
+  colour: #000
+
+vertices: ; 34
+  0, 0, 0                     ;   0
+  122, 0, 0                   ;   2
+  61, 105, 0                  ;   4
+  61, -105, 0                 ;   6
+  rand 2, 0, 16               ;   8
+  rand 4, 0, 16               ;  10
+  rand 5, 0, 16               ;  12
+  rand 3, 0, 16               ;  14
+  rand 7, 0, 16               ;  16
+  rand 6, 0, 16               ;  18
+  0, 30, 0                    ;  20
+  26, 15, 0                   ;  22
+  26, -15, 0                  ;  24
+  0, -30, 0                   ;  26
+  lerp 0, 8, tmp[1]           ;  28
+  lerp 0, 10, tmp[1]          ;  30
+  lerp 0, 12, tmp[1]          ;  32
+  lerp 0, 14, tmp[1]          ;  34
+  lerp 0, 16, tmp[1]          ;  36
+  lerp 0, 18, tmp[1]          ;  38
+  lerp 0, 20, tmp[1]          ;  40
+  lerp 0, 22, tmp[1]          ;  42
+  lerp 0, 24, tmp[1]          ;  44
+  lerp 0, 26, tmp[1]          ;  46
+  avg 0, 28                   ;  48
+  avg 0, 30                   ;  50
+  avg 0, 32                   ;  52
+  avg 0, 34                   ;  54
+  avg 0, 36                   ;  56
+  avg 0, 38                   ;  58
+  avg 0, 40                   ;  60
+  avg 0, 42                   ;  62
+  avg 0, 44                   ;  64
+  avg 0, 46                   ;  66
+
+normals: ; 0
+
+code:
+  tmp[3] = scene[0] << 11
+  mrotate flip:xyz axis:z angle:tmp[3]
+  mcopy
+  tmp[3] = scene[0] + 0
+  colour normal:0 index:tmp[3] colours:[#f00, #f40, #f82, #f82, #f82, #f82, #f40, #f00]
+  complex colour:#110 loc:8619a
+  cline 28, 42
+  clinec 30
+  clinec 40
+  clinec 32
+  clinec 43
+  clinec 34
+  clinec 45
+  clinec 36
+  clinec 46
+  clinec 38
+  clinec 44
+  cdone
+8619a: colour normal:0 index:tmp[3] colours:[#fc4, #fe4, #fe6, #fea, #fea, #fe6, #fe4, #fc4]
+  complex colour:#110 loc:861ca
+  cline 48, 62
+  clinec 50
+  clinec 60
+  clinec 52
+  clinec 63
+  clinec 54
+  clinec 65
+  clinec 56
+  clinec 66
+  clinec 58
+  clinec 64
+  cdone
+861ca: done
+
+
+; Missile
+; Always show all the fins (this isn't any better really...)
+model: 95
+  scale1: 6,
+  scale2: 0,
+  radius: 112,
+  colour: #070
+
+vertices: ; 13
+  0, 0, 112                   ;   0
+  9, 9, 84                    ;   2
+  9, -9, 84                   ;   4
+  9, 9, 60                    ;   6
+  9, -9, 60                   ;   8
+  18, 18, 60                  ;  10
+  18, -18, 60                 ;  12
+  avg 2, 22                   ;  14
+  avg 4, 24                   ;  16
+  18, 18, -84                 ;  18
+  18, -18, -84                ;  20
+  9, 9, -84                   ;  22
+  9, -9, -84                  ;  24
+
+normals: ; 9
+    0 (0, 120, 40)            ;   2
+    0 (0, -120, 40)           ;   4
+    0 (120, 0, 40)            ;   6
+    2 (127, 0, 0)             ;   8
+    2 (0, 127, 0)             ;  10
+    4 (0, -127, 0)            ;  12
+   22 (0, 0, -127)            ;  14
+    0 (89, 89, 0)             ;  16
+    0 (89, -89, 0)            ;  18
+
+code:
+  batch begin z:obj
+  quad2 4, 22, 2, 24 colour:#666 normal:8
+  quad 3, 22, 2, 23 colour:#666 normal:10
+  quad 5, 24, 4, 25 colour:#666 normal:12
+  quad 24, 23, 22, 25 colour:#100 normal:14
+  if > z:1757 end
+  tri 2, 3, 0 colour:#666 normal:2
+  tri 4, 5, 0 colour:#666 normal:4
+  tri2 2, 4, 0 colour:#666 normal:6
+  tri2 18, 22, 14 colour:#b00 normal:0
+  tri2 20, 24, 16 colour:#b00 normal:0
+  if > z:1265 end
+  tri2 10, 6, 2 colour:#b00 normal:0
+  tri2 12, 8, 4 colour:#b00 normal:0
+  done
+
+
+; Star Background
+; Add different sized / coloured stars for variety
+model: 105
+  scale1: 6,
+  scale2: 0,
+  radius: 64,
+  colour: #fffd
+
+vertices: ; 15
+  avg -1, -3                 ;   0
+  avg -2, -3                 ;   2
+  avg 0, 2                   ;   4
+  avg -1, 4                  ;   6
+  avg -3, 4                  ;   8
+  avg -2, 4                  ;  10
+  avg 10, -2                 ;  12
+  avg -1, 12                 ;  14
+  avg 4, 14                  ;  16
+  avg -3, -4                 ;  18
+  avg -1, 18                 ;  20
+  avg 18, 8                  ;  22
+  avg 18, 22                 ;  24
+  avg 0, 20                  ;  26
+  avg 3, 25                  ;  28
+
+normals: ; 0
+
+code:
+  balls colour:#767 fixed:2 17, 20, 28, 4, 0, 9, 18, 25
+  balls colour:#bab fixed:0 17, 20, 28, 4, 0, 9, 18, 25, -1, 5, 12, 14, 24, 3, -3, 14, 23, 6, 22, 26, 28
+  balls fixed:2 colour:#79f 7, 10, 29
+  highlight vertex:-4 radius:60 colour:#f8e
+  highlight vertex:2 radius:180 colour:#f69
+  highlight vertex:8 radius:100 colour:#f8e
+  highlight vertex:8 radius:100 colour:#f8e
+  highlight vertex:11 radius:120 colour:#f8e
+  highlight vertex:13 radius:160 colour:#88e
+  done
+
+
+; Single Courier Engine
+; Update: Add end caps, so cone smoothly connects to front part of engine
+model: 106
+  scale1: 10,
+  scale2: 0,
+  radius: 78,
+  colour: #000
+
+vertices: ; 14
+  0, 0, 0                     ;   0
+  0, 0, -29                   ;   2
+  0, 8, 0                     ;   4
+  7, 4, 0                     ;   6
+  7, -4, 0                    ;   8
+  0, -8, 0                    ;  10
+  0, 10, 4                    ;  12
+  9, 5, 9                     ;  14
+  9, -5, 14                   ;  16
+  0, -10, 9                   ;  18
+  0, 0, 48                    ;  20
+  0, 0, 68                    ;  22
+  0, 0, -6                    ;  24
+  add 24, -4                  ;  26
+
+normals: ; 8
+    0 (0, 0, 127)             ;   2
+    2 (0, 0, -127)            ;   4
+    6 (71, 102, -22)          ;   6
+    8 (125, -6, -14)          ;   8
+   10 (70, -103, -20)         ;  10
+   20 (50, 113, 27)           ;  12
+   20 (122, 14, 31)           ;  14
+   20 (48, -113, 31)          ;  16
+   4 (0, 0, -127)             ;  18
+
+code:
+  batch end
+  ztree push v:0
+  cone colour:#667 (v:0 n:2 r:7) (v:2 n:4 r:4 c:#177)
+  quad -4, -3, 26, -2 colour:#666
+  quad2 14, 4, 6, 12 colour:#444 normal:6
+  quad2 16, 6, 8, 14 colour:#444 normal:8
+  quad2 18, 8, 10, 16 colour:#666 normal:10
+  tri2 12, 14, 20 colour:#666 normal:12
+  tri2 14, 16, 20 colour:#444 normal:14
+  tri2 16, 18, 20 colour:#444 normal:16
+  quad2 4, 8, 6, 10 colour:#444 normal: 18
+  line 22, 20 colour:#888
+  ztree pop ; f015
+  tmp[3] = tmp[2] > 4096
+  if !tmp[3] end
+  model index:107 v:2 flip:xy-z
+  done
+
+
+; Planet while landed
+model: 114
+  scale1: 23,
+  scale2: 0,
+  radius: 102,
+  colour: #000
+
+vertices: ; 1
+  0, -100, 0                      ;   0
+
+normals: ; 0
+
+code:
+  planet v:0 size:25636 colours:[#140, #004, #444, #444] atmosColour:#008 atmosBands:[16413 #646, 16428 #536, 16452 #426, 16488 #416]
+  done 
+

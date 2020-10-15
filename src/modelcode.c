@@ -3,6 +3,9 @@
 #include <stdio.h>
 #include <string.h>
 
+// Decompile / Compile FE2 models
+// The text format here is our own invention and uses a custom parser.
+// It will compile model code loadable by the original version of the game.
 
 static inline u16 ror16(u16 n, u8 c) {
     u16 mask = ((sizeof(u16) * 8) - 1);
@@ -16,17 +19,17 @@ static void PrintParam8Base10(char* buff, int buffSize, u16 param) {
 
     switch (cmd) {
         case 0x00:
-            snprintf(buff, buffSize, "%d", val);
+            snprintf(buff, buffSize, "%d", (int)val);
             break;
         case 0x40:
-            snprintf(buff, buffSize, "%d", val << 10);
+            snprintf(buff, buffSize, "%d", (int)(val << 10));
             break;
         case 0x80:
-            snprintf(buff, buffSize, "scene[%d]", val);
+            snprintf(buff, buffSize, "scene[%d]", (int)val);
             break;
         case 0xc0:
         default:
-            snprintf(buff, buffSize, "tmp[%d]", val);
+            snprintf(buff, buffSize, "tmp[%d]", (int)val);
             break;
     }
 }
@@ -106,7 +109,7 @@ ByteCodeTrace* TraceForOffset(ByteCodeTraceArray* byteCodeTrace, int insOffset) 
 static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, MMemIO* writer) {
     modelInfo->numVertices = (model->verticesDataSize / sizeof(VertexData)) >> 1;
 
-    MStringAppendf(writer, "vertices: ; %d\n", modelInfo->numVertices);
+    MStringAppendf(writer, "vertices: ; %d\n", (int)modelInfo->numVertices);
 
     u16* vertexData = (u16*) (((u8*)model) + model->vertexDataOffset);
 
@@ -134,53 +137,53 @@ static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, 
                 if (vdata2 < 0 || vdata3 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
-                MStringAppendf(writer, "savg %d, %d", vdata2, vdata3);
+                MStringAppendf(writer, "savg %d, %d", (int)vdata2, (int)vdata3);
                 break;
             case 0x5:
             case 0x6:
                 if (vdata3 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
-                MStringAppendf(writer, "neg %d", vdata3);
+                MStringAppendf(writer, "neg %d", (int)vdata3);
                 break;
             case 0x7:
             case 0x8:
                 if (vdata2 < 0 || vdata3 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
-                MStringAppendf(writer, "rand %d, %d, %d", vdata3, vdata2, vdata1);
+                MStringAppendf(writer, "rand %d, %d, %d", (int)vdata3, (int)vdata2, (int)vdata1);
                 break;
             case 0x9:
             case 0xa:
-                MStringAppendf(writer, "%2x %d, %d, %d", vertexType, vdata1, vdata2, vdata3);
+                MStringAppendf(writer, "%2x %d, %d, %d", (int)vertexType, (int)vdata1, (int)vdata2, (int)vdata3);
                 break;
             case 0xb:
             case 0xc:
                 if (vdata2 < 0 || vdata3 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
-                MStringAppendf(writer, "avg %d, %d", vdata2, vdata3);
+                MStringAppendf(writer, "avg %d, %d", (int)vdata2, (int)vdata3);
                 break;
             case 0xd:
             case 0xe:
                 if (vdata2 < 0 || vdata3 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
-                MStringAppendf(writer, "savg2 %d, %d", vdata2, vdata3);
+                MStringAppendf(writer, "savg2 %d, %d", (int)vdata2, (int)vdata3);
                 break;
             case 0x0f:
             case 0x10:
                 if (vdata2 < 0 || vdata3 < 0 || vdata1 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
-                MStringAppendf(writer, "addsub %d + %d - %d", vdata3, vdata2, vdata1);
+                MStringAppendf(writer, "addsub %d + %d - %d", (int)vdata3, (int)vdata2, (int)vdata1);
                 break;
             case 0x11:
             case 0x12:
                 if (vdata2 < 0 || vdata3 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
-                MStringAppendf(writer, "add %d, %d", vdata3, vdata2);
+                MStringAppendf(writer, "add %d, %d", (int)vdata3, (int)vdata2);
                 break;
             case 0x13:
             case 0x14: {
@@ -188,11 +191,11 @@ static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, 
                 if (vdata2 < 0 || vdata3 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
-                MStringAppendf(writer, "lerp %d, %d, %s", vdata2, vdata3, buff1);
+                MStringAppendf(writer, "lerp %d, %d, %s", (int)vdata2, (int)vdata3, buff1);
                 break;
             }
             default:
-                MStringAppendf(writer, "%d, %d, %d", vdata1, vdata2, vdata3);
+                MStringAppendf(writer, "%d, %d, %d", (int)vdata1, (int)vdata2, (int)vdata3);
                 break;
         }
 
@@ -202,14 +205,14 @@ static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, 
             lenWrote++;
         }
 
-        MStringAppendf(writer, "; %3d : %04x:%04x\n", vi, vpacked1, vpacked2);
+        MStringAppendf(writer, "; %3d : %04x:%04x\n", vi, (int)vpacked1, (int)vpacked2);
     }
 
     MStringAppend(writer, "\n");
 
     if (model->normalDataSize > 0) {
         modelInfo->numNormals = (model->normalDataSize / 4) - 1;
-        MStringAppendf(writer, "normals: ; %d\n", modelInfo->numNormals);
+        MStringAppendf(writer, "normals: ; %d\n", (int)modelInfo->numNormals);
 
         u16* normalDataPtr = (u16*) (((u8*) model) + model->normalsOffset);
         for (int i = 0; i < modelInfo->numNormals; i++) {
@@ -227,14 +230,14 @@ static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, 
 
             u8* preSize = writer->pos;
 
-            MStringAppendf(writer, "  %3d (%d, %d, %d)", vi, x, y, z);
+            MStringAppendf(writer, "  %3d (%d, %d, %d)", (int)vi, (int)x, (int)y, (int)z);
 
             int lenWrote = writer->pos - preSize;
             while (lenWrote < 30) {
                 MStringAppend(writer, " ");
                 lenWrote++;
             }
-            MStringAppendf(writer, "; %3d %04x:%04x\n", (1 + i) << 1, n1, n2);
+            MStringAppendf(writer, "; %3d %04x:%04x\n", (int)((1 + i) << 1), (int)n1, (int)n2);
         }
 
         MStringAppend(writer, "\n");
@@ -276,7 +279,8 @@ static void DumpComplexInfo(MMemIO* dataReader, u64 offsetBegin, ByteCodeTraceAr
                 u16 vertexIndex2 = (data1 & 0xff);
                 u16 vertexIndex3 = (data2 >> 8);
                 u16 vertexIndex4 = (data2 & 0xff);
-                MStringAppendf(writer, "cbezier %d, %d, %d, %d", vertexIndex1, vertexIndex2, vertexIndex3, vertexIndex4);
+                MStringAppendf(writer, "cbezier %d, %d, %d, %d",
+                               (int)vertexIndex1, (int)vertexIndex2, (int)vertexIndex3, (int)vertexIndex4);
                 break;
             }
             case RComplexFunc_Line: {
@@ -284,12 +288,12 @@ static void DumpComplexInfo(MMemIO* dataReader, u64 offsetBegin, ByteCodeTraceAr
                 MMemReadU16(dataReader, &data1);
                 u16 vertexIndex1 = (data0 & 0xff);
                 u16 vertexIndex2 = (data1 & 0xff);
-                MStringAppendf(writer, "cline %d, %d", vertexIndex1, vertexIndex2);
+                MStringAppendf(writer, "cline %d, %d", (int)vertexIndex1, (int)vertexIndex2);
                 break;
             }
             case RComplexFunc_LineCont: {
                 u16 vertexIndex1 = (data0 & 0xff);
-                MStringAppendf(writer, "clinec %d", vertexIndex1);
+                MStringAppendf(writer, "clinec %d", (int)vertexIndex1);
                 break;
             }
             case RComplexFunc_BezierCont: {
@@ -298,7 +302,8 @@ static void DumpComplexInfo(MMemIO* dataReader, u64 offsetBegin, ByteCodeTraceAr
                 u16 vertexIndex2 = (data0 & 0xff);
                 u16 vertexIndex3 = (data1 >> 8);
                 u16 vertexIndex4 = (data1 & 0xff);
-                MStringAppendf(writer, "cbezierc %d, %d, %d", vertexIndex2, vertexIndex3, vertexIndex4);
+                MStringAppendf(writer, "cbezierc %d, %d, %d",
+                        (int)vertexIndex2, (int)vertexIndex3, (int)vertexIndex4);
                 break;
             }
             case RComplexFunc_LineJoin: {
@@ -311,7 +316,8 @@ static void DumpComplexInfo(MMemIO* dataReader, u64 offsetBegin, ByteCodeTraceAr
                 u16 vertexIndex1 = (data0 & 0xff);
                 u16 scale = (data1 >> 8);
                 u16 normalIndex1 = (data1 & 0x7f);
-                MStringAppendf(writer, "coval normal:%d scale:%d %d", normalIndex1, scale, vertexIndex1);
+                MStringAppendf(writer, "coval normal:%d scale:%d %d", (int)normalIndex1,
+                        (int)scale, (int)vertexIndex1);
                 break;
             }
             default:
@@ -405,7 +411,7 @@ static void DumpSubModelSetup(DebugModelInfo* modelInfo, MMemIO* writer,
 
     MArrayAdd(*modelIndexes, modelIndex);
 
-    MStringAppendf(writer, "model index:%d v:%d", modelIndex, vertexIndex);
+    MStringAppendf(writer, "model index:%d v:%d", (int)modelIndex, (int)vertexIndex);
 
     if (transformLight) {
         MStringAppendf(writer, " light");
@@ -424,13 +430,13 @@ static void DumpSubModelSetup(DebugModelInfo* modelInfo, MMemIO* writer,
         u16 v2i = data3 & 0xff;
         u16 v3i = data2 >> 8;
         u16 v4i = data3 >> 8;
-        MStringAppendf(writer, " frame:(%d", v1i);
+        MStringAppendf(writer, " frame:(%d", (int)v1i);
         if (v2i != 127) {
-            MStringAppendf(writer, ", %d", v2i);
+            MStringAppendf(writer, ", %d", (int)v2i);
             if (v3i != 127) {
-                MStringAppendf(writer, ", %d", v3i);
+                MStringAppendf(writer, ", %d", (int)v3i);
                 if (v4i != 127) {
-                    MStringAppendf(writer, ", %d", v4i);
+                    MStringAppendf(writer, ", %d", (int)v4i);
                 }
             }
         }
@@ -476,12 +482,12 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
 
         if (debugModelParams->onlyLabels) {
             char label[20];
-            snprintf(label, 20, "%05lx", insOffset);
+            snprintf(label, 20, "%05llx", insOffset);
             b32 hasLabel = FALSE;
             for (int i = 0; i < MArraySize(codeOffsets); i++) {
                 u64 codeOffset = MArrayGet(codeOffsets, i);
                 if (codeOffset == insOffset) {
-                    MStringAppendf(strOutput, "%05lx: ", insOffset);
+                    MStringAppendf(strOutput, "%05llx: ", insOffset);
                     hasLabel = TRUE;
                     break;
                 }
@@ -512,9 +518,11 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 i8 vertexIndex = (i8)(data2 >> 8);
                 PrintParam16Base10(buff1, buffSize, data1);
                 if (type & 0x80) {
-                    MStringAppendf(strOutput, "highlight vertex:%d radius:%s colour:#%03x", vertexIndex, buff1, colour);
+                    MStringAppendf(strOutput, "highlight vertex:%d radius:%s colour:#%03x", (int)vertexIndex,
+                            buff1, colour);
                 } else {
-                    MStringAppendf(strOutput, "circle vertex:%d radius:%s colour:#%03x", vertexIndex, buff1, colour);
+                    MStringAppendf(strOutput, "circle vertex:%d radius:%s colour:#%03x", (int)vertexIndex,
+                            buff1, colour);
                 }
 
                 if (vertexIndex < 0) {
@@ -528,7 +536,8 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MMemReadU16(&dataReader, &data1);
                 i8 vertexIndex1 = (i8)(data1 & 0xff);
                 i8 vertexIndex2 = (i8)(data1 >> 8);
-                MStringAppendf(strOutput, "line %d, %d colour:#%03x", vertexIndex1, vertexIndex2, colour);
+                MStringAppendf(strOutput, "line %d, %d colour:#%03x", (int)vertexIndex1, (int)vertexIndex2,
+                        (int)colour);
                 if (vertexIndex1 < 0 || vertexIndex2 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
@@ -544,10 +553,11 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 i8 vertexIndex2 = (i8)(data2 >> 8);
                 i8 vertexIndex3 = (i8)(data1 >> 8);
                 u16 normalIndex = (data2 & 0x7f);
-                MStringAppendf(strOutput, "tri %d, %d, %d colour:#%03x", vertexIndex1, vertexIndex2, vertexIndex3, colour);
+                MStringAppendf(strOutput, "tri %d, %d, %d colour:#%03x", (int)vertexIndex1, (int)vertexIndex2,
+                               (int)vertexIndex3, (int)colour);
 
                 if (normalIndex) {
-                    MStringAppendf(strOutput, " normal:%d", normalIndex);
+                    MStringAppendf(strOutput, " normal:%d", (int)normalIndex);
                 }
 
                 if (vertexIndex1 < 0 || vertexIndex2 < 0 || vertexIndex3 < 0) {
@@ -570,10 +580,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 i8 vertexIndex4 = (i8)(data2 >> 8);
                 u16 normalIndex = (data3 & 0x7f);
                 MStringAppendf(strOutput, "quad %d, %d, %d, %d colour:#%03x",
-                               vertexIndex1, vertexIndex2, vertexIndex3, vertexIndex4, colour);
+                               (int)vertexIndex1, (int)vertexIndex2, (int)vertexIndex3, (int)vertexIndex4, (int)colour);
 
                 if (normalIndex) {
-                    MStringAppendf(strOutput, " normal:%d", normalIndex);
+                    MStringAppendf(strOutput, " normal:%d", (int)normalIndex);
                 }
 
                 if (vertexIndex1 < 0 || vertexIndex2 < 0 || vertexIndex3 < 0 || vertexIndex4 < 0) {
@@ -592,17 +602,18 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MStringAppend(strOutput, "complex ");
 
                 if (normalIndex) {
-                    MStringAppendf(strOutput, "normal:%d ", normalIndex);
+                    MStringAppendf(strOutput, "normal:%d ", (int)normalIndex);
                 }
 
-                MStringAppendf(strOutput, "colour:#%03x loc:%04x\n", colour, jumpOffset);
+                MStringAppendf(strOutput, "colour:#%03x loc:%04x\n", (int)colour, (int)jumpOffset);
 
                 MArrayAdd(codeOffsets, jumpOffset);
 
                 if (jumpOffset > largestOffset) {
                     largestOffset = jumpOffset;
                 }
-                DumpComplexInfo(&dataReader, insOffset + 4, debugModelParams->byteCodeTrace, debugModelParams->onlyLabels, strOutput);
+                DumpComplexInfo(&dataReader, insOffset + 4, debugModelParams->byteCodeTrace,
+                        debugModelParams->onlyLabels, strOutput);
                 break;
             }
             case Render_BATCH: {
@@ -616,7 +627,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 } else if (batchControl == 0x7fd) {
                     i16 z = 0;
                     MMemReadI16(&dataReader, &z);
-                    MStringAppendf(strOutput, "batch begin z:%d", z);
+                    MStringAppendf(strOutput, "batch begin z:%d", (int)z);
                 } else {
                     u16 vertexIndex = (batchControl & 0xff);
                     if (vertexIndex >= 0x80) {
@@ -626,10 +637,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     u16 data1;
                     switch (upperControl) {
                         case 0x1: {
-                            MStringAppendf(strOutput, "batch begin z:max vertex:%d", vertexIndex);
+                            MStringAppendf(strOutput, "batch begin z:max vertex:%d", (int)vertexIndex);
                             do {
                                 MMemReadU16(&dataReader, &data1);
-                                MStringAppendf(strOutput, ", vertex:%d", data1 & 0xff);
+                                MStringAppendf(strOutput, ", vertex:%d", (int)(data1 & 0xff));
                             } while (data1 & 0x8000);
                             break;
                         }
@@ -637,17 +648,17 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                             MStringAppendf(strOutput, "batch begin z:min vertex:%d", vertexIndex);
                             do {
                                 MMemReadU16(&dataReader, &data1);
-                                MStringAppendf(strOutput, ", %d", data1 & 0xff);
+                                MStringAppendf(strOutput, ", %d", (int)(data1 & 0xff));
                             } while (data1 & 0x8000);
                             break;
                         }
                         case 0x7: {
                             MMemReadU16(&dataReader, &data1);
-                            MStringAppendf(strOutput, "batch begin z:%d vertex:%d", data1, vertexIndex);
+                            MStringAppendf(strOutput, "batch begin z:%d vertex:%d", (int)data1, (int)vertexIndex);
                             break;
                         }
                         default:
-                            MStringAppendf(strOutput, "batch begin vertex:%d", vertexIndex);
+                            MStringAppendf(strOutput, "batch begin vertex:%d", (int)vertexIndex);
                             break;
                     }
                 }
@@ -665,10 +676,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 u16 normalIndex = (data2 & 0x7f);
 
                 MStringAppendf(strOutput, "tri2 %d, %d, %d colour:#%03x",
-                               vertexIndex1, vertexIndex2, vertexIndex3, colour);
+                               (int)vertexIndex1, (int)vertexIndex2, (int)vertexIndex3, (int)colour);
 
                 if (normalIndex) {
-                    MStringAppendf(strOutput, " normal:%d", normalIndex);
+                    MStringAppendf(strOutput, " normal:%d", (int)normalIndex);
                 }
 
                 if (vertexIndex1 < 0 || vertexIndex2 < 0 || vertexIndex3 < 0) {
@@ -691,10 +702,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 u16 normalIndex = (data3 & 0x7f);
 
                 MStringAppendf(strOutput, "quad2 %d, %d, %d, %d colour:#%03x",
-                               vertexIndex1, vertexIndex2, vertexIndex3, vertexIndex4, colour);
+                               (int)vertexIndex1, (int)vertexIndex2, (int)vertexIndex3, (int)vertexIndex4, (int)colour);
 
                 if (normalIndex) {
-                    MStringAppendf(strOutput, " normal:%d", normalIndex);
+                    MStringAppendf(strOutput, " normal:%d", (int)normalIndex);
                 }
 
                 if (vertexIndex1 < 0 || vertexIndex2< 0 || vertexIndex3 < 0 || vertexIndex4 < 0) {
@@ -714,7 +725,8 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MMemReadU16(&dataReader, &data2);
                 i8 vertexIndex1 = (i8)lo8s(data1);
                 i8 vertexIndex2 = (i8)hi8s(data1);
-                MStringAppendf(strOutput, "teardrop radius:%d colour:#%03x %d, %d", data2, colour, vertexIndex1, vertexIndex2);
+                MStringAppendf(strOutput, "teardrop radius:%d colour:#%03x %d, %d", (int)data2, (int)colour,
+                               (int)vertexIndex1, (int)vertexIndex2);
                 if (vertexIndex1 < 0 || vertexIndex2 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
@@ -738,10 +750,11 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MArrayAdd(modelInfo->modelIndexes, fontIndex);
 
                 MStringAppendf(strOutput, "vtext vertex:%d transform:%d scale:%d font:%d string:%d colour:#%03x",
-                               vertexIndex1, transform, scale, fontIndex, stringIndex, colour);
+                               (int)vertexIndex1, (int)transform, (int)scale, (int)fontIndex, (int)stringIndex,
+                               (int)colour);
 
                 if (normalIndex) {
-                    MStringAppendf(strOutput, " normal:%d", normalIndex);
+                    MStringAppendf(strOutput, " normal:%d", (int)normalIndex);
                 }
 
                 if (vertexIndex1 >= 0x80) {
@@ -758,10 +771,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MArrayAdd(codeOffsets, jumpOffset);
                     if (data1 & 0x8000) {
                         u16 normalIndex = (data1 & 0x7f);
-                        MStringAppendf(strOutput, "if > normal:%d loc:%04x", normalIndex, jumpOffset);
+                        MStringAppendf(strOutput, "if > normal:%d loc:%04x", (int)normalIndex, (int)jumpOffset);
                     } else {
                         u16 z = data1 >> 1;
-                        MStringAppendf(strOutput, "if > z:%d loc:%04x", z, jumpOffset);
+                        MStringAppendf(strOutput, "if > z:%d loc:%04x", (int)z, jumpOffset);
                     }
                     if (jumpOffset > largestOffset) {
                         largestOffset = jumpOffset;
@@ -769,10 +782,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 } else {
                     if (data1 & 0x8000) {
                         u16 normalIndex = (data1 & 0x7f);
-                        MStringAppendf(strOutput, "if > normal:%d end", normalIndex);
+                        MStringAppendf(strOutput, "if > normal:%d end", (int)normalIndex);
                     } else {
                         u16 z = data1 >> 1;
-                        MStringAppendf(strOutput, "if > z:%d end", z);
+                        MStringAppendf(strOutput, "if > z:%d end", (int)z);
                     }
                 }
                 break;
@@ -786,10 +799,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MArrayAdd(codeOffsets, jumpOffset);
                     if (data1 & 0x8000) {
                         u16 normalIndex = (data1 & 0x7f);
-                        MStringAppendf(strOutput, "if < normal:%d loc:%04x", normalIndex, jumpOffset);
+                        MStringAppendf(strOutput, "if < normal:%d loc:%04x", (int)normalIndex, jumpOffset);
                     } else {
                         u16 z = data1 >> 1;
-                        MStringAppendf(strOutput, "if < z:%d loc:%04x", z, jumpOffset);
+                        MStringAppendf(strOutput, "if < z:%d loc:%04x", (int)z, jumpOffset);
                     }
                     if (jumpOffset > largestOffset) {
                         largestOffset = jumpOffset;
@@ -797,10 +810,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 } else {
                     if (data1 & 0x8000) {
                         u16 normalIndex = (data1 & 0x7f);
-                        MStringAppendf(strOutput, "if < normal:%d", normalIndex);
+                        MStringAppendf(strOutput, "if < normal:%d", (int)normalIndex);
                     } else {
                         u16 z = data1 >> 1;
-                        MStringAppendf(strOutput, "if < z:%d", z);
+                        MStringAppendf(strOutput, "if < z:%d", (int)z);
                     }
                 }
                 break;
@@ -884,7 +897,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 break;
             }
             case Render_AUDIO_CUE: {
-                MStringAppendf(strOutput, "sound %d", data0_12);
+                MStringAppendf(strOutput, "sound %d", (int)data0_12);
                 break;
             }
             case Render_CONE: {
@@ -911,7 +924,8 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 const char* cap2Render = (data3 & 0x80) ? " c:" : "";
 
                 MStringAppendf(strOutput, "cone colour:#%03x (v:%d n:%d r:%d%s) (v:%d n:%d r:%d%s)",
-                               data0_12, v1, n1, r1, cap1Render, v2, n2, r2, cap2Render);
+                               (int)data0_12, (int)v1, (int)n1, (int)r1, (int)cap1Render,
+                               (int)v2, (int)n2, (int)r2, (int)cap2Render);
                 break;
             }
             case Render_CONE_COLOUR_CAP: {
@@ -939,14 +953,15 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 u16 colour2 = 0;
                 MMemReadU16(&dataReader, &colour2);
 
-                MStringAppendf(strOutput, "cone colour:#%03x (v:%d n:%d r:%d", data0_12, v1, n1, r1);
+                MStringAppendf(strOutput, "cone colour:#%03x (v:%d n:%d r:%d", (int)data0_12, (int)v1, (int)n1,
+                        (int)r1);
                 if (data2 & 0x80) {
-                    MStringAppendf(strOutput, " c:#%03x", colour1);
+                    MStringAppendf(strOutput, " c:#%03x", (int)colour1);
                 }
 
-                MStringAppendf(strOutput, ") (v:%d n:%d r:%d", v2, n2, r2);
+                MStringAppendf(strOutput, ") (v:%d n:%d r:%d", (int)v2, (int)n2, (int)r2);
                 if (data3 & 0x80) {
-                    MStringAppendf(strOutput, " c:#%03x", colour2);
+                    MStringAppendf(strOutput, " c:#%03x", (int)colour2);
                 }
 
                 MStringAppend(strOutput, ")");
@@ -956,7 +971,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 // Bitmap text
                 u16 data1 = 0;
                 MMemReadU16(&dataReader, &data1);
-                MStringAppendf(strOutput, "btext d1:%d d2:%d", data0_12, data1);
+                MStringAppendf(strOutput, "btext d1:%d d2:%d", (int)data0_12, (int)data1);
                 break;
             }
             case Render_IF_NOT_VAR: {
@@ -972,7 +987,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MArrayAdd(codeOffsets, jumpOffset);
 
                     if (bit) {
-                        MStringAppendf(strOutput, "if !bit(%s, %d) loc:%04x", buff1, bit, jumpOffset);
+                        MStringAppendf(strOutput, "if !bit(%s, %d) loc:%04x", buff1, (int)bit, jumpOffset);
                     } else {
                         MStringAppendf(strOutput, "if !%s loc:%04x", buff1, jumpOffset);
                     }
@@ -981,7 +996,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     }
                 } else {
                     if (bit) {
-                        MStringAppendf(strOutput, "if !bit(%s, %d) end", buff1, bit);
+                        MStringAppendf(strOutput, "if !bit(%s, %d) end", buff1, (int)bit);
                     } else {
                         MStringAppendf(strOutput, "if !%s end", buff1);
                     }
@@ -1001,7 +1016,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     u32 jumpOffset = insOffset + skipBytes + 4;
                     MArrayAdd(codeOffsets, jumpOffset);
                     if (bit) {
-                        MStringAppendf(strOutput, "if bit(%s, %d) loc:%04x", buff1, bit, jumpOffset);
+                        MStringAppendf(strOutput, "if bit(%s, %d) loc:%04x", buff1, (int)bit, jumpOffset);
                     } else {
                         MStringAppendf(strOutput, "if %s loc:%04x", buff1, jumpOffset);
                     }
@@ -1010,7 +1025,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     }
                 } else {
                     if (bit) {
-                        MStringAppendf(strOutput, "if bit(%s, %d) end", buff1, bit);
+                        MStringAppendf(strOutput, "if bit(%s, %d) end", buff1, (int)bit);
                     } else {
                         MStringAppendf(strOutput, "if %s end", buff1);
                     }
@@ -1022,7 +1037,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MStringAppendf(strOutput, "ztree pop");
                 } else {
                     i16 vi = lo8s(data0_12 >> 1);
-                    MStringAppendf(strOutput, "ztree push v:%d", vi);
+                    MStringAppendf(strOutput, "ztree push v:%d", (int)vi);
                 }
                 break;
             }
@@ -1047,7 +1062,8 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
 
                 u16 colourParam = (data0_12 & 0xfff);
 
-                MStringAppendf(strOutput, "bline %d, %d, %d, %d normal:%d, colour:#%03x", v1i, v2i, v3i, v4i, normalIndex, colourParam);
+                MStringAppendf(strOutput, "bline %d, %d, %d, %d normal:%d, colour:#%03x",
+                               (int)v1i, (int)v2i, (int)v3i, (int)v4i, (int)normalIndex, (int)colourParam);
                 break;
             }
             case Render_IF_VIEWSPACE_DIST: {
@@ -1072,29 +1088,31 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 if (data1 & 0x8000) {
                     i32 min = data1 ^ 0x8000;
                     if (skipBytes) {
-                        MStringAppendf(strOutput, "if dist(%d, %d) < %d loc:%04x", v1i, v2i, min, jumpOffset);
+                        MStringAppendf(strOutput, "if dist(%d, %d) < %d loc:%04x", (int)v1i, (int)v2i, (int)min,
+                                jumpOffset);
                         if (jumpOffset > largestOffset) {
                             largestOffset = jumpOffset;
                         }
                     } else {
-                        MStringAppendf(strOutput, "if dist(%d, %d) < %d end", v1i, v2i, min);
+                        MStringAppendf(strOutput, "if dist(%d, %d) < %d end", (int)v1i, (int)v2i, (int)min);
                     }
                 } else {
                     i32 max = data1;
                     if (skipBytes) {
-                        MStringAppendf(strOutput, "if dist(%d, %d) > %d loc:%04x", v1i, v2i, max, jumpOffset);
+                        MStringAppendf(strOutput, "if dist(%d, %d) > %d loc:%04x", (int)v1i, (int)v2i, (int)max,
+                                jumpOffset);
                         if (jumpOffset > largestOffset) {
                             largestOffset = jumpOffset;
                         }
                     } else {
-                        MStringAppendf(strOutput, "if dist(%d, %d) > %d end", v1i, v2i, max);
+                        MStringAppendf(strOutput, "if dist(%d, %d) > %d end", (int)v1i, (int)v2i, (int)max);
                     }
                 }
                 break;
             }
             case Render_BALLS: {
                 u16 colour = data0_12 & 0xfff;
-                MStringAppendf(strOutput, "balls colour:#%03x ", colour);
+                MStringAppendf(strOutput, "balls colour:#%03x ", (int)colour);
 
                 u16 data1 = 0;
                 MMemReadU16(&dataReader, &data1);
@@ -1117,10 +1135,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         MStringAppend(strOutput, ", ");
                     }
                     if (v2 == 0x7f) {
-                        MStringAppendf(strOutput, "%d", v1);
+                        MStringAppendf(strOutput, "%d", (int)v1);
                         break;
                     }
-                    MStringAppendf(strOutput, "%d, %d", v1, v2);
+                    MStringAppendf(strOutput, "%d, %d", (int)v1, (int)v2);
                     start = FALSE;
                 }
 
@@ -1165,11 +1183,12 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         extraColours[i] &= 0xfff;
                     }
                     MStringAppendf(strOutput, "colour normal:%d index:%s colours:[#%03x, #%03x, #%3x, #%03x, #%03x, #%03x, #%03x, #%03x]",
-                                   normalIndex, buff1, colourParam,
-                                   extraColours[0], extraColours[1], extraColours[2], extraColours[3],
-                                   extraColours[4], extraColours[5], extraColours[6]);
+                                   (int)normalIndex, buff1, (int)colourParam,
+                                   (int)extraColours[0], (int)extraColours[1], (int)extraColours[2], (int)extraColours[3],
+                                   (int)extraColours[4], (int)extraColours[5], (int)extraColours[6]);
                 } else {
-                    MStringAppendf(strOutput, "colour normal:%d colours:[#%03x]", normalIndex, colourParam);
+                    MStringAppendf(strOutput, "colour normal:%d colours:[#%03x]",
+                            (int)normalIndex, (int)colourParam);
                 }
                 break;
             }
@@ -1185,13 +1204,13 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
 
                 if (data2 & 0x800) {
                     u16 ix = data2 >> 0xc;
-                    MStringAppendf(strOutput, " scale:tmp[%d]", ix);
+                    MStringAppendf(strOutput, " scale:tmp[%d]", (int)ix);
                 } else {
                     u16 scale = data2 >> 0xc;
-                    MStringAppendf(strOutput, " scale:%d", scale);
+                    MStringAppendf(strOutput, " scale:%d", (int)scale);
                 }
 
-                MStringAppendf(strOutput, " colour:#%03x", colourParam);
+                MStringAppendf(strOutput, " colour:#%03x", (int)colourParam);
 
                 break;
             }
@@ -1285,9 +1304,9 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
             }
             case Render_MATRIX_COPY: {
                 if (data0_12 == 0xc01) {
-                    MStringAppendf(strOutput, "mcopy", data0_12);
+                    MStringAppendf(strOutput, "mcopy");
                 } else {
-                    MStringAppendf(strOutput, "msetup %x", data0_12);
+                    MStringAppendf(strOutput, "msetup %x", (int)data0_12);
                 }
                 break;
             }
@@ -1308,8 +1327,8 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
 
                 u16 dataSize = data0_12 & 0xffe;
 
-                MStringAppendf(strOutput, " v:%d", vi);
-                MStringAppendf(strOutput, " size:%d", data1);
+                MStringAppendf(strOutput, " v:%d", (int)vi);
+                MStringAppendf(strOutput, " size:%d", (int)data1);
 
                 u16 colour[4] = { 0, 0, 0, 0 };
                 MMemReadU16(&dataReader, colour + 0);
@@ -1332,8 +1351,9 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     }
                 }
 
-                MStringAppendf(strOutput, " shade:%d colours:[#%03x, #%03x, #%03x, #%03x", shade,
-                               colour[0] & 0xfff, colour[1] & 0xfff, colour[2] & 0xfff, colour[3] & 0xfff);
+                MStringAppendf(strOutput, " shade:%d colours:[#%03x, #%03x, #%03x, #%03x", (int)shade,
+                        (int)(colour[0] & 0xfff), (int)(colour[1] & 0xfff), (int)(colour[2] & 0xfff),
+                        (int)(colour[3] & 0xfff));
 
                 if (colParam & 0x1) {
                     u16 data3 = 0;
@@ -1347,7 +1367,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         MMemReadU16(&dataReader, colour + 2);
                         MMemReadU16(&dataReader, colour + 3);
                         MStringAppendf(strOutput, "[#%03x, #%03x, #%03x, #%03x]", colParam,
-                                       colour[0] & 0xfff, colour[1] & 0xfff, colour[2] & 0xfff, colour[3] & 0xfff);
+                                       (int)(colour[0] & 0xfff),
+                                       (int)colour[1] & 0xfff,
+                                       (int)colour[2] & 0xfff,
+                                       (int)colour[3] & 0xfff);
                         if (k != 6) {
                             MStringAppend(strOutput, ", ");
                         }
@@ -1358,8 +1381,9 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MMemReadU16(&dataReader, colour + 2);
                     MMemReadU16(&dataReader, colour + 3);
 
-                    MStringAppendf(strOutput, ", #%03x, #%03x, #%03x, #%03x", colParam,
-                                   colour[0] & 0xfff, colour[1] & 0xfff, colour[2] & 0xfff, colour[3] & 0xfff);
+                    MStringAppendf(strOutput, ", #%03x, #%03x, #%03x, #%03x", (int)colParam,
+                                   (int)(colour[0] & 0xfff), (int)(colour[1] & 0xfff),
+                                   (int)(colour[2] & 0xfff), (int)(colour[3] & 0xfff));
                 }
                 MStringAppend(strOutput, "]");
 
@@ -1372,12 +1396,12 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MMemReadU16(&dataReader, &atmosBandWidth);
                     u16 bandColour = 0;
                     MMemReadU16(&dataReader, &bandColour);
-                    MStringAppendf(strOutput, " atmosBands:[%d #%03x", atmosBandWidth, bandColour);
+                    MStringAppendf(strOutput, " atmosBands:[%d #%03x", (int)atmosBandWidth, (int)bandColour);
                     do {
                         MMemReadU16(&dataReader, &atmosBandWidth);
                         if (atmosBandWidth) {
                             MMemReadU16(&dataReader, &bandColour);
-                            MStringAppendf(strOutput, ", %d #%03x", atmosBandWidth, bandColour);
+                            MStringAppendf(strOutput, ", %d #%03x", (int)atmosBandWidth, (int)bandColour);
                         }
                     } while (atmosBandWidth);
                     MStringAppend(strOutput, "]");
@@ -1408,12 +1432,13 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         i8 angle = 0;
                         MMemReadI8(&dataReader, &angle);
                         dataRemaining -= 4;
-                        MStringAppendf(strOutput, "[%d, %d, %d, %d]", control, coord[0], coord[1], coord[2], angle);
+                        MStringAppendf(strOutput, "[%d, %d, %d, %d]", (int)control, (int)coord[0], (int)coord[1],
+                                (int)coord[2], (int)angle);
                     } else {
                         i8 w = 0;
                         MMemReadI8(&dataReader, &w);
 
-                        MStringAppendf(strOutput, "[%d, %d", control, w);
+                        MStringAppendf(strOutput, "[%d, %d", (int)control, (int)w);
 
                         MMemReadI8(&dataReader, coord);
                         dataRemaining--;
@@ -1421,14 +1446,14 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                             MStringAppend(strOutput, ", ");
                             MMemReadI8(&dataReader, coord + 1);
                             MMemReadI8(&dataReader, coord + 2);
-                            MStringAppendf(strOutput, "[%d, %d, %d]", coord[0], coord[1], coord[2]);
+                            MStringAppendf(strOutput, "[%d, %d, %d]", (int)coord[0], (int)coord[1], (int)coord[2]);
                             MMemReadI8(&dataReader, coord);
                             dataRemaining -= 3;
                         }
                         u8 e = 0;
                         MMemReadU8(&dataReader, &e);
                         dataRemaining--;
-                        MStringAppendf(strOutput, ", %d]", e);
+                        MStringAppendf(strOutput, ", %d]", (int)e);
                     }
 
                     i = 1;
@@ -1441,14 +1466,14 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 break;
             }
             default:
-                MStringAppendf(strOutput, "unknown %d!", func);
+                MStringAppendf(strOutput, "unknown %d!", (int)func);
                 break;
         }
 
         MStringAppend(strOutput, " ; ");
         u16* end = (u16*)dataReader.pos;
         for (u16* pos = (u16*)begin; pos < end; pos++) {
-            MStringAppendf(strOutput, "%04x", *pos);
+            MStringAppendf(strOutput, "%04x", (int)*pos);
             if (pos < end - 1) {
                 MStringAppend(strOutput, ":");
             }
@@ -1464,13 +1489,13 @@ void DecompileModel(ModelData *model, u32 modelIndex, DebugModelParams* debugMod
     modelInfo->referencesParent = FALSE;
 
     if (modelIndex) {
-        MStringAppendf(strOutput, "model: %d\n", modelIndex);
+        MStringAppendf(strOutput, "model: %d\n", (int)modelIndex);
     } else {
         MStringAppend(strOutput, "model:\n");
     }
 
     MStringAppendf(strOutput, "  scale1: %d,\n  scale2: %d,\n  radius: %d,\n  colour: #%03x\n\n",
-                   model->scale1, model->scale2, model->radius, model->colour);
+                   (int)model->scale1, (int)model->scale2, (int)model->radius, (int)model->colour);
 
     MArrayInit(modelInfo->modelIndexes);
 
@@ -1488,10 +1513,11 @@ void DecompileFontModel(FontModelData* model, u32 modelIndex, DebugModelParams* 
 
     modelInfo->referencesParent = FALSE;
 
-    MStringAppendf(strOutput, "font: %d\n", modelIndex);
+    MStringAppendf(strOutput, "font: %d\n", (int)modelIndex);
 
     MStringAppendf(strOutput, "  scale1: %d,\n  scale2: %d,\n  radius: %d,\n  colour: #%03x,\n  newLineVector: %d\n\n",
-                   model->scale1, model->scale2, model->radius, model->colour, model->newLineVector);
+                   (int)model->scale1, (int)model->scale2, (int)model->radius, (int)model->colour,
+                   (int)model->newLineVector);
 
     MArrayInit(modelInfo->modelIndexes);
 
@@ -1518,11 +1544,11 @@ void DecompileFontModel(FontModelData* model, u32 modelIndex, DebugModelParams* 
             if (c == '\'') {
                 MStringAppend(strOutput, "\\'");
             } else if (c >= lastPrintableChar) {
-                MStringAppendf(strOutput, "\\%d", c);
+                MStringAppendf(strOutput, "\\%d", (int)c);
             } else {
                 MStringAppendf(strOutput, "%c", (char)c);
             }
-            MStringAppendf(strOutput, "' ; %d : 0x%04x \n", (int)c, offset);
+            MStringAppendf(strOutput, "' ; %d : 0x%04x \n", (int)c, (int)offset);
             u8* codeStart = ((u8*) model) + offset;
             DumpModelCode(codeStart, debugModelParams, modelInfo, strOutput);
             // Break if next offset is overlapping code we got previously
@@ -1581,12 +1607,7 @@ typedef enum {
     ModelParserToken_END,
 } ModelParserTokenEnum;
 
-typedef enum {
-    ModelEndian_LITTLE,
-    ModelEndian_BIG,
-} ModelEndianEnum;
-
-b32 IsAlphaNumeric(u8 c) {
+MINTERNAL b32 IsAlphaNumeric(u8 c) {
     return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9');
 }
 
@@ -1738,13 +1759,13 @@ ModelParserTokenEnum NextTokenNoTokenUpdate(ModelParserContext* ctxt) {
     return ModelParserToken_END;
 }
 
-ModelParserTokenEnum NextToken(ModelParserContext* ctxt) {
+MINTERNAL ModelParserTokenEnum NextToken(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = NextTokenNoTokenUpdate(ctxt);
     ctxt->token = token;
     return token;
 }
 
-ModelParserTokenEnum NextTokenIfNewLine(ModelParserContext* ctxt) {
+MINTERNAL ModelParserTokenEnum NextTokenIfNewLine(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = ctxt->token;
     if (token == ModelParserToken_NEW_LINE) {
         token = NextToken(ctxt);
@@ -1753,7 +1774,7 @@ ModelParserTokenEnum NextTokenIfNewLine(ModelParserContext* ctxt) {
     return token;
 }
 
-ModelParserTokenEnum NextTokenConsumeNewLine(ModelParserContext* ctxt) {
+MINTERNAL ModelParserTokenEnum NextTokenConsumeNewLine(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = NextToken(ctxt);
     if (token == ModelParserToken_NEW_LINE) {
         token = NextToken(ctxt);
@@ -1762,7 +1783,7 @@ ModelParserTokenEnum NextTokenConsumeNewLine(ModelParserContext* ctxt) {
     return token;
 }
 
-ModelParserTokenEnum NextTokenConsumeNewLines(ModelParserContext* ctxt) {
+MINTERNAL ModelParserTokenEnum NextTokenConsumeNewLines(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = ctxt->token;
     while (token == ModelParserToken_NEW_LINE) {
         token = NextToken(ctxt);
@@ -1812,7 +1833,7 @@ typedef struct sCodeLabelFixup {
 
 MARRAY_TYPEDEF(CodeLabelFixup, CodeLabelFixups);
 
-i32 StrCopy(ModelParserContext* ctxt, char* out, i32 outSize) {
+MINTERNAL i32 StrCopy(ModelParserContext* ctxt, char* out, i32 outSize) {
     i32 written = 0;
     const char* end = ctxt->valueEnd;
     const char* pos = ctxt->valueStart;
@@ -1831,7 +1852,7 @@ i32 StrCopy(ModelParserContext* ctxt, char* out, i32 outSize) {
     return written;
 }
 
-i32 StrCmp(ModelParserContext* ctxt, const char* str) {
+MINTERNAL i32 StrCmp(ModelParserContext* ctxt, const char* str) {
     return MStrCmp3(str, ctxt->valueStart, ctxt->valueEnd);
 }
 
@@ -1844,7 +1865,7 @@ i32 StrCmp(ModelParserContext* ctxt, const char* str) {
     ctxt->result.error = (char*)msg; \
     return -2;
 
-i32 ParseI32(ModelParserContext* ctxt, i32* val) {
+MINTERNAL i32 ParseI32(ModelParserContext* ctxt, i32* val) {
     i32 r;
     b32 minus = FALSE;
     if (ctxt->token == ModelParserToken_MINUS) {
@@ -1869,7 +1890,7 @@ i32 ParseI32(ModelParserContext* ctxt, i32* val) {
     return r;
 }
 
-i32 ParseI8(ModelParserContext* ctxt, i8* out) {
+MINTERNAL i32 ParseI8(ModelParserContext* ctxt, i8* out) {
     i32 val = 0;
     i32 r = 0;
     r = ParseI32(ctxt, &val);
@@ -1886,7 +1907,7 @@ i32 ParseI8(ModelParserContext* ctxt, i8* out) {
     return 0;
 }
 
-i32 ParseU8(ModelParserContext* ctxt, u8* out) {
+MINTERNAL i32 ParseU8(ModelParserContext* ctxt, u8* out) {
     i32 val = 0;
     i32 r = 0;
 
@@ -1913,7 +1934,7 @@ i32 ParseU8(ModelParserContext* ctxt, u8* out) {
     return 0;
 }
 
-i32 ParseU16(ModelParserContext* ctxt, u16* out) {
+MINTERNAL i32 ParseU16(ModelParserContext* ctxt, u16* out) {
     i32 val = 0;
     i32 r = 0;
 
@@ -1940,11 +1961,11 @@ i32 ParseU16(ModelParserContext* ctxt, u16* out) {
     return 0;
 }
 
-i32 ParseColour(ModelParserContext* ctxt, u16* val) {
+MINTERNAL i32 ParseColour(ModelParserContext* ctxt, u16* val) {
     return ParseU16(ctxt, val);
 }
 
-i32 ParseParam16Base10(ModelParserContext* ctxt, u16* outParam) {
+MINTERNAL i32 ParseParam16Base10(ModelParserContext* ctxt, u16* outParam) {
     i32 r;
     i32 valI32;
     b32 isTmpVariable = FALSE;
@@ -2007,7 +2028,7 @@ i32 ParseParam16Base10(ModelParserContext* ctxt, u16* outParam) {
     return r;
 }
 
-i32 ParseParam8Base10(ModelParserContext* ctxt, u8* outParam) {
+MINTERNAL i32 ParseParam8Base10(ModelParserContext* ctxt, u8* outParam) {
     i32 r;
     i32 valI32;
     b32 isTmpVariable = FALSE;
@@ -2084,7 +2105,7 @@ i32 ParseParam8Base10(ModelParserContext* ctxt, u8* outParam) {
     return r;
 }
 
-void ModelWrite4i8(ModelParserContext* ctxt, i8* src) {
+MINTERNAL void ModelWrite4i8(ModelParserContext* ctxt, i8* src) {
     if (ctxt->endian == ModelEndian_LITTLE) {
         u16 val = (((u16)((u8)src[0])) << 8) + (u8)src[1];
         MMemWriteU16LE(ctxt->memIO, val);
@@ -2095,7 +2116,7 @@ void ModelWrite4i8(ModelParserContext* ctxt, i8* src) {
     }
 }
 
-void ModelWriteU16(ModelParserContext* ctxt, u16 val) {
+MINTERNAL void ModelWriteU16(ModelParserContext* ctxt, u16 val) {
     if (ctxt->endian == ModelEndian_LITTLE) {
         MMemWriteU16LE(ctxt->memIO, val);
     } else {
@@ -2103,27 +2124,27 @@ void ModelWriteU16(ModelParserContext* ctxt, u16 val) {
     }
 }
 
-static i32 ReadI8(ModelParserContext* ctxt, i8* out) {
+MINTERNAL i32 ReadI8(ModelParserContext* ctxt, i8* out) {
     NextToken(ctxt);
     return ParseI8(ctxt, out);
 }
 
-static i32 ReadU8(ModelParserContext* ctxt, u8* out) {
+MINTERNAL i32 ReadU8(ModelParserContext* ctxt, u8* out) {
     NextToken(ctxt);
     return ParseU8(ctxt, out);
 }
 
-static i32 ReadU16(ModelParserContext* ctxt, u16* out) {
+MINTERNAL i32 ReadU16(ModelParserContext* ctxt, u16* out) {
     NextToken(ctxt);
     return ParseU16(ctxt, out);
 }
 
-static i32 ReadColour(ModelParserContext* ctxt, u16* val) {
+MINTERNAL i32 ReadColour(ModelParserContext* ctxt, u16* val) {
     NextToken(ctxt);
     return ParseColour(ctxt, val);
 }
 
-static i32 ReadParam8Base10(ModelParserContext* ctxt, u8* outParam) {
+MINTERNAL i32 ReadParam8Base10(ModelParserContext* ctxt, u8* outParam) {
     ModelParserTokenEnum token = NextToken(ctxt);
     if (token != ModelParserToken_VALUE) {
         RETURN_ERROR("Syntax error: expecting value");
@@ -2132,7 +2153,7 @@ static i32 ReadParam8Base10(ModelParserContext* ctxt, u8* outParam) {
     return ParseParam8Base10(ctxt, outParam);
 }
 
-static i32 ReadParam16Base10(ModelParserContext* ctxt, u16* outParam) {
+MINTERNAL i32 ReadParam16Base10(ModelParserContext* ctxt, u16* outParam) {
     ModelParserTokenEnum token = NextToken(ctxt);
     if (token != ModelParserToken_VALUE) {
         RETURN_ERROR("Syntax error: expecting value");
@@ -2141,7 +2162,7 @@ static i32 ReadParam16Base10(ModelParserContext* ctxt, u16* outParam) {
     return ParseParam16Base10(ctxt, outParam);
 }
 
-static i32 ReadComma(ModelParserContext* ctxt) {
+MINTERNAL i32 ReadComma(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = NextToken(ctxt);
     if (token != ModelParserToken_COMMA) {
         RETURN_ERROR("Syntax error: expecting value");
@@ -4120,8 +4141,6 @@ typedef struct {
 
 MARRAY_TYPEDEF(ModelOffset, ModelOffsetsArray)
 
-// Write out memOutput
-// Read override models
 ModelCompileResult CompileMultipleModels(const char* dataIn, u32 sizeIn, MMemIO* memOutput, ModelsArray* outModels,
         ModelEndianEnum endian, b32 dumpModelsToConsole) {
 
@@ -4143,6 +4162,10 @@ ModelCompileResult CompileMultipleModels(const char* dataIn, u32 sizeIn, MMemIO*
 
     ModelOffsetsArray modelOffsets;
     MArrayInit(modelOffsets);
+
+    if (dumpModelsToConsole) {
+        MLog("Dump:");
+    }
 
     while (parserContext.token != ModelParserToken_END) {
         i32 r = CompileModelWithContext(&parserContext, memOutput);
@@ -4204,49 +4227,27 @@ i32 WriteModels(const char* filename, ModelsArray* models, MMemIO* modelsMem) {
     return -1;
 }
 
-i32 CompileAndLoadModelOverrides(const char* filename, SceneSetup* sceneSetup) {
-    MMemIO modelsMem;
-    MMemInitAlloc(&modelsMem, 12000);
-
-    MReadFileRet file = MFileReadFully(filename);
+i32 CompileAndWriteModels(const char* modelsFile, const char* outputFile, MMemIO* outModelMem, ModelsArray* outModels) {
+    MReadFileRet file = MFileReadFully(modelsFile);
     if (file.size == 0) {
         return -1;
     }
 
-    ModelsArray models;
-    MArrayInit(models);
-    ModelCompileResult result = CompileMultipleModels((const char*)file.data, file.size, &modelsMem, &models, ModelEndian_LITTLE, TRUE);
+    ModelCompileResult result = CompileMultipleModels((const char*)file.data, file.size, outModelMem, outModels,
+            ModelEndian_LITTLE, TRUE);
 
     if (result.error) {
-        MLogf("error loading model: %s at line %d (%d)", result.error, result.errorLine, result.errorColumn);
+        MLogf("Got error: %s", result.error);
+        MLogf("    at line: %d, column: %d", result.errorLine, result.errorColumn);
+        if (!result.staticError) {
+            MFree(result.error); result.error = NULL;
+        }
         MFree(file.data);
-        MArrayFree(models);
         return -2;
     }
 
-    for (int i = 0; i < MArraySize(models); i++) {
-        if (models.arr[i] != NULL) {
-            MArraySet(sceneSetup->assets.models, i, models.arr[i]);
-        }
-    }
-
-    WriteModels("data/models-intro-le.dat", &models, &modelsMem);
-
-    MMemDebugCheckAll();
-
-    MMemIO modelsMemBE;
-    MMemInitAlloc(&modelsMemBE, 12000);
-
-    MMemDebugCheckAll();
-    result = CompileMultipleModels((const char*)file.data, file.size, &modelsMemBE, &models, ModelEndian_BIG, FALSE);
-    MMemDebugCheckAll();
-    if (!result.error) {
-        WriteModels("build/vampire.dat", &models, &modelsMemBE);
-    }
-
-    MMemFree(&modelsMemBE);
-
-    MArrayFree(models);
+    MLogf("Saving %s...", outputFile);
+    WriteModels(outputFile, outModels, outModelMem);
 
     return 0;
 }

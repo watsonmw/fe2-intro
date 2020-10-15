@@ -23,6 +23,13 @@ static b32 sDumpGalmapModels = FALSE;
 static const char* sFrontierExePath;
 static RGB sFIntroPalette[256];
 
+static MMemIO sModelOverrides;
+static ModelsArray sOrigModels;
+static const char* sFileToCompile;
+static const char* sFileToHotCompile;
+
+#define INTRO_OVERRIDES "data/model-overrides-le.dat"
+
 static void UpdateSurfaceTexture(Surface* surface, RGB* palette, u8* pixels, int pitch) {
     for (int y = 0; y < surface->height; ++y) {
         for (int x = 0; x < surface->width; ++x) {
@@ -103,6 +110,22 @@ static i32 ParseCommandLine(int argc, char** argv) {
                 sDumpGameModels = TRUE;
             } else if (strcmp("dump-galmap-models", arg + 1) == 0) {
                 sDumpGalmapModels = TRUE;
+            } else if (strcmp("compile", arg + 1) == 0) {
+                i += 1;
+                if (i >= argc) {
+                    MLog("'-compile' option requires input file.");
+                    MLogf("   %s -compile models.txt", argv[0]);
+                    return -1;
+                }
+                sFileToCompile = argv[i];
+            } else if (strcmp("hot-reload", arg + 1) == 0) {
+                i += 1;
+                if (i >= argc) {
+                    MLog("'-hot-reload' option requires input file.");
+                    MLogf("   %s -hot-reload models.txt", argv[0]);
+                    return -1;
+                }
+                sFileToHotCompile = argv[i];
             }
         } else {
             sFrontierExePath = arg;
@@ -158,8 +181,58 @@ static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
     MMemFree(&writer);
 }
 
+int CompileFileAndWriteOut(const char* fileToCompile, const char* fileOutputPath, MMemIO* memOutput,
+        ModelsArray* modelsArray) {
+
+    MReadFileRet r = MFileReadFully(fileToCompile);
+    if (r.data == NULL) {
+        MLogf("Unable to load file: %s", fileToCompile);
+        return -1;
+    }
+
+    MLogf("Compiling: %s", fileToCompile);
+
+    int result = CompileAndWriteModels(fileToCompile, fileOutputPath, memOutput, modelsArray);
+
+    return result;
+}
+
+void HotReload(SceneSetup *introSceneSetup, const SceneSetup *sceneSetup) {
+    MMemReset(&sModelOverrides);
+    ModelsArray modelsArray;
+    MArrayInit(modelsArray);
+
+    CompileFileAndWriteOut(sFileToHotCompile, INTRO_OVERRIDES, &sModelOverrides, &modelsArray);
+
+    MArrayCopy(sOrigModels, (*introSceneSetup).assets.models);
+    for (int i = 0; i < MArraySize(modelsArray); i++) {
+        if (modelsArray.arr[i] != NULL) {
+            MArraySet(sceneSetup->assets.models, i, modelsArray.arr[i]);
+        }
+    }
+
+    MArrayFree(modelsArray);
+}
+
 int main(int argc, char**argv) {
-    ParseCommandLine(argc, argv);
+    int result = ParseCommandLine(argc, argv);
+    if (result) {
+        return result;
+    }
+
+    if (sFileToCompile) {
+        MMemIO memOutput;
+        MMemInitAlloc(&memOutput, 1024);
+        ModelsArray modelsArray;
+        MArrayInit(modelsArray);
+
+        result = CompileFileAndWriteOut(sFileToCompile, INTRO_OVERRIDES, &memOutput, &modelsArray);
+
+        MArrayFree(modelsArray);
+        MMemFree(&memOutput);
+
+        return result;
+    }
 
     // Load intro file data
     MReadFileRet amigaExe = LoadAmigaExe();
@@ -211,9 +284,10 @@ int main(int argc, char**argv) {
         return 0;
     }
 
+    MArrayCopy(introSceneSetup.assets.models, sOrigModels);
     ModelsArray overrideModels;
     MArrayInit(overrideModels);
-    MReadFileRet overridesFile = Assets_LoadModelOverrides("data/overrides-le.dat", &overrideModels);
+    MReadFileRet overridesFile = Assets_LoadModelOverrides(INTRO_OVERRIDES, &overrideModels);
     for (int i = 0; i < MArraySize(overrideModels); i++) {
         if (overrideModels.arr[i]) {
             MArraySet(introSceneSetup.assets.models, i, overrideModels.arr[i]);
@@ -348,9 +422,15 @@ int main(int argc, char**argv) {
                     done = TRUE;
                     break;
                 case SDL_WINDOWEVENT:
-                    if (event.window.event == SDL_WINDOWEVENT_CLOSE &&
-                        event.window.windowID == SDL_GetWindowID(window)) {
-                        done = TRUE;
+                    if (event.window.windowID == SDL_GetWindowID(window)) {
+                        if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
+                            done = TRUE;
+                        } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
+                            if (sFileToHotCompile) {
+                                HotReload(&introSceneSetup, sceneSetup);
+                                sRender = TRUE;
+                            }
+                        }
                     }
                     break;
             }

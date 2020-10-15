@@ -188,6 +188,11 @@ void MMemReadInit(MMemIO* memIO, u8* mem, u32 size);
 // Allocate the given amount of memory and
 void MMemInitAlloc(MMemIO* memIO, u32 size);
 
+MINTERNAL void MMemReset(MMemIO* memIO) {
+    memIO->size = 0;
+    memIO->pos = memIO->mem;
+}
+
 MINTERNAL void MMemFree(MMemIO* memIO) {
     MFree(memIO->mem);
 }
@@ -297,6 +302,8 @@ typedef struct {
 
 #define MArrayClear(a) ((a).p.size = 0)
 
+#define MArrayCopy(src, dest) (M_ArrayCopy(MEMDEBUG_SOURCE_MACRO M_ArrayUnpack(src), (void**)&(dest).arr, &(dest).p))
+
 // Helper macro to convert array type to (void** arr, MArray* md, u32 itemsize)
 #define M_ArrayUnpack(a) (void**)&(a).arr, &(a).p, (u32)(sizeof((a).arr[0]))
 
@@ -320,6 +327,15 @@ MINLINE i32 M_ArrayGrowIfNeeded(MEMDEBUG_SOURCE_DEFINE void** arr, MArrayInfo* p
     } else {
         return M_ArrayGrow(MEMDEBUG_SOURCE_PASS arr, p, itemSize, needed);
     }
+}
+
+MINLINE i32 M_ArrayCopy(MEMDEBUG_SOURCE_DEFINE void** srcArr, MArrayInfo* srcInfo, u32 itemSize,
+        void** destArr, MArrayInfo* destInfo) {
+
+    M_ArrayGrowIfNeeded(MEMDEBUG_SOURCE_PASS destArr, destInfo, itemSize, srcInfo->size);
+    destInfo->size = srcInfo->size;
+    memcpy(*destArr, *srcArr, itemSize * destInfo->size);
+    return 1;
 }
 
 MINLINE i32 M_ArrayGrowAndClearIfNeeded(MEMDEBUG_SOURCE_DEFINE void** arr, MArrayInfo* p, u32 itemSize, u32 newSize) {

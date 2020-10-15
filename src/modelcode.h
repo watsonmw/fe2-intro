@@ -57,9 +57,27 @@ typedef struct sModelCompileResult {
     u16 modelIndex;
 } ModelCompileResult;
 
+// Compile a single model file
 ModelCompileResult CompileModel(const char* dataIn, u32 sizeIn, MMemIO* memOutput);
 
-i32 CompileAndLoadModelOverrides(const char* filename, SceneSetup* sceneSetup);
+// Write out model offsets and binary to text file (this can then be loaded later by the override loading code)
+i32 WriteModels(const char* filename, ModelsArray* models, MMemIO* modelsMem);
+
+typedef enum {
+    ModelEndian_LITTLE,
+    ModelEndian_BIG,
+} ModelEndianEnum;
+
+// Compile multiple models and store the results in the given memory and model pointer list
+// dumpModelsToConsole - Optionally decompile (round trip) for debugging purposes.
+// endian - Endianness to write the models with
+ModelCompileResult CompileMultipleModels(const char* dataIn, u32 sizeIn, MMemIO* memOutput, ModelsArray* outModels,
+                                         ModelEndianEnum endian, b32 dumpModelsToConsole);
+
+// Compile multiple models from file and write binary compiled code to given file
+// The model pointers and memory models are available for direct use (must be free'd)
+// if not in use.
+i32 CompileAndWriteModels(const char* modelsFile, const char* outputFile, MMemIO* outModelMem, ModelsArray* outModels);
 
 void ModelCompile_Test();
 
