@@ -68,3 +68,35 @@ ENDIF()
 IF(MINGW)
     target_link_libraries(fintro mingw32 SDL2main SDL2 opengl32 -static-libgcc)
 ENDIF()
+
+# Detect emscripten is used.
+if(EMSCRIPTEN)
+    string(APPEND CMAKE_C_FLAGS " -s DEMANGLE_SUPPORT=1")
+    string(APPEND CMAKE_C_FLAGS " -s DISABLE_EXCEPTION_CATCHING=2")
+    string(APPEND CMAKE_C_FLAGS " -s USE_SDL=2")
+    string(APPEND CMAKE_C_FLAGS " -s USE_SDL_IMAGE=2")
+    string(APPEND CMAKE_C_FLAGS " -s ENVIRONMENT=web")
+    string(APPEND CMAKE_C_FLAGS " -s WASM=1")
+    string(APPEND CMAKE_C_FLAGS " -s INITIAL_MEMORY=64mb")
+
+    # Debug flags
+    # string(APPEND CMAKE_C_FLAGS " -DDEBUG")
+    # string(APPEND CMAKE_C_FLAGS " -gsource-map")
+    # string(APPEND CMAKE_C_FLAGS " --source-map-base http://localhost:8000/build_emscripten/")
+
+    # Release flags
+    string(APPEND CMAKE_C_FLAGS " -O3")
+
+    configure_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/fe2-intro.html
+        ${CMAKE_CURRENT_BINARY_DIR}/fe2-intro.html
+    )
+
+    # Allow the directory /data to be fetched by the web browser.
+    file(GLOB data_files "./data/*")
+    foreach(file ${data_files})
+        file(RELATIVE_PATH relative_file ${CMAKE_SOURCE_DIR} ${file})
+        string(APPEND CMAKE_C_FLAGS " --preload-file ${file}@/${relative_file}")
+    endforeach()
+    string(APPEND CMAKE_C_FLAGS " --preload-file ${CMAKE_SOURCE_DIR}/game@game")
+endif()

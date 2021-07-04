@@ -261,6 +261,11 @@ MINLINE void Audio_ModStart(AudioContext* audio, int modIndex) {
 
 void Audio_ModStop(AudioContext* audio);
 
+#ifdef USE_SDL
+void Audio_Pause(AudioContext* audio);
+void Audio_Resume(AudioContext* audio);
+#endif
+
 MINLINE b32 Audio_ModDone(AudioContext* audio) {
     return audio->modDone;
 }

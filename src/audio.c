@@ -377,6 +377,7 @@ u32 Audio_Init(AudioContext* audio, u8* data, u32 size) {
 
 void Audio_Exit(AudioContext* audio) {
 #ifdef USE_SDL
+    MLog("Close audio");
     SDL_CloseAudioDevice(audio->sdlAudioID); audio->sdlAudioID = 0;
 
     if (audio->audioOutputBuffer != NULL) {
@@ -728,6 +729,16 @@ void Audio_ModStartAt(AudioContext* audio, u16 modIndex, u32 tickOffset) {
 void Audio_ModStop(AudioContext* audio) {
     Audio_ModStart(audio, Audio_ModEnum_SILENCE);
 }
+
+#ifdef USE_SDL
+void Audio_Pause(AudioContext* audio) {
+    SDL_PauseAudioDevice(audio->sdlAudioID, 1);
+}
+
+void Audio_Resume(AudioContext* audio) {
+    SDL_PauseAudioDevice(audio->sdlAudioID, 0);
+}
+#endif
 
 static void Audio_ChannelCtrlAdjustVolume(AudioContext* audio, u32 channelId, AudioChannelControl* channelCtrl, ChannelRegisters* hw) {
     u16 volume = MBIGENDIAN16(*channelCtrl->volumeRamp);

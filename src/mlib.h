@@ -104,7 +104,7 @@ b32 MMemDebugCheckAll(void);
 // 32 flip: ((t & 0xff) << 24) + ((t >> 24) & 0xff) + ((t >> 16 & 0xff) << 8) + (((t >> 8) & 0xff) << 16);
 #ifdef __GNUC__
 #define MSTRUCTPACKED __attribute__((packed))
-#if defined(__i386__) || defined(__x86_64)
+#if defined(__i386__) || defined(__x86_64) || defined(__EMSCRIPTEN__)
 #define MBIGENDIAN16(x) __builtin_bswap16(x)
 #define MBIGENDIAN32(x) __builtin_bswap32(x)
 #define MLITTLEENDIAN16(x) x

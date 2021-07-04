@@ -1151,7 +1151,7 @@ MFileInfo MGetFileInfo(const char* filePath) {
     memset(&fileInfo, 0, sizeof(fileInfo));
 #ifdef AMIGA
 #else
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__EMSCRIPTEN__)
     struct stat status;
     if (stat(filePath, &status) == -1) {
 #else
