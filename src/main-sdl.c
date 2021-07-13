@@ -141,11 +141,6 @@ static i32 ParseCommandLine(int argc, char** argv) {
     return 0;
 }
 
-#ifdef __EMSCRIPTEN__
-EM_JS(int, GetCanvasWidth, (), { return canvas.width; });
-EM_JS(int, GetCanvasHeight, (), { return canvas.height; });
-#endif
-
 static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
     i32 modelIndex = 0;
     i32 foundNull = 0;
@@ -249,6 +244,7 @@ typedef struct LoopContext {
     Intro intro;
     SceneSetup introScene;
     SceneSetup* sceneSetup;
+    AssetsDataAmiga* assetsDataAmiga;
     Surface surface;
 
     // SDL stuff
@@ -264,13 +260,18 @@ void PauseIntro(b32 pause) {
         Audio_ModStop(&sLoopContext.audio);
     } else {
         u64 delta = Intro_GetTimeForFrameOffset(&sLoopContext.intro, sFrameOffset);
-        sStartTime = sCurrentClock - (((delta + 1) * sClockTickInterval) / 100);
+        u64 currentClock = SDL_GetPerformanceCounter();
+        sStartTime = currentClock - (((delta + 1ul) * (u64)sClockTickInterval) / 100ul);
         Audio_ModStartAt(&sLoopContext.audio, sModToPlay, (delta + 1) / 2);
     }
     sPause = pause;
 }
 
 void StartIntro() {
+    Audio_Init(&sLoopContext.audio,
+               sLoopContext.assetsDataAmiga->mainExeData,
+               sLoopContext.assetsDataAmiga->mainExeSize);
+
     sLoopContext.prevClock = SDL_GetPerformanceCounter();
     sStartTime = sLoopContext.prevClock;
     Audio_ModStart(&sLoopContext.audio, sModToPlay);
@@ -290,10 +291,6 @@ void MainLoopIteration() {
                 sLoopContext.done = TRUE;
                 break;
             case SDL_KEYDOWN:
-                if (sLoopContext.waitForInteraction) {
-                    sLoopContext.waitForInteraction = FALSE;
-                    StartIntro();
-                }
                 switch (event.key.keysym.sym) {
                     case SDLK_BACKQUOTE:
                         sDebugMode = !sDebugMode;
@@ -356,15 +353,30 @@ void MainLoopIteration() {
                 }
                 break;
             case SDL_KEYUP:
+#ifdef __EMSCRIPTEN__
+                switch (event.key.keysym.sym) {
+                    case SDLK_SPACE:
+                    case SDLK_KP_ENTER:
+                    case SDLK_RETURN:
+                        if (sLoopContext.waitForInteraction) {
+                            sLoopContext.waitForInteraction = FALSE;
+                            StartIntro();
+                        }
+                        break;
+                }
+#endif
                 break;
             case SDL_MOUSEBUTTONDOWN:
+#ifndef __EMSCRIPTEN__
+                sLoopContext.done = TRUE;
+#endif
+                break;
+            case SDL_MOUSEBUTTONUP:
 #ifdef __EMSCRIPTEN__
                 if (sLoopContext.waitForInteraction) {
                     sLoopContext.waitForInteraction = FALSE;
                     StartIntro();
                 }
-#else
-                sLoopContext.done = TRUE;
 #endif
                 break;
             case SDL_WINDOWEVENT:
@@ -372,14 +384,18 @@ void MainLoopIteration() {
                     if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
                         sLoopContext.done = TRUE;
                     } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
-                        PauseIntro(FALSE);
+                        if (!sLoopContext.waitForInteraction) {
+                            PauseIntro(FALSE);
+                        }
                         sLoopContext.windowHidden = FALSE;
                         if (sFileToHotCompile) {
                             HotReload(&sLoopContext.introScene, sLoopContext.sceneSetup);
                             sRender = TRUE;
                         }
                     } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
-                        PauseIntro(TRUE);
+                        if (!sLoopContext.waitForInteraction) {
+                            PauseIntro(TRUE);
+                        }
                         sLoopContext.windowHidden = TRUE;
                     }
                     break;
@@ -391,17 +407,6 @@ void MainLoopIteration() {
     if (sLoopContext.windowHidden) {
         return;
     }
-
-#ifdef __EMSCRIPTEN__
-    int windowWidth = GetCanvasWidth();
-    int windowHeight = GetCanvasHeight();
-    if (windowWidth != sLoopContext.windowWidth || windowHeight != sLoopContext.windowHeight) {
-        MLogf("SDL_SetWindowSize %d %d", windowWidth, windowHeight);
-        SDL_SetWindowSize(sLoopContext.window, windowWidth, windowHeight);
-        sLoopContext.windowWidth = windowWidth;
-        sLoopContext.windowHeight = windowHeight;
-    }
-#endif
 
     sCurrentClock = SDL_GetPerformanceCounter();
 
@@ -415,7 +420,7 @@ void MainLoopIteration() {
         static i32 textColor = 0;
         textColor = (textColor + 1) % 32;
         i32 colour = (FMath_sine[textColor << 6] >> 13) + 4;
-        Render_DrawBitmapText(&sLoopContext.introScene, "Click To Begin!", pos2, colour + 3, FALSE);
+        Render_DrawBitmapText(&sLoopContext.introScene, "Click To Start!", pos2, colour + 3, FALSE);
     } else {
         u64 elapsed = ((u64)(sCurrentClock - sLoopContext.prevClock)) / (sClockTickInterval / 1000);
         sLoopContext.prevClock = sCurrentClock;
@@ -564,15 +569,14 @@ int main(int argc, char**argv) {
         return -1;
     }
 
-    Audio_Init(&sLoopContext.audio, assetsDataAmiga.mainExeData, assetsDataAmiga.mainExeSize);
-
     SDL_DisplayMode current;
     SDL_GetCurrentDisplayMode(0, &current);
 
 #ifdef __EMSCRIPTEN__
+    // Make a window the surface size, let the browser scale up the canvas
     SDL_WindowFlags windowFlags = SDL_WINDOW_SHOWN;
-    int windowWidth = GetCanvasWidth();
-    int windowHeight = GetCanvasHeight();
+    int windowWidth = SURFACE_WIDTH;
+    int windowHeight = SURFACE_HEIGHT;
 #else
     SDL_WindowFlags windowFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
     int windowWidth = 1400;
@@ -615,6 +619,7 @@ int main(int argc, char**argv) {
     sLoopContext.numIntroFrames = Intro_GetNumFrames(&sLoopContext.intro);
     sLoopContext.prevClock = SDL_GetPerformanceCounter();
     sLoopContext.sceneSetup = sceneSetup;
+    sLoopContext.assetsDataAmiga = &assetsDataAmiga;
 
     if (!sLoopContext.waitForInteraction) {
         StartIntro();

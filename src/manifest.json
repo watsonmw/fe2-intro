@@ -1,0 +1,7 @@
+{
+  "short_name": "Frontier Elite II Intro",
+  "name": "Frontier Elite II Intro",
+  "start_url": "fe2-intro.html",
+  "display": "fullscreen",
+  "orientation": "landscape"
+}

@@ -92,6 +92,11 @@ if(EMSCRIPTEN)
         ${CMAKE_CURRENT_BINARY_DIR}/fe2-intro.html
     )
 
+    configure_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/manifest.json
+            ${CMAKE_CURRENT_BINARY_DIR}/manifest.json
+    )
+
     # Allow the directory /data to be fetched by the web browser.
     file(GLOB data_files "./data/*")
     foreach(file ${data_files})
