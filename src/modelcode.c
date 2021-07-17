@@ -426,11 +426,12 @@ static void DumpSubModelSetup(DebugModelInfo* modelInfo, MMemIO* writer,
         MMemReadU16(dataReader, &data2);
         u16 data3 = 0;
         MMemReadU16(dataReader, &data3);
-        u16 v1i = data2 & 0xff;
-        u16 v2i = data3 & 0xff;
-        u16 v3i = data2 >> 8;
-        u16 v4i = data3 >> 8;
-        MStringAppendf(writer, " frame:(%d", (int)v1i);
+        u16 v1i = lo8s(data3);
+        u16 v2i = lo8s(data2);
+        u16 v3i = hi8s(data2);
+        u16 v4i = hi8s(data3);
+
+        MStringAppendf(writer, " frame:[%d", (int)v1i);
         if (v2i != 127) {
             MStringAppendf(writer, ", %d", (int)v2i);
             if (v3i != 127) {
@@ -440,7 +441,7 @@ static void DumpSubModelSetup(DebugModelInfo* modelInfo, MMemIO* writer,
                 }
             }
         }
-        MStringAppend(writer, ")");
+        MStringAppend(writer, "]");
     }
 }
 
@@ -1697,6 +1698,8 @@ ModelParserTokenEnum NextTokenNoTokenUpdate(ModelParserContext* ctxt) {
                         break;
                     case '\n':
                         ctxt->line++;
+                        ctxt->column = 0;
+                        ctxt->whitespaceCount = 0;
                         if (!fullLineComment) {
                             return ModelParserToken_NEW_LINE;
                         } else {
@@ -1992,6 +1995,7 @@ MINTERNAL i32 ParseParam16Base10(ModelParserContext* ctxt, u16* outParam) {
     ModelParserTokenEnum token = NextToken(ctxt);
     if (token != ModelParserToken_SQUARE_BRACKET_OPEN) {
         ctxt->result.error = (char*)"Syntax error: expecting [";
+        ctxt->result.staticError = TRUE;
         return -1;
     }
 
@@ -2717,7 +2721,9 @@ i32 ReadSubModel(ModelParserContext* ctxt) {
                     token = NextToken(ctxt);
                     i++;
                 } while (token == ModelParserToken_COMMA);
-                RETURN_IF_ERROR(ReadSquareBracketClose(ctxt));
+                if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
+                    RETURN_ERROR("Syntax error: expecting ']' to end frame:");
+                }
                 gotFrame = TRUE;
             } else {
                 RETURN_ERROR_VAL("Syntax error: unknown param '%s'");
@@ -2772,7 +2778,10 @@ i32 ReadSubModel(ModelParserContext* ctxt) {
     }
 
     if (gotFrame) {
-        ModelWrite4i8(ctxt, vdata);
+        u16 data1 = (u16)((u8)vdata[2]) << 8 | (u16)((u8)vdata[1]);
+        ModelWriteU16(ctxt, data1);
+        u16 data2 = (u8)((u8)vdata[3]) << 8 | (u16)((u8)vdata[0]);
+        ModelWriteU16(ctxt, data2);
     }
 
     return 0;
@@ -4158,7 +4167,10 @@ ModelCompileResult CompileMultipleModels(const char* dataIn, u32 sizeIn, MMemIO*
     parserContext.token = ModelParserToken_MODEL_BEGIN;
     parserContext.endian = endian;
     parserContext.result.error = NULL;
+    parserContext.result.staticError = TRUE;
     parserContext.result.modelIndex = 0;
+    parserContext.result.errorLine = 0;
+    parserContext.result.errorColumn = 0;
 
     ModelOffsetsArray modelOffsets;
     MArrayInit(modelOffsets);

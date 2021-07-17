@@ -178,28 +178,29 @@
               return!!(e.querySelector(":hover") || e.parentNode.querySelector(":hover") === e);
             };
             var hideTimer = null;
-            var showControls = function() {
+            var showControls = function(checkHover) {
               overlay.style.opacity = "0.9";
               if (hideTimer) {
                 window.clearTimeout(hideTimer);
               }
-              if (!isHover(overlay)) {
+              if (!checkHover || !isHover(overlay)) {
                 hideTimer = window.setTimeout(function() {
                   overlay.style.opacity = "0.0";
                   hideTimer = null;
                 }, 3000);
               }
             };
-            document.addEventListener("mousemove", showControls);
-            document.addEventListener("mousedown", showControls);
-            showControls();
+            window.addEventListener("mousemove", function () { showControls(true) });
+            window.addEventListener("mousedown", function () { showControls(true) });
+            window.addEventListener("touchend", function () { showControls(false) });
+            showControls(false);
             var toggleFullScreen = function () {
               if (isFullScreen()) {
                 getCancelFullScreenFunc().call(window.document);
-                showControls();
               } else {
                 getRequestFullScreenFunc().call(window.document.documentElement);
               }
+              showControls(false);
             };
             fullscreenButton.addEventListener("click", toggleFullScreen, false);
             exitFullscreenButton.addEventListener("click", toggleFullScreen, false);
@@ -213,7 +214,7 @@
         }
       })();
       OverlayControls.setup();
-      // Make sure the audio is paused whenever the screen is hidden / deactivated
+      // Make sure the audio is paused whenever the screen is hidden / deactivated.
       function pauseAudio(on) {
         if (typeof Module === 'undefined' || typeof Module.SDL2 === 'undefined' ||
                 typeof Module.SDL2.audio === 'undefined' || typeof Module.SDL2.audioContext === 'undefined') {

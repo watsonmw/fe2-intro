@@ -875,32 +875,38 @@ i32 MStringAppend(MMemIO* memIo, const char* str) {
 i32 MStringAppendf(MMemIO* memIo, const char* format, ...) {
     i32 writableLen = memIo->capacity - memIo->size;
     i32 size = 0;
-    va_list vargs;
-    va_start(vargs, format);
+    va_list vargs1;
+
+    va_start(vargs1, format);
+    va_list vargs2;
+    va_copy(vargs2, vargs1);
     if (writableLen <= 1) {
-        size = vsnprintf(NULL, 0, format, vargs);
+        size = vsnprintf(NULL, 0, format, vargs1);
+        va_end(vargs1);
         if (size > 0) {
             i32 newSize = memIo->size + size + 1;
             M_MemResize(memIo, newSize);
             writableLen = memIo->capacity - memIo->size;
-            size = vsnprintf((char*)memIo->pos, writableLen, format, vargs);
+            size = vsnprintf((char*)memIo->pos, writableLen, format, vargs2);
         }
     } else {
-        size = vsnprintf((char*)memIo->pos, writableLen, format, vargs);
+        size = vsnprintf((char*)memIo->pos, writableLen, format, vargs1);
         if (size >= writableLen) {
             i32 newSize = memIo->size + size + 1;
             M_MemResize(memIo, newSize);
             writableLen = memIo->capacity - memIo->size;
-            size = vsnprintf((char*) memIo->pos, writableLen, format, vargs);
+            size = vsnprintf((char*) memIo->pos, writableLen, format, vargs2);
+            va_end(vargs2);
         }
 #if VSNPRINTF_MINUS_1_RETRY == 1
         else if (size < 0) {
-            size = vsnprintf(NULL, 0, format, vargs);
+            size = vsnprintf(NULL, 0, format, vargs1);
             if (size > 0) {
                 i32 newSize = memIo->size + size + 1;
                 M_MemResize(memIo, newSize);
                 writableLen = memIo->capacity - memIo->size;
-                size = vsnprintf((char*)memIo->pos, writableLen, format, vargs);
+                size = vsnprintf((char*)memIo->pos, writableLen, format, vargs2);
+                va_end(vargs2);
             }
         }
 #endif
@@ -913,7 +919,7 @@ i32 MStringAppendf(MMemIO* memIo, const char* format, ...) {
         memIo->pos += size;
     }
 
-    va_end(vargs);
+    va_end(vargs1);
 
     return size;
 }

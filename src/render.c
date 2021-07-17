@@ -6923,7 +6923,7 @@ MINTERNAL int RenderBalls(RenderContext* renderContext, u16 funcParam) {
             z >>= 1;
         }
 
-        width = (p1 << 8) / z;
+        width = (p1 << ZSCALE) / z;
     }
 
     DrawParamsBalls* drawParams;
