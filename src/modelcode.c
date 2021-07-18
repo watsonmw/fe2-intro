@@ -125,9 +125,9 @@ static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, 
 
         u8 vertexType = vpacked1 >> 8;
 
-        i8 vdata1 = lo8s(vpacked1);
-        i8 vdata2 = hi8s(vpacked2);
-        i8 vdata3 = lo8s(vpacked2);
+        i16 vdata1 = lo8s(vpacked1);
+        i16 vdata2 = hi8s(vpacked2);
+        i16 vdata3 = lo8s(vpacked2);
 
         i32 preSize = writer->size;
         MStringAppend(writer, "  ");
@@ -183,7 +183,7 @@ static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, 
                 if (vdata2 < 0 || vdata3 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
-                MStringAppendf(writer, "add %d, %d", (int)vdata3, (int)vdata2);
+                MStringAppendf(writer, "add %d, %d", (int)vdata2, (int)vdata3);
                 break;
             case 0x13:
             case 0x14: {
@@ -335,9 +335,8 @@ static void DumpSubModelSetup(DebugModelInfo* modelInfo, MMemIO* writer,
     int buffSize = 256;
     char buff1[buffSize];
 
-    u16 vertexIndex = (data1 & 0xff);
-
-    if (vertexIndex >= 0x80) {
+    i16 vertexIndex = lo8s(data1);
+    if (vertexIndex < 0) {
         modelInfo->referencesParent = TRUE;
     }
 
@@ -426,10 +425,10 @@ static void DumpSubModelSetup(DebugModelInfo* modelInfo, MMemIO* writer,
         MMemReadU16(dataReader, &data2);
         u16 data3 = 0;
         MMemReadU16(dataReader, &data3);
-        u16 v1i = lo8s(data3);
-        u16 v2i = lo8s(data2);
-        u16 v3i = hi8s(data2);
-        u16 v4i = hi8s(data3);
+        i16 v1i = lo8s(data3);
+        i16 v2i = lo8s(data2);
+        i16 v3i = hi8s(data2);
+        i16 v4i = hi8s(data3);
 
         MStringAppendf(writer, " frame:[%d", (int)v1i);
         if (v2i != 127) {
@@ -535,8 +534,8 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 u16 colour = data0_12 & 0xfff;
                 u16 data1 = 0;
                 MMemReadU16(&dataReader, &data1);
-                i8 vertexIndex1 = (i8)(data1 & 0xff);
-                i8 vertexIndex2 = (i8)(data1 >> 8);
+                i16 vertexIndex1 = hi8s(data1);
+                i16 vertexIndex2 = lo8s(data1);
                 MStringAppendf(strOutput, "line %d, %d colour:#%03x", (int)vertexIndex1, (int)vertexIndex2,
                         (int)colour);
                 if (vertexIndex1 < 0 || vertexIndex2 < 0) {
@@ -550,9 +549,9 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MMemReadU16(&dataReader, & data1);
                 u16 data2 = 0;
                 MMemReadU16(&dataReader, &data2);
-                i8 vertexIndex1 = (i8)(data1 & 0xff);
-                i8 vertexIndex2 = (i8)(data2 >> 8);
-                i8 vertexIndex3 = (i8)(data1 >> 8);
+                i16 vertexIndex1 = hi8s(data1);
+                i16 vertexIndex2 = lo8s(data1);
+                i16 vertexIndex3 = hi8s(data2);
                 u16 normalIndex = (data2 & 0x7f);
                 MStringAppendf(strOutput, "tri %d, %d, %d colour:#%03x", (int)vertexIndex1, (int)vertexIndex2,
                                (int)vertexIndex3, (int)colour);
@@ -575,10 +574,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MMemReadU16(&dataReader, &data2);
                 u16 data3 = 0;
                 MMemReadU16(&dataReader, &data3);
-                i8 vertexIndex1 = (i8)(data1 & 0xff);
-                i8 vertexIndex2 = (i8)(data1 >> 8);
-                i8 vertexIndex3 = (i8)(data2 & 0xff);
-                i8 vertexIndex4 = (i8)(data2 >> 8);
+                i16 vertexIndex1 = hi8s(data1);
+                i16 vertexIndex2 = lo8s(data1);
+                i16 vertexIndex3 = hi8s(data2);
+                i16 vertexIndex4 = lo8s(data2);
                 u16 normalIndex = (data3 & 0x7f);
                 MStringAppendf(strOutput, "quad %d, %d, %d, %d colour:#%03x",
                                (int)vertexIndex1, (int)vertexIndex2, (int)vertexIndex3, (int)vertexIndex4, (int)colour);
@@ -606,7 +605,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MStringAppendf(strOutput, "normal:%d ", (int)normalIndex);
                 }
 
-                MStringAppendf(strOutput, "colour:#%03x loc:%04x\n", (int)colour, (int)jumpOffset);
+                MStringAppendf(strOutput, "colour:#%03x loc:%05x\n", (int)colour, (int)jumpOffset);
 
                 MArrayAdd(codeOffsets, jumpOffset);
 
@@ -630,27 +629,29 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MMemReadI16(&dataReader, &z);
                     MStringAppendf(strOutput, "batch begin z:%d", (int)z);
                 } else {
-                    u16 vertexIndex = (batchControl & 0xff);
-                    if (vertexIndex >= 0x80) {
+                    i16 vertexIndex = lo8s(batchControl);
+                    if (vertexIndex < 0) {
                         modelInfo->referencesParent = TRUE;
                     }
                     u8 upperControl = (batchControl >> 8);
                     u16 data1;
                     switch (upperControl) {
                         case 0x1: {
-                            MStringAppendf(strOutput, "batch begin z:max vertex:%d", (int)vertexIndex);
-                            do {
-                                MMemReadU16(&dataReader, &data1);
-                                MStringAppendf(strOutput, ", vertex:%d", (int)(data1 & 0xff));
-                            } while (data1 & 0x8000);
-                            break;
-                        }
-                        case 0x3: {
-                            MStringAppendf(strOutput, "batch begin z:min vertex:%d", vertexIndex);
+                            MStringAppendf(strOutput, "batch begin z:max vertex:[%d", (int)vertexIndex);
                             do {
                                 MMemReadU16(&dataReader, &data1);
                                 MStringAppendf(strOutput, ", %d", (int)(data1 & 0xff));
                             } while (data1 & 0x8000);
+                            MStringAppendf(strOutput, "]");
+                            break;
+                        }
+                        case 0x3: {
+                            MStringAppendf(strOutput, "batch begin z:min vertex:[%d", vertexIndex);
+                            do {
+                                MMemReadU16(&dataReader, &data1);
+                                MStringAppendf(strOutput, ", %d", (int)(data1 & 0xff));
+                            } while (data1 & 0x8000);
+                            MStringAppendf(strOutput, "]");
                             break;
                         }
                         case 0x7: {
@@ -671,12 +672,12 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MMemReadU16(&dataReader, &data1);
                 u16 data2 = 0;
                 MMemReadU16(&dataReader, &data2);
-                i8 vertexIndex1 = (i8)(data1 & 0xff);
-                i8 vertexIndex2 = (i8)(data2 >> 8);
-                i8 vertexIndex3 = (i8)(data1 >> 8);
+                i16 vertexIndex1 = hi8s(data1);
+                i16 vertexIndex2 = lo8s(data1);
+                i16 vertexIndex3 = hi8s(data2);
                 u16 normalIndex = (data2 & 0x7f);
 
-                MStringAppendf(strOutput, "tri2 %d, %d, %d colour:#%03x",
+                MStringAppendf(strOutput, "mtri %d, %d, %d colour:#%03x",
                                (int)vertexIndex1, (int)vertexIndex2, (int)vertexIndex3, (int)colour);
 
                 if (normalIndex) {
@@ -696,21 +697,17 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MMemReadU16(&dataReader, &data2);
                 u16 data3 = 0;
                 MMemReadU16(&dataReader, &data3);
-                i8 vertexIndex1 = (i8)(data1 & 0xff);
-                i8 vertexIndex2 = (i8)(data1 >> 8);
-                i8 vertexIndex3 = (i8)(data2 & 0xff);
-                i8 vertexIndex4 = (i8)(data2 >> 8);
+                i16 vertexIndex1 = hi8s(data1);
+                i16 vertexIndex2 = lo8s(data1);
+                i16 vertexIndex3 = hi8s(data2);
+                i16 vertexIndex4 = lo8s(data2);
                 u16 normalIndex = (data3 & 0x7f);
 
-                MStringAppendf(strOutput, "quad2 %d, %d, %d, %d colour:#%03x",
+                MStringAppendf(strOutput, "mquad %d, %d, %d, %d colour:#%03x",
                                (int)vertexIndex1, (int)vertexIndex2, (int)vertexIndex3, (int)vertexIndex4, (int)colour);
 
                 if (normalIndex) {
                     MStringAppendf(strOutput, " normal:%d", (int)normalIndex);
-                }
-
-                if (vertexIndex1 < 0 || vertexIndex2< 0 || vertexIndex3 < 0 || vertexIndex4 < 0) {
-                    modelInfo->referencesParent = TRUE;
                 }
 
                 if (vertexIndex1 < 0 || vertexIndex2 < 0 || vertexIndex3 < 0 || vertexIndex4 < 0) {
@@ -741,24 +738,34 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MMemReadU16(&dataReader, &data2);
                 u16 data3 = 0;
                 MMemReadU16(&dataReader, &data3);
-                u16 vertexIndex1 = (data2 & 0xff);
+                i16 vertexIndex1 = lo8s(data2);
                 u16 transform = (data2 >> 8);
                 u16 scale = (data1 >> 8) & 0xf;
                 u16 fontIndex = (data1 >> 12) & 0xf;
                 u16 normalIndex = (data1 & 0x7f);
-                u16 stringIndex = data3 & 0x3f;
+                u16 stringIndex = data3 & 0x7f;
+                u16 stringType = data3;
+
+                char* stringIndexType;
+                if (stringType & 0x8000) {
+                    stringIndexType = "??1";
+                } else if (stringType & 0x4000) {
+                    stringIndexType = "module";
+                } else {
+                    stringIndexType = "model";
+                }
 
                 MArrayAdd(modelInfo->modelIndexes, fontIndex);
 
-                MStringAppendf(strOutput, "vtext vertex:%d transform:%d scale:%d font:%d string:%d colour:#%03x",
-                               (int)vertexIndex1, (int)transform, (int)scale, (int)fontIndex, (int)stringIndex,
-                               (int)colour);
+                MStringAppendf(strOutput, "vtext vertex:%d transform:%d scale:%d font:%d string:%s[%d] colour:#%03x",
+                               (int)vertexIndex1, (int)transform, (int)scale, (int)fontIndex, stringIndexType,
+                               (int)stringIndex, (int)colour);
 
                 if (normalIndex) {
                     MStringAppendf(strOutput, " normal:%d", (int)normalIndex);
                 }
 
-                if (vertexIndex1 >= 0x80) {
+                if (vertexIndex1 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
                 break;
@@ -772,10 +779,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MArrayAdd(codeOffsets, jumpOffset);
                     if (data1 & 0x8000) {
                         u16 normalIndex = (data1 & 0x7f);
-                        MStringAppendf(strOutput, "if > normal:%d loc:%04x", (int)normalIndex, (int)jumpOffset);
+                        MStringAppendf(strOutput, "if > normal:%d loc:%05x", (int)normalIndex, (int)jumpOffset);
                     } else {
                         u16 z = data1 >> 1;
-                        MStringAppendf(strOutput, "if > z:%d loc:%04x", (int)z, jumpOffset);
+                        MStringAppendf(strOutput, "if > z:%d loc:%05x", (int)z, jumpOffset);
                     }
                     if (jumpOffset > largestOffset) {
                         largestOffset = jumpOffset;
@@ -800,10 +807,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MArrayAdd(codeOffsets, jumpOffset);
                     if (data1 & 0x8000) {
                         u16 normalIndex = (data1 & 0x7f);
-                        MStringAppendf(strOutput, "if < normal:%d loc:%04x", (int)normalIndex, jumpOffset);
+                        MStringAppendf(strOutput, "if < normal:%d loc:%05x", (int)normalIndex, jumpOffset);
                     } else {
                         u16 z = data1 >> 1;
-                        MStringAppendf(strOutput, "if < z:%d loc:%04x", (int)z, jumpOffset);
+                        MStringAppendf(strOutput, "if < z:%d loc:%05x", (int)z, jumpOffset);
                     }
                     if (jumpOffset > largestOffset) {
                         largestOffset = jumpOffset;
@@ -911,7 +918,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
 
                 i16 v1 = lo8s(data1);
                 i16 v2 = hi8s(data1);
-                if (v1 >= 0x80 || v2 >= 0x80) {
+                if (v1 < 0 || v2 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
 
@@ -921,12 +928,12 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 u16 n1 = (data2 & 0x7f);
                 u16 n2 = (data3 & 0x7f);
 
-                const char* cap1Render = (data2 & 0x80) ? " c:" : "";
-                const char* cap2Render = (data3 & 0x80) ? " c:" : "";
+                const char* cap1Render = (data2 & 0x80) ? " c:1" : "";
+                const char* cap2Render = (data3 & 0x80) ? " c:1" : "";
 
                 MStringAppendf(strOutput, "cone colour:#%03x (v:%d n:%d r:%d%s) (v:%d n:%d r:%d%s)",
-                               (int)data0_12, (int)v1, (int)n1, (int)r1, (int)cap1Render,
-                               (int)v2, (int)n2, (int)r2, (int)cap2Render);
+                               (int)data0_12, (int)v1, (int)n1, (int)r1, cap1Render,
+                               (int)v2, (int)n2, (int)r2, cap2Render);
                 break;
             }
             case Render_CONE_COLOUR_CAP: {
@@ -939,7 +946,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
 
                 i16 v1 = lo8s(data1);
                 i16 v2 = hi8s(data1);
-                if (v1 >= 0x80 || v2 >= 0x80) {
+                if (v1 < 0 || v2 < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
 
@@ -988,9 +995,9 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MArrayAdd(codeOffsets, jumpOffset);
 
                     if (bit) {
-                        MStringAppendf(strOutput, "if !bit(%s, %d) loc:%04x", buff1, (int)bit, jumpOffset);
+                        MStringAppendf(strOutput, "if !bit(%s, %d) loc:%05x", buff1, (int)bit, jumpOffset);
                     } else {
-                        MStringAppendf(strOutput, "if !%s loc:%04x", buff1, jumpOffset);
+                        MStringAppendf(strOutput, "if !%s loc:%05x", buff1, jumpOffset);
                     }
                     if (jumpOffset > largestOffset) {
                         largestOffset = jumpOffset;
@@ -1017,9 +1024,9 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     u32 jumpOffset = insOffset + skipBytes + 4;
                     MArrayAdd(codeOffsets, jumpOffset);
                     if (bit) {
-                        MStringAppendf(strOutput, "if bit(%s, %d) loc:%04x", buff1, (int)bit, jumpOffset);
+                        MStringAppendf(strOutput, "if bit(%s, %d) loc:%05x", buff1, (int)bit, jumpOffset);
                     } else {
-                        MStringAppendf(strOutput, "if %s loc:%04x", buff1, jumpOffset);
+                        MStringAppendf(strOutput, "if %s loc:%05x", buff1, jumpOffset);
                     }
                     if (jumpOffset > largestOffset) {
                         largestOffset = jumpOffset;
@@ -1053,17 +1060,17 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
 
                 u16 normalIndex = data3 & 0x7f;
 
-                i16 v1i = lo8s(data1);
-                i16 v2i = hi8s(data1);
-                i16 v3i = lo8s(data2);
-                i16 v4i = hi8s(data2);
-                if (v1i >= 0x80 || v2i >= 0x80 || v3i >= 0x80 || v4i >= 0x80) {
+                i16 v1i = hi8s(data1);
+                i16 v2i = lo8s(data1);
+                i16 v3i = hi8s(data2);
+                i16 v4i = lo8s(data2);
+                if (v1i < 0 || v2i < 0 || v3i < 0 || v4i < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
 
                 u16 colourParam = (data0_12 & 0xfff);
 
-                MStringAppendf(strOutput, "bline %d, %d, %d, %d normal:%d, colour:#%03x",
+                MStringAppendf(strOutput, "bline %d, %d, %d, %d normal:%d colour:#%03x",
                                (int)v1i, (int)v2i, (int)v3i, (int)v4i, (int)normalIndex, (int)colourParam);
                 break;
             }
@@ -1075,9 +1082,9 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 u16 data2 = 0;
                 MMemReadU16(&dataReader, &data2);
 
-                u16 v1i = data2 & (u16) 0xff;
-                u16 v2i = data2 >> 8;
-                if (v1i >= 0x80 || v2i >= 0x80 || v2i >= 0x80) {
+                i16 v1i = lo8s(data2);
+                i16 v2i = hi8s(data2);
+                if (v1i < 0 || v2i < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
                 u16 skipBytes = data0_12 & 0xfffe;
@@ -1089,7 +1096,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 if (data1 & 0x8000) {
                     i32 min = data1 ^ 0x8000;
                     if (skipBytes) {
-                        MStringAppendf(strOutput, "if dist(%d, %d) < %d loc:%04x", (int)v1i, (int)v2i, (int)min,
+                        MStringAppendf(strOutput, "if dist(%d, %d) < %d loc:%05x", (int)v1i, (int)v2i, (int)min,
                                 jumpOffset);
                         if (jumpOffset > largestOffset) {
                             largestOffset = jumpOffset;
@@ -1100,7 +1107,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 } else {
                     i32 max = data1;
                     if (skipBytes) {
-                        MStringAppendf(strOutput, "if dist(%d, %d) > %d loc:%04x", (int)v1i, (int)v2i, (int)max,
+                        MStringAppendf(strOutput, "if dist(%d, %d) > %d loc:%05x", (int)v1i, (int)v2i, (int)max,
                                 jumpOffset);
                         if (jumpOffset > largestOffset) {
                             largestOffset = jumpOffset;
@@ -1294,7 +1301,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         break;
                 }
 
-                PrintParam16Base10(buff2, buffSize, data1 & 0xff);
+                PrintParam16Base10(buff2, buffSize, data1);
 
                 if (doFlip) {
                     MStringAppendf(strOutput, "mrotate flip:%s axis:%s angle:%s", buff1, axisStr, buff2);
@@ -1321,8 +1328,8 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
 
                 u8* pos = dataReader.pos;
 
-                u16 vi = data2 & 0xff;
-                if (vi >= 0x80) {
+                i16 vi = lo8s(data2);
+                if (vi < 0) {
                     modelInfo->referencesParent = TRUE;
                 }
 
@@ -1408,16 +1415,16 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MStringAppend(strOutput, "]");
                 }
 
-                MStringAppend(strOutput, " spans:[");
+                MStringAppend(strOutput, " features:[");
 
                 u32 dataRemaining = dataSize - (dataReader.pos - pos);
 
                 int i = 0;
                 while (dataRemaining) {
-                    i8 control = 0;
-                    MMemReadI8(&dataReader, &control);
+                    i8 featureControl = 0;
+                    MMemReadI8(&dataReader, &featureControl);
                     dataRemaining--;
-                    if (control == 0) {
+                    if (featureControl == 0) {
                         break;
                     }
 
@@ -1426,24 +1433,28 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     }
 
                     i8 coord[3] = { 0, 0, 0 };
-                    if (control < 0) {
+                    if (featureControl < 0) {
+                        // Render surface circle on sphere at given point
                         MMemReadI8(&dataReader, coord + 0);
                         MMemReadI8(&dataReader, coord + 1);
                         MMemReadI8(&dataReader, coord + 2);
+                        // angle used to determine radius of circle
                         i8 angle = 0;
                         MMemReadI8(&dataReader, &angle);
                         dataRemaining -= 4;
-                        MStringAppendf(strOutput, "[%d, %d, %d, %d]", (int)control, (int)coord[0], (int)coord[1],
-                                (int)coord[2], (int)angle);
+                        MStringAppendf(strOutput, "[%d, %d, %d, %d]", (int)featureControl, (int)coord[0], (int)coord[1],
+                                       (int)coord[2], (int)angle);
                     } else {
-                        i8 w = 0;
-                        MMemReadI8(&dataReader, &w);
+                        // Render complex surface poly on sphere
+                        i8 detailLevel = 0;
+                        MMemReadI8(&dataReader, &detailLevel);
 
-                        MStringAppendf(strOutput, "[%d, %d", (int)control, (int)w);
+                        MStringAppendf(strOutput, "[%d, %d", (int)featureControl, (int)detailLevel);
 
                         MMemReadI8(&dataReader, coord);
                         dataRemaining--;
                         while (coord[0]) {
+                            // Coordinates
                             MStringAppend(strOutput, ", ");
                             MMemReadI8(&dataReader, coord + 1);
                             MMemReadI8(&dataReader, coord + 2);
@@ -1451,19 +1462,13 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                             MMemReadI8(&dataReader, coord);
                             dataRemaining -= 3;
                         }
-                        u8 e = 0;
-                        MMemReadU8(&dataReader, &e);
-                        dataRemaining--;
-                        MStringAppendf(strOutput, ", %d]", (int)e);
+                        MStringAppendf(strOutput, "]");
                     }
 
                     i = 1;
                 }
-
                 MStringAppend(strOutput, "]");
-
                 dataReader.pos = pos + dataSize;
-
                 break;
             }
             default:
@@ -2052,7 +2057,11 @@ MINTERNAL i32 ParseParam8Base10(ModelParserContext* ctxt, u8* outParam) {
             return r;
         }
 
-        if (valI32 <= 0x3f) {
+        if (valI32 == 0) {
+            // Technically 0 is ok here as well, but the game's model code always uses a big zero
+            // instead of the small one
+            *outParam = 0x40;
+        } else if (valI32 <= 0x3f) {
             *outParam = (u8)valI32;
         } else {
             i32 newVal = valI32 >> 10;
@@ -2597,7 +2606,7 @@ i32 ReadComplex(ModelParserContext* ctxt, CodeLabelFixups* codeLabelFixups, u32 
             ModelWriteU16(ctxt,  (scale << 8) | (u16)((u8)normal));
 
         } else {
-            RETURN_ERROR_VAL("Syntax error: unknown model command '%s'");
+            RETURN_ERROR_VAL("Syntax error: unknown complex command '%s'");
         }
 
         if (ctxt->token != ModelParserToken_NEW_LINE) {
@@ -2873,9 +2882,25 @@ i32 ReadRightSideCalc(ModelParserContext* ctxt, u8* paramA, u16* mathFunc, u8* p
     return ReadParam8Base10(ctxt, paramB);
 }
 
-i32 WriteBatchControl(ModelParserContext* ctxt, int mode, u16 z) {
+enum BatchZMode {
+    BatchZ_MinVertex = 0,
+    BatchZ_MaxVertex = 1,
+    BatchZ_VertexZ = 2,
+    BatchZ_OffsetVertexZ = 3
+};
+
+i32 WriteBatchControl(ModelParserContext* ctxt, enum BatchZMode mode, u16 z) {
     i32 r;
-    if (mode == 2) {
+    if (mode == BatchZ_VertexZ) {
+        if (ctxt->token == ModelParserToken_LABEL && StrCmp(ctxt, "vertex") != 0) {
+            RETURN_ERROR("Expect vertex param");
+        }
+
+        i8 vertex;
+        RETURN_IF_ERROR(ReadI8(ctxt, &vertex));
+
+        ModelWriteU16(ctxt, 0x4000 | (((u16)((u8)vertex)) << 5) | Render_BATCH);
+    } else if (mode == BatchZ_OffsetVertexZ) {
         NextToken(ctxt);
         if (ctxt->token == ModelParserToken_LABEL && StrCmp(ctxt, "vertex") != 0) {
             RETURN_ERROR("Expect vertex param");
@@ -2884,16 +2909,7 @@ i32 WriteBatchControl(ModelParserContext* ctxt, int mode, u16 z) {
         i8 vertex;
         RETURN_IF_ERROR(ReadI8(ctxt, &vertex));
 
-        ModelWriteU16(ctxt, (((u16)((u8)vertex) | (0x4 << 8)) << 5) | Render_BATCH);
-    } else if (mode == 3) {
-        if (ctxt->token == ModelParserToken_LABEL && StrCmp(ctxt, "vertex") != 0) {
-            RETURN_ERROR("Expect vertex param");
-        }
-
-        i8 vertex;
-        RETURN_IF_ERROR(ReadI8(ctxt, &vertex));
-
-        ModelWriteU16(ctxt, (((u16)((u8)vertex) | (0x7 << 8)) << 5) | Render_BATCH);
+        ModelWriteU16(ctxt, 0xe000 | (((u16)((u8)vertex)) << 5) | Render_BATCH);
         ModelWriteU16(ctxt, z);
     } else {
         ModelParserTokenEnum token = NextToken(ctxt);
@@ -2902,29 +2918,45 @@ i32 WriteBatchControl(ModelParserContext* ctxt, int mode, u16 z) {
         }
 
         u16 control = 0;
-        if (mode == 0) {
-            control = 0x1;
-        } else {
+        if (mode == BatchZ_MinVertex) {
             control = 0x3;
+        } else {
+            control = 0x1;
         }
+
+        RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
+        token = NextToken(ctxt);
 
         int i = 0;
         u16 vertexIndexWide;
         while (token == ModelParserToken_VALUE || token == ModelParserToken_MINUS) {
             i8 vertexIndex;
-            RETURN_IF_ERROR(ReadI8(ctxt, &vertexIndex));
-            if (i > 2) {
-                ModelWriteU16(ctxt, vertexIndexWide);
+            RETURN_IF_ERROR(ParseI8(ctxt, &vertexIndex));
+            if (i >= 2) {
+                // Write index from previous loop (we need to be one behind as last word needs a marker)
+                ModelWriteU16(ctxt, 0xff00 | vertexIndexWide);
             }
             vertexIndexWide = (u16)((u8)vertexIndex);
             if (i == 0) {
                 ModelWriteU16(ctxt, ((vertexIndexWide | (control << 8)) << 5) | Render_BATCH);
             }
             i++;
+            token = NextToken(ctxt);
+            if (token == ModelParserToken_COMMA) {
+                token = NextToken(ctxt);
+            } else if (token == ModelParserToken_SQUARE_BRACKET_CLOSE) {
+                break;
+            } else {
+                RETURN_ERROR("Syntax error: expecting ']' or ','");
+            }
         }
 
-        if (i > 0) {
-            ModelWriteU16(ctxt, 0x8000 | vertexIndexWide);
+        if (i == 0) {
+            RETURN_ERROR("Syntax error: expecting vertex index");
+        }
+
+        if (i > 1) {
+            ModelWriteU16(ctxt, vertexIndexWide);
         }
     }
 
@@ -3022,14 +3054,14 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
 
         if (StrCmp(ctxt, "savg") == 0) {
             vdata[0] = 0x3;
-            vdata[1] = 0;
+            vdata[1] = 0x1;
 
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[2]));
             RETURN_IF_ERROR(ReadComma(ctxt));
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[3]));
         } else if (StrCmp(ctxt, "neg") == 0) {
             vdata[0] = 0x5;
-            vdata[1] = 0;
+            vdata[1] = 0x1;
             vdata[2] = 0;
 
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[3]));
@@ -3043,21 +3075,21 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[1]));
         } else if (StrCmp(ctxt, "avg") == 0) {
             vdata[0] = 0xb;
-            vdata[1] = 0;
+            vdata[1] = 0x1;
 
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[2]));
             RETURN_IF_ERROR(ReadComma(ctxt));
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[3]));
         } else if (StrCmp(ctxt, "savg2") == 0) {
             vdata[0] = 0xd;
-            vdata[1] = 0;
+            vdata[1] = 0x1;
 
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[2]));
             RETURN_IF_ERROR(ReadComma(ctxt));
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[3]));
         } else if (StrCmp(ctxt, "add") == 0) {
             vdata[0] = 0x11;
-            vdata[1] = 0;
+            vdata[1] = 0x1;
 
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[2]));
             RETURN_IF_ERROR(ReadComma(ctxt));
@@ -3218,16 +3250,16 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                     } else if (StrCmp(ctxt, "inf") == 0) {
                         ModelWriteU16(ctxt, (0x7fe << 5) | Render_BATCH);
                     } else if (StrCmp(ctxt, "min") == 0) {
-                        RETURN_IF_ERROR(WriteBatchControl(ctxt, 0, 0));
+                        RETURN_IF_ERROR(WriteBatchControl(ctxt, BatchZ_MinVertex, 0));
                     } else if (StrCmp(ctxt, "max") == 0) {
-                        RETURN_IF_ERROR(WriteBatchControl(ctxt, 1, 0));
+                        RETURN_IF_ERROR(WriteBatchControl(ctxt, BatchZ_MaxVertex, 0));
                     } else {
                         u16 z;
                         RETURN_IF_ERROR(ParseU16(ctxt, &z));
-                        RETURN_IF_ERROR(WriteBatchControl(ctxt, 2, z));
+                        RETURN_IF_ERROR(WriteBatchControl(ctxt, BatchZ_OffsetVertexZ, z));
                     }
                 } else {
-                    RETURN_IF_ERROR(WriteBatchControl(ctxt, 3, 0));
+                    RETURN_IF_ERROR(WriteBatchControl(ctxt, BatchZ_VertexZ, 0));
                 }
             } else {
                 ModelWriteU16(ctxt, Render_BATCH);
@@ -3429,6 +3461,26 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             ModelWriteU16(ctxt, (colour  & 0xffe) << 4 | Render_LINE);
             ModelWriteU16(ctxt, (u16)((u8)vdata[0]) << 8 | (u16)((u8)vdata[1]));
 
+        } else if (StrCmp(ctxt, "bline") == 0) {
+            i8 vdata[4];
+
+            RETURN_IF_ERROR(ReadI8(ctxt, &vdata[0]));
+            RETURN_IF_ERROR(ReadComma(ctxt));
+            RETURN_IF_ERROR(ReadI8(ctxt, &vdata[1]));
+            RETURN_IF_ERROR(ReadComma(ctxt));
+            RETURN_IF_ERROR(ReadI8(ctxt, &vdata[2]));
+            RETURN_IF_ERROR(ReadComma(ctxt));
+            RETURN_IF_ERROR(ReadI8(ctxt, &vdata[3]));
+
+            u16 colour = 0;
+            i8 normal = 0;
+            RETURN_IF_ERROR(ReadNormalAndColour(ctxt, &colour, &normal));
+
+            ModelWriteU16(ctxt, (colour  & 0xffe) << 4 | Render_LINE_BEZIER);
+            ModelWriteU16(ctxt, (u16)((u8)vdata[0]) << 8 | (u16)((u8)vdata[1]));
+            ModelWriteU16(ctxt, (u16)((u8)vdata[2]) << 8 | (u16)((u8)vdata[3]));
+            ModelWriteU16(ctxt, (u16)normal);
+
         } else if (StrCmp(ctxt, "tri") == 0) {
             i8 vdata[3];
 
@@ -3449,7 +3501,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             ModelWriteU16(ctxt, (u16)((u8)vdata[0]) << 8 | (u16)((u8)vdata[1]));
             ModelWriteU16(ctxt, (u16)((u8)vdata[2]) << 8 | (u16)((u8)normal));
 
-        } else if (StrCmp(ctxt, "tri2") == 0) {
+        } else if (StrCmp(ctxt, "mtri") == 0) {
             i8 vdata[3];
             i32 r;
 
@@ -3468,7 +3520,6 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             ModelWriteU16(ctxt, (u16)((u8)vdata[2]) << 8 | (u16)((u8)normal));
 
         } else if (StrCmp(ctxt, "quad") == 0) {
-            i8 vdata[4];
 
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[0]));
             RETURN_IF_ERROR(ReadComma(ctxt));
@@ -3490,7 +3541,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             ModelWriteU16(ctxt, (u16)((u8)vdata[2]) << 8 | (u16)((u8)vdata[3]));
             ModelWriteU16(ctxt, (u16)((u8)normal));
 
-        } else if (StrCmp(ctxt, "quad2") == 0) {
+        } else if (StrCmp(ctxt, "mquad") == 0) {
             i8 vdata[4];
 
             RETURN_IF_ERROR(ReadI8(ctxt, &vdata[0]));
@@ -3637,8 +3688,8 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             u16 atmosColour = 0;
             u16 size = 0;
             u16 shade = 0;
-            i8 spansByteCode[100];
-            int spanSize = 0;
+            i8 featuresByteCode[100];
+            int featuresSize = 0;
 
             b32 gotSize = FALSE;
             b32 gotVertex = FALSE;
@@ -3646,7 +3697,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             b32 gotAtmosColour = FALSE;
             b32 gotBands = FALSE;
             b32 gotShade = FALSE;
-            b32 gotSpans = FALSE;
+            b32 gotFeatures = FALSE;
 
             while (token == ModelParserToken_LABEL) {
                 if (StrCmp(ctxt, "size") == 0 || StrCmp(ctxt, "s") == 0) {
@@ -3707,23 +3758,23 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                         RETURN_ERROR("Syntax error: expecting ']'");
                     }
                     gotBands = TRUE;
-                } else if (StrCmp(ctxt, "spans") == 0) {
+                } else if (StrCmp(ctxt, "features") == 0) {
                     RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
                     do {
                         RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
 
-                        RETURN_IF_ERROR(ReadI8(ctxt, spansByteCode + (spanSize++)));
+                        RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
                         RETURN_IF_ERROR(ReadComma(ctxt));
-                        RETURN_IF_ERROR(ReadI8(ctxt, spansByteCode + (spanSize++)));
+                        RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
                         RETURN_IF_ERROR(ReadComma(ctxt));
 
                         do {
                             RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
-                            RETURN_IF_ERROR(ReadI8(ctxt, spansByteCode + (spanSize++)));
+                            RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
                             RETURN_IF_ERROR(ReadComma(ctxt));
-                            RETURN_IF_ERROR(ReadI8(ctxt, spansByteCode + (spanSize++)));
+                            RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
                             RETURN_IF_ERROR(ReadComma(ctxt));
-                            RETURN_IF_ERROR(ReadI8(ctxt, spansByteCode + (spanSize++)));
+                            RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
                             RETURN_IF_ERROR(ReadSquareBracketClose(ctxt));
 
                             token = NextToken(ctxt);
@@ -3733,7 +3784,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                             RETURN_ERROR("Syntax error: expecting ']'");
                         }
 
-                        spansByteCode[spanSize] = 0;
+                        featuresByteCode[featuresSize] = 0;
                         token = NextToken(ctxt);
                     } while (token == ModelParserToken_COMMA);
 
@@ -3741,7 +3792,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                         RETURN_ERROR("Syntax error: expecting ']'");
                     }
 
-                    gotSpans = TRUE;
+                    gotFeatures = TRUE;
                 } else {
                     RETURN_ERROR_VAL("Syntax error: unknown param '%s'");
                 }
@@ -3769,13 +3820,13 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                 RETURN_ERROR("Syntax error: either 4 or 8 colours must be supplied");
             }
 
-            if (spanSize) {
-                if (spanSize & 0x1) {
-                    spanSize += 1;
+            if (featuresSize) {
+                if (featuresSize & 0x1) {
+                    featuresSize += 1;
                 }
             }
 
-            u16 dataSize = numColours + 1 + (numBands * 2) + 1 + (spanSize >> 1) + 1; // command size in words minus first 3
+            u16 dataSize = numColours + 1 + (numBands * 2) + 1 + (featuresSize >> 1) + 1; // command size in words minus first 3
             ModelWriteU16(ctxt, (dataSize << 5) | Render_PLANET);
             ModelWriteU16(ctxt, size);
             ModelWriteU16(ctxt, ((u16)((u8)vi)));
@@ -3807,11 +3858,11 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
 
             ModelWriteU16(ctxt, 0);
 
-            if (spanSize) {
-                if (spanSize & 0x1) {
-                    spanSize += 1;
+            if (featuresSize) {
+                if (featuresSize & 0x1) {
+                    featuresSize += 1;
                 }
-                MMemWriteI8CopyN(ctxt->memIO, spansByteCode, spanSize);
+                MMemWriteI8CopyN(ctxt->memIO, featuresByteCode, featuresSize);
             }
 
             ModelWriteU16(ctxt, 0);
@@ -3865,6 +3916,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             u8 scale = 0;
             u8 fontIndex = 0;
             u8 stringIndex = 0;
+            u16 stringType = 0;
 
             b32 gotVertex = FALSE;
             b32 gotColour = FALSE;
@@ -3891,8 +3943,22 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                     RETURN_IF_ERROR(ReadU8(ctxt, &fontIndex));
                     gotFontIndex = TRUE;
                 } else if (StrCmp(ctxt, "string") == 0 || StrCmp(ctxt, "i") == 0) {
+                    token = NextToken(ctxt);
+                    if (token != ModelParserToken_VALUE) {
+                        RETURN_ERROR("Expected string qualifier")
+                    }
+                    if (StrCmp(ctxt, "module") == 0) {
+                        stringType = 0x4000;
+                    } else if (StrCmp(ctxt, "model") == 0) {
+                        stringType = 0x3000;
+                    } else {
+                        RETURN_ERROR("Unknown string type");
+                    }
+                    RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
                     RETURN_IF_ERROR(ReadU8(ctxt, &stringIndex));
+                    RETURN_IF_ERROR(ReadSquareBracketClose(ctxt));
                     gotStringIndex = TRUE;
+
                 } else if (StrCmp(ctxt, "normal") == 0 || StrCmp(ctxt, "n") == 0) {
                     RETURN_IF_ERROR(ReadU8(ctxt, &normalIndex));
                     gotNormal = TRUE;
@@ -3930,7 +3996,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             ModelWriteU16(ctxt, ((colour & 0xffe) << 4) | Render_VTEXT);
             ModelWriteU16(ctxt, ((u16)((u8)fontIndex) << 12) | (((u16)(scale)) << 8) | (u16)((u8)normalIndex));
             ModelWriteU16(ctxt, ((u16)(transform)) << 8 | ((u16)((u8)vertex)));
-            ModelWriteU16(ctxt, stringIndex);
+            ModelWriteU16(ctxt, stringType | (u16)stringIndex);
 
         } else if (StrCmp(ctxt, "mrotate") == 0) {
 
@@ -3985,7 +4051,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             if (gotFlips) {
                 flipsParam |= (flips << 7);
             } else {
-                flipsParam |= 0x8000;
+                flipsParam |= 0x8300;
             }
 
             ModelWriteU16(ctxt, flipsParam | Render_MATRIX_TRANSFORM);
@@ -4048,7 +4114,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             if (numColours == 1) {
                 ModelWriteU16(ctxt, normal);
             } else {
-                ModelWriteU16(ctxt, (((u16)indexParam) << 8) | normal);
+                ModelWriteU16(ctxt, (((u16) indexParam) << 8) | normal);
                 for (int i = 1; i < 8; i++) {
                     u16 colour = 0;
                     if (i < numColours) {

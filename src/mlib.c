@@ -882,7 +882,6 @@ i32 MStringAppendf(MMemIO* memIo, const char* format, ...) {
     va_copy(vargs2, vargs1);
     if (writableLen <= 1) {
         size = vsnprintf(NULL, 0, format, vargs1);
-        va_end(vargs1);
         if (size > 0) {
             i32 newSize = memIo->size + size + 1;
             M_MemResize(memIo, newSize);
@@ -896,7 +895,6 @@ i32 MStringAppendf(MMemIO* memIo, const char* format, ...) {
             M_MemResize(memIo, newSize);
             writableLen = memIo->capacity - memIo->size;
             size = vsnprintf((char*) memIo->pos, writableLen, format, vargs2);
-            va_end(vargs2);
         }
 #if VSNPRINTF_MINUS_1_RETRY == 1
         else if (size < 0) {
@@ -906,7 +904,6 @@ i32 MStringAppendf(MMemIO* memIo, const char* format, ...) {
                 M_MemResize(memIo, newSize);
                 writableLen = memIo->capacity - memIo->size;
                 size = vsnprintf((char*)memIo->pos, writableLen, format, vargs2);
-                va_end(vargs2);
             }
         }
 #endif
@@ -920,6 +917,7 @@ i32 MStringAppendf(MMemIO* memIo, const char* format, ...) {
     }
 
     va_end(vargs1);
+    va_end(vargs2);
 
     return size;
 }

@@ -210,7 +210,7 @@ normals: ; 0
 
 code:
   batch begin z:58 vertex:0
-  planet v:0 size:29765 colours:[#448, #262, #000, #000] shade:3 atmosColour:#228 atmosBands:[16400 #548] spans:[[4, -6, [25, -58, -9], [33, -54, 5], [60, -19, -5], [61, 5, 16], [59, 16, -15], [57, -5, -26], [40, -8, -48], [48, -32, -27] ] ]
+  planet v:0 size:29765 colours:[#448, #262, #000, #000] shade:3 atmosColour:#228 atmosBands:[16400 #548] features:[[4, -6, [25, -58, -9], [33, -54, 5], [60, -19, -5], [61, 5, 16], [59, 16, -15], [57, -5, -26], [40, -8, -48], [48, -32, -27] ] ]
   done
 
 
@@ -503,15 +503,15 @@ code:
   clinec 4
   cdone
   82f7e: if > z:527 loc:82f8a
-  quad2 30, 32, 28, 34 colour:#000 normal:2
+  mquad 30, 32, 28, 34 colour:#000 normal:2
   82f8a: if > normal:2 loc:82f96
   if > z:152 loc:82f96
   model index:44 v:26 light flip:zyx
   82f96: batch begin z:65534 vertex:52
-  quad2 4, 14, 2, 24 colour:#666 normal:6
+  mquad 4, 14, 2, 24 colour:#666 normal:6
   82fa2: if > z:439 end ; 000b:036e
-  tri2 38, 40, 36 colour:#1ee normal:6
-  tri2 14, 24, 6 colour:#888 normal:22
+  mtri 38, 40, 36 colour:#1ee normal:6
+  mtri 14, 24, 6 colour:#888 normal:22
   82fb2: batch begin z:11 vertex:12
   line 12, 6 colour:#888
   batch begin z:11 vertex:13
@@ -1083,19 +1083,19 @@ normals: ; 9
 
 code:
   batch begin z:obj
-  quad2 4, 22, 2, 24 colour:#666 normal:8
+  mquad 4, 22, 2, 24 colour:#666 normal:8
   quad 3, 22, 2, 23 colour:#666 normal:10
   quad 5, 24, 4, 25 colour:#666 normal:12
   quad 24, 23, 22, 25 colour:#100 normal:14
   if > z:1757 end
   tri 2, 3, 0 colour:#666 normal:2
   tri 4, 5, 0 colour:#666 normal:4
-  tri2 2, 4, 0 colour:#666 normal:6
-  tri2 18, 22, 14 colour:#b00 normal:0
-  tri2 20, 24, 16 colour:#b00 normal:0
+  mtri 2, 4, 0 colour:#666 normal:6
+  mtri 18, 22, 14 colour:#b00 normal:0
+  mtri 20, 24, 16 colour:#b00 normal:0
   if > z:1265 end
-  tri2 10, 6, 2 colour:#b00 normal:0
-  tri2 12, 8, 4 colour:#b00 normal:0
+  mtri 10, 6, 2 colour:#b00 normal:0
+  mtri 12, 8, 4 colour:#b00 normal:0
   done
 
 
@@ -1179,13 +1179,13 @@ code:
   ztree push v:0
   cone colour:#667 (v:0 n:2 r:7) (v:2 n:4 r:4 c:#177)
   quad -4, -3, 26, -2 colour:#666
-  quad2 14, 4, 6, 12 colour:#444 normal:6
-  quad2 16, 6, 8, 14 colour:#444 normal:8
-  quad2 18, 8, 10, 16 colour:#666 normal:10
-  tri2 12, 14, 20 colour:#666 normal:12
-  tri2 14, 16, 20 colour:#444 normal:14
-  tri2 16, 18, 20 colour:#444 normal:16
-  quad2 4, 8, 6, 10 colour:#444 normal: 18
+  mquad 14, 4, 6, 12 colour:#444 normal:6
+  mquad 16, 6, 8, 14 colour:#444 normal:8
+  mquad 18, 8, 10, 16 colour:#666 normal:10
+  mtri 12, 14, 20 colour:#666 normal:12
+  mtri 14, 16, 20 colour:#444 normal:14
+  mtri 16, 18, 20 colour:#444 normal:16
+  mquad 4, 8, 6, 10 colour:#444 normal: 18
   line 22, 20 colour:#888
   ztree pop ; f015
   tmp[3] = tmp[2] > 4096

@@ -4502,6 +4502,7 @@ u32 Render_LoadFormattedString(SceneSetup* sceneSetup, u16 index, i8* outputBuff
         i8* text = (i8*)(sceneSetup->moduleStrings[index]);
         return Render_ProcessString(sceneSetup, text, outputBuffer, outputBufferLen);
     } else if (index >= 0x3000) {
+        // Model text
         index = (index & 0x7f);
         switch (index) {
             case LoadString_ModelText: {
