@@ -99,6 +99,8 @@ static b32 sProfile;
 static b32 sProfileFrame;
 static b32 sProfileSteps;
 
+#define INTRO_OVERRIDES "data/model-overrides-le.dat"
+
 static UWORD sMouseCursorNullGraphic[] = {
         0x0000, 0x0000, // reserved, must be NULL
         0x0000, 0x0000, // 1 row of image data
@@ -649,10 +651,10 @@ __stdargs int main(int argc, char** argv) {
 
     Intro_InitAmiga(&sIntro, &introSceneSetup, &assetsDataAmiga);
 
-    // Read RTG overrides if exists
+    // Read model overrides if exists
     ModelsArray overrideModels;
     MArrayInit(overrideModels);
-    MReadFileRet overridesFile = Assets_LoadModelOverrides("overrides.dat", &overrideModels);
+    MReadFileRet overridesFile = Assets_LoadModelOverrides(INTRO_OVERRIDES, &overrideModels);
     for (int i = 0; i < MArraySize(overrideModels); i++) {
         if (overrideModels.arr[i]) {
             MArraySet(introSceneSetup.assets.models, i, overrideModels.arr[i]);

@@ -377,7 +377,6 @@ u32 Audio_Init(AudioContext* audio, u8* data, u32 size) {
 
 void Audio_Exit(AudioContext* audio) {
 #ifdef USE_SDL
-    MLog("Close audio");
     SDL_CloseAudioDevice(audio->sdlAudioID); audio->sdlAudioID = 0;
 
     if (audio->audioOutputBuffer != NULL) {

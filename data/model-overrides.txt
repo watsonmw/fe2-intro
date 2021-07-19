@@ -1208,5 +1208,5 @@ normals: ; 0
 
 code:
   planet v:0 size:25636 colours:[#140, #004, #444, #444] atmosColour:#008 atmosBands:[16413 #646, 16428 #536, 16452 #426, 16488 #416]
-  done 
+  done
 

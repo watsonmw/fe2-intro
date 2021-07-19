@@ -1367,14 +1367,14 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     u16 data3 = 0;
                     MMemReadU16(&dataReader, &data3);
                     PrintParam8Base10(buff1, buffSize, data3);
-                    MStringAppendf(strOutput, "] colourOffset:%s extraColours:[", buff1);
+                    MStringAppendf(strOutput, "] paletteSelect:%s palette:[", buff1);
 
                     for (int k = 0; k < 7; k++) {
                         MMemReadU16(&dataReader, colour + 0);
                         MMemReadU16(&dataReader, colour + 1);
                         MMemReadU16(&dataReader, colour + 2);
                         MMemReadU16(&dataReader, colour + 3);
-                        MStringAppendf(strOutput, "[#%03x, #%03x, #%03x, #%03x]", colParam,
+                        MStringAppendf(strOutput, "[#%03x, #%03x, #%03x, #%03x]",
                                        (int)(colour[0] & 0xfff),
                                        (int)colour[1] & 0xfff,
                                        (int)colour[2] & 0xfff,
@@ -1442,8 +1442,8 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         i8 angle = 0;
                         MMemReadI8(&dataReader, &angle);
                         dataRemaining -= 4;
-                        MStringAppendf(strOutput, "[%d, %d, %d, %d]", (int)featureControl, (int)coord[0], (int)coord[1],
-                                       (int)coord[2], (int)angle);
+                        MStringAppendf(strOutput, "[%d, %d, %d, %d, %d]", (int)featureControl, (int)coord[0],
+                                       (int)coord[1], (int)coord[2], (int)angle);
                     } else {
                         // Render complex surface poly on sphere
                         i8 detailLevel = 0;
@@ -2169,7 +2169,7 @@ MINTERNAL i32 ReadParam8Base10(ModelParserContext* ctxt, u8* outParam) {
 MINTERNAL i32 ReadParam16Base10(ModelParserContext* ctxt, u16* outParam) {
     ModelParserTokenEnum token = NextToken(ctxt);
     if (token != ModelParserToken_VALUE) {
-        RETURN_ERROR("Syntax error: expecting value");
+        RETURN_ERROR("Syntax error: expecting param");
     }
 
     return ParseParam16Base10(ctxt, outParam);
@@ -2178,7 +2178,7 @@ MINTERNAL i32 ReadParam16Base10(ModelParserContext* ctxt, u16* outParam) {
 MINTERNAL i32 ReadComma(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = NextToken(ctxt);
     if (token != ModelParserToken_COMMA) {
-        RETURN_ERROR("Syntax error: expecting value");
+        RETURN_ERROR("Syntax error: expecting command");
     }
 
     return 0;
@@ -3688,8 +3688,10 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             u16 atmosColour = 0;
             u16 size = 0;
             u16 shade = 0;
-            i8 featuresByteCode[100];
+            i8 featuresByteCode[512];
             int featuresSize = 0;
+            int gotPaletteSelect = FALSE;
+            int gotPalette = FALSE;
 
             b32 gotSize = FALSE;
             b32 gotVertex = FALSE;
@@ -3698,6 +3700,8 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             b32 gotBands = FALSE;
             b32 gotShade = FALSE;
             b32 gotFeatures = FALSE;
+            u8 paletteSelect = 0;
+            u16 palette[4 * 7];
 
             while (token == ModelParserToken_LABEL) {
                 if (StrCmp(ctxt, "size") == 0 || StrCmp(ctxt, "s") == 0) {
@@ -3725,6 +3729,28 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                 } else if (StrCmp(ctxt, "atmosColour") == 0 || StrCmp(ctxt, "a") == 0) {
                     RETURN_IF_ERROR(ReadColour(ctxt, &atmosColour));
                     gotAtmosColour = TRUE;
+                } else if (StrCmp(ctxt, "paletteSelect") == 0) {
+                    RETURN_IF_ERROR(ReadParam8Base10(ctxt, &paletteSelect));
+                    gotPaletteSelect = TRUE;
+                } else if (StrCmp(ctxt, "palette") == 0) {
+                    u16* palettePtr = palette;
+                    RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
+                    for (int k = 0; k < 7; k++) {
+                        RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
+                        RETURN_IF_ERROR(ReadColour(ctxt, palettePtr++));
+                        RETURN_IF_ERROR(ReadComma(ctxt));
+                        RETURN_IF_ERROR(ReadColour(ctxt, palettePtr++));
+                        RETURN_IF_ERROR(ReadComma(ctxt));
+                        RETURN_IF_ERROR(ReadColour(ctxt, palettePtr++));
+                        RETURN_IF_ERROR(ReadComma(ctxt));
+                        RETURN_IF_ERROR(ReadColour(ctxt, palettePtr++));
+                        RETURN_IF_ERROR(ReadSquareBracketClose(ctxt));
+                        if (k != 6) {
+                            RETURN_IF_ERROR(ReadComma(ctxt));
+                        }
+                    }
+                    RETURN_IF_ERROR(ReadSquareBracketClose(ctxt));
+                    gotPalette = TRUE;
                 } else if (StrCmp(ctxt, "colours") == 0 || StrCmp(ctxt, "c") == 0) {
                     RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
                     int i = 0;
@@ -3763,25 +3789,56 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                     do {
                         RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
 
-                        RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
-                        RETURN_IF_ERROR(ReadComma(ctxt));
-                        RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
-                        RETURN_IF_ERROR(ReadComma(ctxt));
+                        i8 featureControl = 0;
+                        RETURN_IF_ERROR(ReadI8(ctxt, &featureControl));
 
-                        do {
-                            RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
+                        *(featuresByteCode + (featuresSize++)) = featureControl;
+
+                        if (featureControl < 0) {
+                            // Render surface circle on sphere at given point
+                            RETURN_IF_ERROR(ReadComma(ctxt));
+                            RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
+                            RETURN_IF_ERROR(ReadComma(ctxt));
                             RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
                             RETURN_IF_ERROR(ReadComma(ctxt));
                             RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
                             RETURN_IF_ERROR(ReadComma(ctxt));
                             RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
-                            RETURN_IF_ERROR(ReadSquareBracketClose(ctxt));
 
                             token = NextToken(ctxt);
-                        } while (token == ModelParserToken_COMMA);
+                            if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
+                                RETURN_ERROR("Syntax error: expecting ']'");
+                            }
+                        } else {
+                            RETURN_IF_ERROR(ReadComma(ctxt));
+                            RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
+                            token = NextToken(ctxt);
+                            if (token == ModelParserToken_SQUARE_BRACKET_CLOSE) {
+                                // Marker
+                                featuresByteCode[featuresSize++] = 0;
+                            } else {
+                                // Render complex surface poly on sphere
+                                if (token != ModelParserToken_COMMA) {
+                                    RETURN_ERROR("Syntax error: expecting comma");
+                                }
 
-                        if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
-                            RETURN_ERROR("Syntax error: expecting ']'");
+                                do {
+                                    RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
+                                    RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
+                                    RETURN_IF_ERROR(ReadComma(ctxt));
+                                    RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
+                                    RETURN_IF_ERROR(ReadComma(ctxt));
+                                    RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
+                                    RETURN_IF_ERROR(ReadSquareBracketClose(ctxt));
+
+                                    token = NextToken(ctxt);
+                                } while (token == ModelParserToken_COMMA);
+
+                                if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
+                                    RETURN_ERROR("Syntax error: expecting ']'");
+                                }
+                                featuresByteCode[featuresSize++] = 0;
+                            }
                         }
 
                         featuresByteCode[featuresSize] = 0;
@@ -3822,24 +3879,52 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
 
             if (featuresSize) {
                 if (featuresSize & 0x1) {
+                    featuresByteCode[featuresSize] = 0;
                     featuresSize += 1;
                 }
             }
 
-            u16 dataSize = numColours + 1 + (numBands * 2) + 1 + (featuresSize >> 1) + 1; // command size in words minus first 3
-            ModelWriteU16(ctxt, (dataSize << 5) | Render_PLANET);
-            ModelWriteU16(ctxt, size);
-            ModelWriteU16(ctxt, ((u16)((u8)vi)));
-
             u16 colourParam = shade;
-            if (numColours == 4) {
+            if (gotPaletteSelect && gotPalette) {
+                colourParam |= 0x1;
+                if (numColours > 4) {
+                    RETURN_ERROR("Syntax error: cannot add palette when 8 colours already specified");
+                }
+            } else if (gotPaletteSelect && !gotPalette) {
+                RETURN_ERROR("Syntax error: missing palette list but got paletteSelect");
+            } else if (!gotPaletteSelect && gotPalette) {
+                RETURN_ERROR("Syntax error: missing paletteSelect but got palette");
+            } else if (numColours == 4) {
                 colourParam |= 0x4;
             }
 
+            // command size in words minus first 3
+            u16 dataSize = numColours + 1 + (numBands * 2) + 1 + (featuresSize >> 1);
+            if (gotPaletteSelect) {
+                dataSize += 1;
+            }
+            if (gotPalette) {
+                dataSize += 4 * 7;
+            }
+
+            // command size in words minus first 3
+            ModelWriteU16(ctxt, (dataSize << 5) | Render_PLANET);
+            ModelWriteU16(ctxt, size);
+            ModelWriteU16(ctxt, ((u16)((u8)vi)));
             ModelWriteU16(ctxt, (colourParam << 12) | colours[0]);
 
             for (int i = 1; i < numColours; i++) {
                 ModelWriteU16(ctxt, colours[i]);
+            }
+
+            if (gotPaletteSelect) {
+                ModelWriteU16(ctxt, paletteSelect);
+            }
+
+            if (gotPalette) {
+                for (int i = 0; i < 4 * 7; i++) {
+                    ModelWriteU16(ctxt, palette[i]);
+                }
             }
 
             u16 atmosParam = atmosColour;
@@ -3854,14 +3939,10 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                     ModelWriteU16(ctxt, bandWidths[i]);
                     ModelWriteU16(ctxt, bandColours[i]);
                 }
+                ModelWriteU16(ctxt, 0);
             }
 
-            ModelWriteU16(ctxt, 0);
-
             if (featuresSize) {
-                if (featuresSize & 0x1) {
-                    featuresSize += 1;
-                }
                 MMemWriteI8CopyN(ctxt->memIO, featuresByteCode, featuresSize);
             }
 
