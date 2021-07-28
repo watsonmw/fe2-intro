@@ -1404,12 +1404,17 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     MMemReadU16(&dataReader, &atmosBandWidth);
                     u16 bandColour = 0;
                     MMemReadU16(&dataReader, &bandColour);
-                    MStringAppendf(strOutput, " atmosBands:[%d #%03x", (int)atmosBandWidth, (int)bandColour);
+                    char firstChar = (atmosBandWidth & 0x4000) ? '1' : '0';
+                    int bandwidth = (0x3fff & atmosBandWidth) << 2;
+                    MStringAppendf(strOutput, " atmosBands:[#%c.%04x #%03x", firstChar, (int)bandwidth,
+                                   (int)bandColour);
                     do {
                         MMemReadU16(&dataReader, &atmosBandWidth);
                         if (atmosBandWidth) {
                             MMemReadU16(&dataReader, &bandColour);
-                            MStringAppendf(strOutput, ", %d #%03x", (int)atmosBandWidth, (int)bandColour);
+                            firstChar = (atmosBandWidth & 0x4000) ? '1' : '0';
+                            bandwidth = (0x3fff & atmosBandWidth) << 2;
+                            MStringAppendf(strOutput, ", #%c.%04x #%03x", firstChar, (int)bandwidth, (int)bandColour);
                         }
                     } while (atmosBandWidth);
                     MStringAppend(strOutput, "]");
@@ -1746,7 +1751,7 @@ ModelParserTokenEnum NextTokenNoTokenUpdate(ModelParserContext* ctxt) {
                         ctxt->valueEnd = ctxt->textCurr;
                         return ModelParserToken_VALUE;
                     default:
-                        if (!(IsAlphaNumeric(c) || c == '_')) {
+                        if (!(IsAlphaNumeric(c) || c == '_' || c == '.')) {
                             MLog("Error");
                             return ModelParserToken_ERROR;
                         }
@@ -1962,6 +1967,91 @@ MINTERNAL i32 ParseU16(ModelParserContext* ctxt, u16* out) {
 
     if (val > (1 << 16)) {
         RETURN_ERROR("Syntax error: u16 value out of range");
+    }
+
+    *out = (u16)val;
+
+    return 0;
+}
+
+enum MParseFixedFractionalHex {
+    MParseFixedFractionalHex_SUCCESS = 0,
+    MParseFixedFractionalHex_NOT_A_NUMBER = -1,
+    MParseFixedFractionalHex_TOO_MANY_CHARS = -2,
+};
+
+
+i32 MParseFixedFractionalHexi32(const char* start, const char* end, i32* out) {
+    i32 val = *out;
+    int base = 10;
+
+    for (const char* pos = start; pos < end; pos++) {
+        char c = *pos;
+        int p = 0;
+        if (c >= '0' && c <= '9') {
+            p = c - '0';
+        } else if (c >= 'a' && c <= 'f') {
+            p = 10 + c - 'a';
+        } else if (c >= 'A' && c <= 'F') {
+            p = 10 + c - 'A';
+        } else {
+            return MParseFixedFractionalHex_NOT_A_NUMBER;
+        }
+        if (p) {
+            if (base > 0) {
+                val |= (p << base);
+            } else if (base == 0) {
+                val |= p;
+            } else if (base > -4) {
+                val |= (p >> -base);
+            } else {
+                return MParseFixedFractionalHex_TOO_MANY_CHARS;
+            }
+        }
+        base -= 4;
+    }
+
+    *out = val;
+
+    return MParseFixedFractionalHex_SUCCESS;
+}
+
+MINTERNAL i16 ParseFixed_1_14(ModelParserContext* ctxt, u16* out) {
+    i16 r = 0;
+    i32 val = 0;
+
+    if (ctxt->token != ModelParserToken_VALUE) {
+        RETURN_ERROR("Syntax error: expecting value while parsing fixed point number");
+    }
+
+    if (*ctxt->valueStart != '#') {
+        RETURN_ERROR("Syntax error: expecting fixed point number");
+    }
+
+    i64 len = ctxt->valueEnd - ctxt->valueStart;
+    if (len < 2) {
+        RETURN_ERROR("Syntax error: expecting fixed point number");
+    }
+
+    char firstChar = ctxt->valueStart[1];
+    if (firstChar == '1') {
+        val = 0x4000;
+    } else {
+        val = 0;
+    }
+
+    // #1.010
+    if (len > 2) {
+        char periodChar = ctxt->valueStart[2];
+        if (periodChar != '.') {
+            RETURN_ERROR("Syntax error: error parsing fixed point number");
+        }
+        if (len > 3) {
+            r = MParseFixedFractionalHexi32(ctxt->valueStart + 3, ctxt->valueEnd, &val);
+            if (r < 0) {
+                RETURN_ERROR("Syntax error: error parsing fixed point number");
+            }
+        }
     }
 
     *out = (u16)val;
@@ -3774,7 +3864,8 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                         if (i > 16) {
                             RETURN_ERROR("Too many atmosBand parameters");
                         }
-                        RETURN_IF_ERROR(ReadU16(ctxt, bandWidths + i));
+                        NextToken(ctxt);
+                        RETURN_IF_ERROR(ParseFixed_1_14(ctxt, bandWidths + i));
                         RETURN_IF_ERROR(ReadColour(ctxt, bandColours + i));
                         token = NextToken(ctxt);
                         numBands++;

@@ -8152,7 +8152,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
             if (baseColour) {
                 if (nearDistScreen > (-0xb2 * SCREEN_SCALE)) {
                     // Draw atmospheric bands
-                    i16 bandWidth = ByteCodeRead16i(rf);
+                    i16 bandWidth = ByteCodeRead16i(rf); // bandwidth is in 16 bit fixed point: 1.14
                     CalcSkyColour(renderContext, rf, &workspace);
 
                     Vec2i16 bezierPt2[4];

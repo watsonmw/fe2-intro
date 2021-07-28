@@ -1140,7 +1140,7 @@ MReadFileRet MFileReadFullyWithOffset(const char* filePath, u32 maxSize, u32 off
         fseek(file, offset, SEEK_SET);
     }
 
-    size_t bytesRead = fread(ret.data, size, 1, file);
+    size_t bytesRead = fread(ret.data, 1, size, file);
 
     ret.size = bytesRead;
 
@@ -1200,7 +1200,7 @@ i32 MFileWriteData(MFile* file, u8* data, u32 size) {
         return -1;
     }
 
-    return fwrite(data, size, 1, (FILE*)file->handle);
+    return fwrite(data, 1, size, (FILE*)file->handle);
 }
 
 void MFileClose(MFile* file) {

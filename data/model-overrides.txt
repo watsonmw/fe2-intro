@@ -210,7 +210,7 @@ normals: ; 0
 
 code:
   batch begin z:58 vertex:0
-  planet v:0 size:29765 colours:[#448, #262, #000, #000] shade:3 atmosColour:#228 atmosBands:[16400 #548] features:[[4, -6, [25, -58, -9], [33, -54, 5], [60, -19, -5], [61, 5, 16], [59, 16, -15], [57, -5, -26], [40, -8, -48], [48, -32, -27] ] ]
+  planet v:0 size:29765 colours:[#448, #262, #000, #000] shade:3 atmosColour:#228 atmosBands:[#1.004 #548] features:[[4, -6, [25, -58, -9], [33, -54, 5], [60, -19, -5], [61, 5, 16], [59, 16, -15], [57, -5, -26], [40, -8, -48], [48, -32, -27] ] ]
   done
 
 
@@ -1207,6 +1207,5 @@ vertices: ; 1
 normals: ; 0
 
 code:
-  planet v:0 size:25636 colours:[#140, #004, #444, #444] atmosColour:#008 atmosBands:[16413 #646, 16428 #536, 16452 #426, 16488 #416]
+  planet v:0 size:25636 colours:[#140, #004, #444, #444] atmosColour:#008 atmosBands:[#1.0074 #646, #1.00b #536, #1.022 #426, #1.01a #416]
   done
-
