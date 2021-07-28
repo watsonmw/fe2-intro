@@ -37,7 +37,7 @@ downloaded from here:
 To run on an Amiga you'll need RTG and a (very) fast Amiga.
 
 It runs great on a Vampire and UAE.  Have had reports of it running well on
-68060 accerated Amigas.  There's even a fork with raster optimizations for
+68060 accelerated Amigas.  There's even a fork with raster optimizations for
 the ZZ9000 accelerator card.
 
 Will run on any platform that supports SDL as well.
@@ -48,24 +48,62 @@ Building
 
 Amiga:
 
-Built for Amiga using bebbo's GCC compiler, once installed the bash script
-'amiga/build-ami-gcc.sh' can used to cross compile from Linux.
+Built for Amiga using Bebbo's GCC compiler, once installed the bash script
+'amiga/build-ami-gcc.sh' can be used to cross compile from Linux.
 
 
 SDL:
 
 Other platforms use SDL for platform support and CMake for compiling.  A CMake
-file is included that works on Mac with xcode and Windows with Mingw.
+file is included that works on Mac with Xcode, Windows with Mingw, and 
+Emscripten for Web.
+
+    cmake .  -B cmake-build-release -DCMAKE_BUILD_TYPE=Release
+    make -C cmake-build-release fintro
+
+
+Emscripten:
+
+
+Emscripten uses its own version of libraries and build toolchain.  Detailed instructions
+can be found on the emscripten.org website.  The process for getting the latest emscripten
+is currently:
+
+    git clone https://github.com/emscripten-core/emsdk.git
+    cd emsdk
+    # Fetch the latest version of the emsdk (not needed the first time you clone)
+    git pull
+    # Download and install the latest SDK tools.
+    ./emsdk install latest
+    # Make the "latest" SDK "active" for the current user. (writes .emscripten file)
+    ./emsdk activate latest
+    # Activate PATH and other environment variables in the current terminal
+    source ./emsdk_env.sh
+
+A special wrapper for CMake is included with Emscripten, which sets up the toolchain.
+Use that to build this project:
+
+    emcmake cmake . -B emscripten-release -DCMAKE_BUILD_TYPE=Release
+    make -C emscripten-release fintro
+
+A Python script for serving up the Emscripten compiled version locally is provided.
+
+    python scripts/wasmserver.py
+
+You can then open in your favourite WASM supporting browser (basically any Chromium
+or WebKit based browser since 2018):
+
+    http://localhost:8000/emscripten-release/fe2-intro.html
 
 
 Why?
 ---
 
 DooM is ported to pretty much every platform due to be having a reference
-implementation in C.  I wanted something simalr for FE2 and have always been
+implementation in C.  I wanted something similar for FE2 and have always been
 curious about how the renderer worked.
 
-The whole game is not ported because, well.. that would require a ton more work,
+The whole game is not ported because, well... that would require a ton more work,
 and maybe Frontier will want to re-release it at some point.
 
 BTW: If you are checking this out you probably already know about
@@ -95,7 +133,7 @@ A music and sound fx player is included in 'audio.c'.  It shows how to emulate
 amiga sounds in SDL, and how the original mod format is laid out.  The original
 samples are cleaned up a bit to reduce clicking / popping.  (If anyone wants to
 contribute 16-bit samples for each of the 12 or so instruments, and can keep
-the same overall sound let me know and I'll add them as overrides.)
+the same overall sound, let me know, and I'll add them as overrides.)
 
     assets.[ch]      - Helpers for loading the Amiga assets
     audio.[ch]       - Music and sfx playback (music only used in intro)

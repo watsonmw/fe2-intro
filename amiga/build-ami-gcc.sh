@@ -56,7 +56,7 @@ BUILD_INFO="$BUILD_DATE\\n$BUILD_ID\\ngcc $CCFLAGS $POS_LDFLAGS"
 git diff src/render.c > build/source.diffs
 xxd -i build/source.diffs > src/sourcediffs.h
 
-cp data/overrides.dat build/
+cp data/model-overrides-le.dat build/
 
 # Actually Compile
 ${GCC} src/main-amiga.c $CCFLAGS -DBUILD_INFO="$BUILD_INFO" -DBUILD_ID="$BUILD_ID" -I src -c -o build/main.o
