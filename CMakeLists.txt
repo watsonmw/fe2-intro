@@ -46,6 +46,10 @@ add_executable(
         src/fmath.c
 )
 
+# Define DEBUG c/c++ macro when compiling in debug mode
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
+
 IF(MINGW)
     include_directories(C:/msys64/mingw32/include)
     link_directories(C:/msys64/mingw32/lib)

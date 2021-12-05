@@ -2,6 +2,7 @@
 #include "renderinternal.h"
 #include "mlib.h"
 #include "fmath.h"
+#include "audio.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -310,7 +311,7 @@ void Surface_Clear(Surface* surface, u8 colour) {
 // - writing words is better than bytes?
 static void DrawSpanNoClip(u8* restrict pixelsLine, i16 x1, i16 x2, u8 colour) {
 #ifdef AMIGA
-#if defined(__GNUC__)
+    #if defined(__GNUC__)
     u8* restrict dummy1;
     i16 dummy2;
     __asm__ volatile (
@@ -1034,7 +1035,7 @@ void Surface_DrawFlare(Surface* surface, i16 x, i16 y, int diameter, u16 colour1
     i16 offset = (diameter + HIGHLIGHTS_SMALL) * HIGHLIGHTS_SIZE;
     u8* flareData;
 #if HIGHLIGHTS_SIZE == 16
-    flairData = Draw_FlairGraphics16;
+    flareData = sDrawFlareGraphics16;
 #else
     flareData = sDrawFlareGraphics32;
 #endif
@@ -3291,7 +3292,7 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
                 }
                 case 0x13:
                 case 0x14: {
-                    // Lerp between two vertices
+                    // LERP between two vertices
                     i16 v1i = hi8s(vertexData2);
                     VertexData* vertex1 = ProjectVertex(rc, rf, v1i);
 
@@ -4497,7 +4498,6 @@ u32 Render_LoadFormattedString(SceneSetup* sceneSetup, u16 index, i8* outputBuff
         i8* text = (i8*)(sceneSetup->moduleStrings[index]);
         return Render_ProcessString(sceneSetup, text, outputBuffer, outputBufferLen);
     } else if (index >= 0x3000) {
-        // Model text
         index = (index & 0x7f);
         switch (index) {
             case LoadString_ModelText: {
@@ -4524,6 +4524,115 @@ u32 Render_LoadFormattedString(SceneSetup* sceneSetup, u16 index, i8* outputBuff
         outputBuffer[3] = 0;
     }
     return 0;
+}
+
+void Render_ImageFromPlanerBitmap(Image8Bit* image, const u8* bitmapRaw, const u16* colours, u16 numColours) {
+    u16* bitmapRaw16 = (u16*)bitmapRaw;
+
+    u16 width = MBIGENDIAN16(*bitmapRaw16++);
+    u16 height = MBIGENDIAN16(*bitmapRaw16++);
+
+    image->w = width * 16;
+    image->h = height;
+    image->data = MMalloc(image->w * image->h);
+    u32* dest = (u32*)(image->data);
+
+    u16 srcBitmapStride = width * height;
+
+    u32 c[4];
+    for (u16 y = 0; y < height; y++) {
+        for (u16 x = 0; x < width; x++) {
+            u16* nextBitmapRaw16 = bitmapRaw16 + 1;
+            u16 p1 = MBIGENDIAN16(*(bitmapRaw16));
+            u16 orig = p1;
+            for (int i = 3; i >= 0; i--) {
+                c[i] = (p1 & 0x1) | ((p1 & 0x2) << (8 - 1) | ((p1 & 0x4) << (16 - 2)) | ((p1 & 0x8) << (24 - 3)));
+                p1 >>= 4;
+            }
+            bitmapRaw16 += srcBitmapStride;
+            u16 p2 = MBIGENDIAN16(*(bitmapRaw16));
+            for (int i = 3; i >= 0; i--) {
+                c[i] |= ((p2 & 0x1) << 1) | ((p2 & 0x2) << (8 - 0) | ((p2 & 0x4) << (16 - 1)) | ((p2 & 0x8) << (24 - 2)));
+                p2 >>= 4;
+            }
+            bitmapRaw16 += srcBitmapStride;
+            u16 p3 = MBIGENDIAN16(*(bitmapRaw16));
+            for (int i = 3; i >= 0; i--) {
+                c[i] |= ((p3 & 0x1) << 2) | ((p3 & 0x2) << (8 + 1) | ((p3 & 0x4) << (16 - 0)) | ((p3 & 0x8) << (24 - 1)));
+                p3 >>= 4;
+            }
+            bitmapRaw16 += srcBitmapStride;
+            u16 p4 = MBIGENDIAN16(*(bitmapRaw16));
+            for (int i = 3; i >= 0; i--) {
+                c[i] |= ((p4 & 0x1) << 3) | ((p4 & 0x2) << (8 + 2) | ((p4 & 0x4) << (16 + 1)) | ((p4 & 0x8) << (24 + 0)));
+                p4 >>= 4;
+            }
+
+            for (int j = 0; j < 4; j++) {
+                (*dest++) = MBIGENDIAN32(c[j]);
+            }
+
+            u8* data = ((u8*)(dest)) - 16;
+            for (int j = 0; j < 16; j++) {
+                u8 val = *data;
+                if (val == 0) {
+                } else if (val < 6) {
+                    (*data) = 16 - val;
+                } else {
+                    (*data) = val - 5;
+                }
+                data++;
+            }
+
+            bitmapRaw16 = nextBitmapRaw16;
+        }
+    }
+}
+
+void Render_ImageUpscale2x(Image8Bit* srcImage, Image8Bit* destImage) {
+    u16 width = srcImage->w;
+    u16 height = srcImage->h;
+
+    destImage->h = height * 2;
+    destImage->w = width * 2;
+
+    destImage->data = (u8*)MMalloc(destImage->h * destImage->w);
+
+    u16* destLine1 = (u16*) destImage->data;
+    u16* destLine2 = destLine1 + srcImage->w;
+
+    u8* src = srcImage->data;
+    for (u16 y = 0; y < height; y++) {
+        for (u16 x = 0; x < width; x++) {
+            u16 c = *src;
+            c = (c << 8 | c);
+            (*destLine1++) = c;
+            (*destLine2++) = c;
+            src++;
+        }
+        destLine1 += width;
+        destLine2 += width;
+    }
+}
+
+void Render_BlitNoClip(Surface* surface, Image8Bit* image, Vec2i16 pos) {
+    u16 width = image->w;
+    u16 height = image->h;
+
+    u8* pixels = (u8*)surface->pixels;
+    pixels += (surface->width * pos.y) + pos.x;
+
+    u8* src = image->data;
+    for (u16 y = 0; y < height; y++) {
+        for (u16 x = 0; x < width; x++) {
+            u8 c = *src;
+            if (c) {
+                pixels[x] = c;
+            }
+            src++;
+        }
+        pixels += surface->width;
+    }
 }
 
 MINTERNAL i32 AddSpanLineCont(RenderContext* renderContext, RenderFrame* rf, i16 vi) {
@@ -5419,7 +5528,7 @@ MINTERNAL int RenderSubModel(RenderContext* renderContext, RenderFrame* rf, u16 
         ProjectVertex(renderContext, rf, v4i);
     }
 
-doneProjects:
+    doneProjects:
 
     newRenderFrame = PushRenderFrame(renderContext);
     newRenderFrame->parentFrameVertexIndexes[0] = vi;
@@ -5444,7 +5553,7 @@ doneProjects:
 #ifdef FINSPECTOR
     if (AllowModelRender(renderContext, modelIndex)) {
 #endif
-        FrameRenderObjects(renderContext, modelData);
+    FrameRenderObjects(renderContext, modelData);
 #ifdef FINSPECTOR
     }
 #endif
@@ -5963,7 +6072,7 @@ MINTERNAL int RenderVectorTextOneStack(RenderContext* rc, RenderFrame* rf, u16 p
     newRenderFrame->modelData = (ModelData*)font;
 
 #ifdef FINSPECTOR
-    newRenderFrame->fileDataStartAddress = rf->renderContext->galmapModelDataFileStartAddress;
+    newRenderFrame->fileDataStartAddress = rf->renderContext->fontModelDataFileStartAddress;
 #endif
 
 #ifdef FRAME_MEM_USE_STACK_ALLOC
@@ -6327,14 +6436,17 @@ MINTERNAL int RenderAudioCue(RenderContext* renderContext, u16 funcParam) {
         z = -z;
     }
 
-    i32 t = (x + y + z) / 2;
-    if (t >= 0x3f0000) {
+    i32 t = ((x + y + z) / 2) >> 16;
+    if (t >= AUDIO_SAMPLE_VOL_MAX) {
         return 0;
     }
 
-    t = 0x3f0000 - t;
+    i32 volume = AUDIO_SAMPLE_VOL_MAX - t;
+    u16 sampleId = funcParam >> 4;
 
-    MLogf("Audio %d : %d\n", t, funcParam >> 4);
+    if (renderContext->sceneSetup->audio) {
+        Audio_PlaySample(renderContext->sceneSetup->audio, sampleId, volume);
+    }
 
     return 0;
 }
@@ -6676,6 +6788,14 @@ MINTERNAL int RenderConeCapped(RenderContext* renderContext, u16 funcParam) {
     return 0;
 }
 
+MINTERNAL int RenderBitmapText(RenderContext* renderContext, u16 funcParam) {
+    RenderFrame* rf = GetRenderFrame(renderContext);
+
+    u16 param1 = ByteCodeRead16u(rf);
+
+    return 0;
+}
+
 // Skip if (bit) clear/false
 MINTERNAL int RenderIfVar(RenderContext* renderContext, u16 funcParam) {
     RenderFrame* rf = GetRenderFrame(renderContext);
@@ -6893,7 +7013,7 @@ MINTERNAL int RenderBalls(RenderContext* renderContext, u16 funcParam) {
             z >>= 1;
         }
 
-        width = (p1 << ZSCALE) / z;
+        width = (p1 << 8) / z;
     }
 
     DrawParamsBalls* drawParams;
@@ -8108,7 +8228,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
             if (baseColour) {
                 if (nearDistScreen > (-0xb2 * SCREEN_SCALE)) {
                     // Draw atmospheric bands
-                    i16 bandWidth = ByteCodeRead16i(rf); // bandwidth is in 16 bit fixed point: 1.14
+                    i16 bandWidth = ByteCodeRead16i(rf);
                     CalcSkyColour(renderContext, rf, &workspace);
 
                     Vec2i16 bezierPt2[4];
@@ -8514,6 +8634,7 @@ MINTERNAL void FrameRenderObjects(RenderContext* rc, ModelData* model) {
 }
 
 void Render_Init(SceneSetup* sceneSetup, RasterContext* raster) {
+    sceneSetup->audio = NULL;
     sceneSetup->raster = raster;
     sceneSetup->random1 = 0x12345678;
     sceneSetup->random2 = 0x89abcdef;
@@ -8698,8 +8819,7 @@ MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf)
                 break;
             }
             case Render_BITMAP_TEXT: {
-                MLog("bitmap text not done!");
-                ret = 0;
+                ret = RenderBitmapText(renderContext, funcParam);
                 break;
             }
             case Render_IF_NOT_VAR: {

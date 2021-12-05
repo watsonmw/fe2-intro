@@ -206,7 +206,7 @@ void MMemAddBytesZero(MMemIO* memIO, u32 size);
 // --- Writing ---
 // Write data at current pos and advance.
 // These are often slower than writing directly as they do endian byte swaps and allow writing at byte offsets.
-// For speed call MMemAddBytes() and write data directly to *pos, aligning as needed.
+// For speed call MMemAddBytes() and write data directly to *pos, making sure the offsets are aligned.
 void MMemWriteU16LE(MMemIO* memIO, u16 val);
 
 void MMemWriteU16BE(MMemIO* memIO, u16 val);
@@ -332,7 +332,7 @@ MINLINE i32 M_ArrayGrowIfNeeded(MEMDEBUG_SOURCE_DEFINE void** arr, MArrayInfo* p
 }
 
 MINLINE i32 M_ArrayCopy(MEMDEBUG_SOURCE_DEFINE void** srcArr, MArrayInfo* srcInfo, u32 itemSize,
-        void** destArr, MArrayInfo* destInfo) {
+                        void** destArr, MArrayInfo* destInfo) {
 
     M_ArrayGrowIfNeeded(MEMDEBUG_SOURCE_PASS destArr, destInfo, itemSize, srcInfo->size);
     destInfo->size = srcInfo->size;
@@ -471,7 +471,7 @@ typedef struct {
     u8* data;
     u32 dataSize;
     MIniPairs values;
-    u8 owned; // set to 1 if data should be MFree()'d when MIniFree() is called
+    u8 owned; // set to 1 if data should be automatically MFree()'d when MIniFree() is called
 } MIni;
 
 i32 MIniLoadFile(MIni* ini, const char* filePath);

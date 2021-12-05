@@ -336,7 +336,7 @@ u32 Audio_Init(AudioContext* audio, u8* data, u32 size) {
 
     Audio_CopyAndFixSamples(audio);
 
-    audio->volume = 32;
+    audio->masterVolume = 32;
 
     audio->playModOnly = 1;
 
@@ -1311,7 +1311,7 @@ void Audio_Render(AudioContext* audio, int ticks, b32 output) {
                     } else {
                         i16* val = sampleConvert->sampleConverted + audio->samplePos[j];
                         i32 hwVolume = audio->hw[j]->volume;
-                        i32 value = (((i32)*val) * hwVolume * audio->volume) / AUDIO_VOL_MAX;
+                        i32 value = (((i32)*val) * hwVolume * audio->masterVolume) / AUDIO_MASTER_VOL_MAX;
                         audio->samplePos[j]++;
                         if (audio->samplePos[j] >= sampleConvert->sampleConvertedLen) {
                             audio->samplePos[j] = 0;

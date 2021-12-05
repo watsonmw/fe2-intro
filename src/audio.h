@@ -157,7 +157,8 @@ typedef struct sChannelRegisters {
 }  ChannelRegisters;
 #endif
 
-#define AUDIO_VOL_MAX 128
+#define AUDIO_MASTER_VOL_MAX 128
+#define AUDIO_SAMPLE_VOL_MAX 0x3f
 #define AUDIO_SAMPLE_CACHE_SIZE 30
 #define AUDIO_NUM_CHANNELS 4
 
@@ -170,7 +171,7 @@ typedef struct sAudio {
     u8* samplesData;
     u32 samplesDataSize;
 
-    u8 volume; // 0-128
+    u8 masterVolume; // 0-128
 #ifdef USE_SDL
     SDL_AudioDeviceID sdlAudioID;
 #endif
@@ -237,8 +238,8 @@ u32 Audio_Init(AudioContext* audio, u8* data, u32 size);
 
 void Audio_Exit(AudioContext* audio);
 
-MINLINE void Audio_SetVolume(AudioContext* audio, u8 volume) {
-    audio->volume = volume;
+MINLINE void Audio_SetVolume(AudioContext* audio, u8 masterVolume) {
+    audio->masterVolume = masterVolume;
 }
 
 void Audio_PlaySample(AudioContext* audio, u16 sampleIndex, u16 volume);

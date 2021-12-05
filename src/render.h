@@ -6,6 +6,7 @@
 #include "mlib.h"
 #include "fmath.h"
 #include "assets.h"
+#include "audio.h"
 
 #define FONT_HEIGHT 9
 #define FONT_NEW_LINE 10
@@ -255,6 +256,7 @@ typedef struct sSceneSetup {
     u8 bitmapFontColours[16];
 
     RasterContext* raster;
+    AudioContext* audio;
 
     MMemStack memStack;
 #ifdef FINSPECTOR
@@ -265,10 +267,12 @@ typedef struct sSceneSetup {
     b32 hideModel[200];
     u8* modelDataFileStartAddress;
     u8* galmapModelDataFileStartAddress;
+    u8* fontModelDataFileStartAddress;
     u32 renderDataOffset;
 #endif
 } SceneSetup;
 
+// Model renderer
 void Render_Init(SceneSetup* sceneSetup, RasterContext* raster);
 void Render_Free(SceneSetup* sceneSetup);
 void Render_RenderScene(SceneSetup* sceneSetup);
@@ -278,11 +282,42 @@ static ModelData* Render_GetModel(SceneSetup* sceneSetup, u16 offset) {
     return MArrayGet(sceneSetup->assets.models, offset);
 }
 
+#ifdef FINSPECTOR
+static u32 Render_GetModelCodeOffset(SceneSetup* sceneSetup, u16 offset) {
+    ModelData* modelData = MArrayGet(sceneSetup->assets.models, offset);
+    if (modelData == NULL) {
+        return 0;
+    }
+
+    u32 fileOffset = ((u8*)modelData - sceneSetup->modelDataFileStartAddress);
+    return fileOffset + modelData->codeOffset;
+}
+#endif
+
 // String loading and formatting
 u32 Render_LoadFormattedString(SceneSetup* sceneSetup, u16 index, i8* outputBuffer, u32 outputBufferLen);
 u32 Render_ProcessString(SceneSetup* sceneSetup, const i8* text, i8* outputBuffer, u32 outputBufferLen);
 void Render_DrawBitmapText(SceneSetup* sceneSetup, const i8* text, Vec2i16 pos, u8 colour, b32 drawShadow);
 
+// Image / Bitmap functions
+typedef struct {
+    u16 w;
+    u16 h;
+
+    u8* data;
+} Image8Bit;
+
+MARRAY_TYPEDEF(Image8Bit, Images8Bit)
+
+typedef struct sImageStore {
+    Images8Bit images;
+} ImageStore;
+
+void Render_BlitNoClip(Surface* surface, Image8Bit* image, Vec2i16 pos);
+void Render_ImageFromPlanerBitmap(Image8Bit* image, const u8* bitmapRaw, const u16* colours, u16 numColours);
+void Render_ImageUpscale2x(Image8Bit* srcImage, Image8Bit* destImage);
+
+// Math functions
 enum RotateAxisEnum {
     RotateAxis_X = 0,
     RotateAxis_Y = 1,

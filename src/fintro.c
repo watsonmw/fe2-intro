@@ -110,6 +110,11 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData
         ARRAY_REWRITE_LE32(data1 + 0x14, 0xc);
         ARRAY_REWRITE_LE16(data1 + 0x20, 0xd6);
     }
+
+    MArrayInit(intro->imageStore.images);
+
+
+    intro->drawFrontierLogo = 0;
 }
 
 void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* assetsData) {
@@ -201,11 +206,40 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
         ARRAY_REWRITE_BE32(data1 + 0x14, 0xc);
         ARRAY_REWRITE_BE16(data1 + 0x20, 0xd6);
     }
+
+    sceneSetup->assets.mainData =  assetsData->mainExeData;
+
+    MArrayInit(intro->imageStore.images);
+
+    if (intro->drawFrontierLogo) {
+#if FINTRO_SCREEN_RES == 3
+        Image8Bit image;
+        Image8Bit* imagePtr = &image;
+#else
+        Image8Bit* imagePtr = MArrayAddPtr(intro->imageStore.images);
+#endif
+        Render_ImageFromPlanerBitmap(imagePtr,
+                                     sceneSetup->assets.mainData + 0x0007f2aa,
+                                     (u16*) sceneSetup->assets.mainData + 0x0007f29a,
+                                     16);
+#if FINTRO_SCREEN_RES == 3
+        Image8Bit* upScaledImage = MArrayAddPtr(intro->imageStore.images);
+        Render_ImageUpscale2x(&image, upScaledImage);
+        MFree(image.data);
+#endif
+    }
 }
 
 void Intro_Free(Intro* intro, SceneSetup* sceneSetup) {
     MArrayFree(sceneSetup->assets.models);
     MFree(sceneSetup->moduleStrings);
+
+    Images8Bit* images = &intro->imageStore.images;
+    for (int i = 0; i < MArraySize(*images); i++) {
+        MFree(images + i);
+    }
+
+    MArrayFree(*images);
 }
 
 u32 Intro_GetNumFrames(Intro* intro) {
@@ -389,6 +423,14 @@ void Intro_Post3dRender(Intro* intro, SceneSetup* sceneSetup, i32 frameOffset) {
     if (scenePos.scene < 0) {
         scenePos.scene = 0;
         scenePos.offset = 0;
+    }
+
+    if (intro->drawFrontierLogo && scenePos.scene >= 2) {
+        Image8Bit* image = MArrayGetPtr(intro->imageStore.images, 0);
+        Vec2i16 pos;
+        pos.x = (sceneSetup->raster->surface->width - image->w) / 2;
+        pos.y = (sceneSetup->raster->surface->height - image->h);
+        Render_BlitNoClip(sceneSetup->raster->surface, image, pos);
     }
 
     if (scenePos.scene >= 21) {

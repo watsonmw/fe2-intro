@@ -19,6 +19,8 @@ typedef struct sIntro {
     u16* creditsStringData;
     u32 numScenes;
     IntroScene* scenes;
+    ImageStore imageStore;
+    u16 drawFrontierLogo;
 } Intro;
 
 typedef struct sScenePos {
