@@ -172,7 +172,7 @@ MINLINE void MBreakpoint(const char* str) {
 typedef struct {
     u8* pos;  // current pos in memory buffer
     u8* mem;  // pointer to start of memory buffer
-    u32 size; // current size read or written (pos - mem)
+    u32 size; // current size read or written (redundant since: size == pos - mem)
     u32 capacity; // size of memory buffer allocated
 } MMemIO;
 
@@ -197,14 +197,16 @@ MINTERNAL void MMemFree(MMemIO* memIO) {
     MFree(memIO->mem);
 }
 
+// Add bytes, allocating new memory if necessary
 void MMemAddBytes(MMemIO* memIO, u32 size);
 
+// Add bytes, allocating new memory if necessary, zero out bytes added
 void MMemAddBytesZero(MMemIO* memIO, u32 size);
 
 // --- Writing ---
 // Write data at current pos and advance.
 // These are often slower than writing directly as they do endian byte swaps and allow writing at byte offsets.
-// For speed call MMemAddBytes() and write data directly to *pos, making sure the offsets are aligned.
+// For speed call MMemAddBytes() and write data directly to *pos, aligning as needed.
 void MMemWriteU16LE(MMemIO* memIO, u16 val);
 
 void MMemWriteU16BE(MMemIO* memIO, u16 val);
@@ -469,7 +471,7 @@ typedef struct {
     u8* data;
     u32 dataSize;
     MIniPairs values;
-    u8 owned; // set if data is to free'd when MIniFree() is called
+    u8 owned; // set to 1 if data should be MFree()'d when MIniFree() is called
 } MIni;
 
 i32 MIniLoadFile(MIni* ini, const char* filePath);

@@ -66,12 +66,11 @@
 
 #define MINTERNAL static
 
-// try out different code for :
-// - ZProject
-// - Span - AddLine / Clipping
-// - DrawSpan write
-
-// document planet rendering
+// TODO:
+//   - Some matrix setup modes are not implemented (not needed for intro)
+//   - Some text rendering options are not implemented (not needed for intro)
+//   - Many text extraction functions are not implemented (not needed for intro)
+//   - Document
 
 #ifdef __GNUC__
 // Slightly faster than malloc/alloc solutions in GCC 6.3
@@ -3556,11 +3555,7 @@ static u16 sMatrixAxisFlips[] = {
         0x0000, 0x0000, 0x0001, 0x0002   // x y z  - NOP
 };
 
-static u16 sXyzRotTableOffsets[] = {
-    1, 2, 0, 1
-};
-
-static u16 sMatrixOffsets3[] = {
+static u16 sMatrixRotationOffsets3[] = {
     1, 2, 0, 0
 };
 
@@ -5073,32 +5068,6 @@ MINTERNAL void InterpretComplexByteCode(RenderContext* renderContext, RenderFram
             break;
         }
     }
-}
-
-MINTERNAL void RotateMatrix(Matrix3x3i16 matrix, u16 row1, u16 row2, i16 sine, i16 cosine) {
-    i32 x1 = matrix[row1][0];
-    i32 y1 = matrix[row1][1];
-    i32 z1 = matrix[row1][2];
-
-    i32 x2 = matrix[row2][0];
-    i32 y2 = matrix[row2][1];
-    i32 z2 = matrix[row2][2];
-
-    i32 dx = (((x1 * cosine) + (x2 * sine)) >> (u16)15);
-    i32 dy = (((y1 * cosine) + (y2 * sine)) >> (u16)15);
-    i32 dz = (((z1 * cosine) + (z2 * sine)) >> (u16)15);
-
-    matrix[row1][0] = (i16)dx;
-    matrix[row1][1] = (i16)dy;
-    matrix[row1][2] = (i16)dz;
-
-    dx = (((z2 * cosine) - (z1 * sine)) >> (u16)15);
-    dy = (((y2 * cosine) - (y1 * sine)) >> (u16)15);
-    dz = (((x2 * cosine) - (x1 * sine)) >> (u16)15);
-
-    matrix[row2][2] = (i16)dx;
-    matrix[row2][1] = (i16)dy;
-    matrix[row2][0] = (i16)dz;
 }
 
 MINTERNAL void RenderQuadParams(RenderContext* renderContext, RenderFrame* rf, u16 param0, u16 param1, u16 param2, u16 param3) {
@@ -6994,31 +6963,29 @@ MINTERNAL int RenderMatrixSetup(RenderContext* renderContext, u16 funcParam) {
         return 0;
     }
 
-    // Orientate axis to light source
+    // Orientate matrix to light source
     u16 rotationAxis = (param0 >> 1) & 0x3;
-    u16 row1 = sXyzRotTableOffsets[rotationAxis];
-    u16 row2 = sXyzRotTableOffsets[rotationAxis + 1];
-    u16 o1 = sMatrixOffsets3[rotationAxis + 1];
-    i32 a = rf->lightM[o1];
-    o1 = sMatrixOffsets3[o1];
-    i32 b = rf->lightM[o1];
+    u16 o1 = sMatrixRotationOffsets3[rotationAxis + 1];
 
-    i32 sq = a * a + b * b;
+    // Normalize
+    i32 a = rf->lightM[o1];
+
+    u16 o2 = sMatrixRotationOffsets3[o1];
+    i32 b = rf->lightM[o2];
+
+    i32 sq = (a * a) + (b * b);
     i32 r = FMath_SqrtFunc32(sq);
     r *= 0x8101;
 
-    i16 sine = 0;
-    i16 cosine = 0;
-
     if (r >> 16 == 0) {
         u16 angle = r & 0xffff;
-        LookupSineAndCosine(angle, &sine, &cosine);
+        Matrix3x3i16RotateAxisAngle(rf->modelMatrix, rotationAxis, angle);
     } else {
-        cosine = a << 14 / r;
-        sine = b << 14 / r;
+        i16 cosine = a << 14 / r;
+        i16 sine = b << 14 / r;
+        Matrix3x3i16RotateAxis(rf->modelMatrix, rotationAxis, sine, cosine);
     }
 
-    RotateMatrix(rf->modelMatrix, row1, row2, sine, cosine);
     return 0;
 }
 
@@ -7081,17 +7048,6 @@ MINTERNAL int RenderModelScale(RenderContext* scene, u16 funcParam) {
     return RenderSubModel(scene, rf, funcParam, param1, vi, scale, baseColour);
 }
 
-void Matrix3x3i16Rotate(Matrix3x3i16 matrix, u16 rotationAxis, u16 angle) {
-    u16 row1 = sXyzRotTableOffsets[rotationAxis];
-    u16 row2 = sXyzRotTableOffsets[rotationAxis + 1];
-
-    i16 sine = 0;
-    i16 cosine = 0;
-    LookupSineAndCosine(angle, &sine, &cosine);
-
-    RotateMatrix(matrix, row1, row2, sine, cosine);
-}
-
 MINTERNAL int RenderMatrixTransform(RenderContext* scene, u16 funcParam) {
     RenderFrame* rf = GetRenderFrame(scene);
 
@@ -7108,7 +7064,7 @@ MINTERNAL int RenderMatrixTransform(RenderContext* scene, u16 funcParam) {
     u16 rotationAxis = (funcParam >> 5) & (u16) 0x3;
     u16 angle = GetValueForParam16(rf, param1);
 
-    Matrix3x3i16Rotate(rf->modelMatrix, rotationAxis, angle);
+    Matrix3x3i16RotateAxisAngle(rf->modelMatrix, rotationAxis, angle);
 
     return 0;
 }

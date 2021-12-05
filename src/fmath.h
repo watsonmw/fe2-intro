@@ -155,6 +155,8 @@ MINLINE void Vec3i32ScalarMult(const Vec3i32 v, i32 s, Vec3i32 dest) {
     dest[2] = v[2] * s;
 }
 
+// Setup identity matrix for 16bit fixed point
+// Each entry in the matrix is in the range -1 (0x8000) -> 1 (0x7fff).
 MINLINE void Matrix3x3i16Identity(Matrix3x3i16 d) {
     d[0][0] = 0x7fff;
     d[0][1] = 0;
@@ -203,6 +205,52 @@ MINLINE void Matrix3i16Copy(const Matrix3x3i16 src, Matrix3x3i16 dest) {
     dest[2][0] = src[2][0];
     dest[2][1] = src[2][1];
     dest[2][2] = src[2][2];
+}
+
+static u16 sMatrix3x3RotationRowOffsets[] = {
+        1, // x
+        2, // y
+        0, // z
+        1
+};
+
+// Apply rotation about an axis to given matrix
+MINTERNAL void Matrix3x3i16RotateAxis(Matrix3x3i16 matrix, u16 rotationAxis, i16 sine, i16 cosine) {
+    u16 row1 = sMatrix3x3RotationRowOffsets[rotationAxis];
+    u16 row2 = sMatrix3x3RotationRowOffsets[rotationAxis + 1];
+
+    i32 x1 = matrix[row1][0];
+    i32 y1 = matrix[row1][1];
+    i32 z1 = matrix[row1][2];
+
+    i32 x2 = matrix[row2][0];
+    i32 y2 = matrix[row2][1];
+    i32 z2 = matrix[row2][2];
+
+    i32 dx = (((x1 * cosine) + (x2 * sine)) >> (u16)15);
+    i32 dy = (((y1 * cosine) + (y2 * sine)) >> (u16)15);
+    i32 dz = (((z1 * cosine) + (z2 * sine)) >> (u16)15);
+
+    matrix[row1][0] = (i16)dx;
+    matrix[row1][1] = (i16)dy;
+    matrix[row1][2] = (i16)dz;
+
+    dx = (((z2 * cosine) - (z1 * sine)) >> (u16)15);
+    dy = (((y2 * cosine) - (y1 * sine)) >> (u16)15);
+    dz = (((x2 * cosine) - (x1 * sine)) >> (u16)15);
+
+    matrix[row2][2] = (i16)dx;
+    matrix[row2][1] = (i16)dy;
+    matrix[row2][0] = (i16)dz;
+}
+
+// Apply rotation about an axis to given matrix
+MINLINE void Matrix3x3i16RotateAxisAngle(Matrix3x3i16 matrix, u16 rotationAxis, u16 angle) {
+    i16 sine = 0;
+    i16 cosine = 0;
+    LookupSineAndCosine(angle, &sine, &cosine);
+
+    Matrix3x3i16RotateAxis(matrix, rotationAxis, sine, cosine);
 }
 
 MINLINE void Vec3i16Copy(const Vec3i16 v, Vec3i16 dest) {

@@ -319,7 +319,7 @@ void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, int fram
 
                 Matrix3x3i16 rotation;
                 Matrix3x3i16Identity(rotation);
-                Matrix3x3i16Rotate(rotation, RotateAxis_Y, -rot);
+                Matrix3x3i16RotateAxisAngle(rotation, RotateAxis_Y, -rot);
 
                 Vec3i16 lightV;
                 MultVec3i16Matrix(rotation, sceneSetup->lightVec, lightV);
@@ -332,7 +332,7 @@ void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, int fram
 
                 Matrix3x3i16 rotation;
                 Matrix3x3i16Identity(rotation);
-                Matrix3x3i16Rotate(rotation, RotateAxis_X, -(rot - 2048));
+                Matrix3x3i16RotateAxisAngle(rotation, RotateAxis_X, -(rot - 2048));
 
                 Vec3i16 lightV;
                 MultVec3i16Matrix(rotation, sceneSetup->lightVec, lightV);

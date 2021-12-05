@@ -289,8 +289,6 @@ enum RotateAxisEnum {
     RotateAxis_Z = 2,
 };
 
-void Matrix3x3i16Rotate(Matrix3x3i16 matrix, u16 rotationAxis, u16 angle);
-
 #ifdef FINSPECTOR
 static u32 Render_GetModelCodeOffset(SceneSetup* sceneSetup, u16 offset) {
     ModelData* modelData = MArrayGet(sceneSetup->assets.models, offset);
