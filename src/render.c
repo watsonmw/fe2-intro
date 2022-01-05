@@ -70,7 +70,8 @@
 // TODO:
 //   - Some matrix setup modes are not implemented (not needed for intro)
 //   - Some text rendering options are not implemented (not needed for intro)
-//   - Many text extraction functions are not implemented (not needed for intro)
+//   - Many text souring/formatting functions are not implemented (not needed for intro)
+//   - Bitmap text in model not supported
 //   - Document
 
 #ifdef __GNUC__
@@ -311,7 +312,7 @@ void Surface_Clear(Surface* surface, u8 colour) {
 // - writing words is better than bytes?
 static void DrawSpanNoClip(u8* restrict pixelsLine, i16 x1, i16 x2, u8 colour) {
 #ifdef AMIGA
-    #if defined(__GNUC__)
+#if defined(__GNUC__)
     u8* restrict dummy1;
     i16 dummy2;
     __asm__ volatile (
@@ -4498,6 +4499,7 @@ u32 Render_LoadFormattedString(SceneSetup* sceneSetup, u16 index, i8* outputBuff
         i8* text = (i8*)(sceneSetup->moduleStrings[index]);
         return Render_ProcessString(sceneSetup, text, outputBuffer, outputBufferLen);
     } else if (index >= 0x3000) {
+        // Model text
         index = (index & 0x7f);
         switch (index) {
             case LoadString_ModelText: {
@@ -5528,7 +5530,7 @@ MINTERNAL int RenderSubModel(RenderContext* renderContext, RenderFrame* rf, u16 
         ProjectVertex(renderContext, rf, v4i);
     }
 
-    doneProjects:
+doneProjects:
 
     newRenderFrame = PushRenderFrame(renderContext);
     newRenderFrame->parentFrameVertexIndexes[0] = vi;
@@ -7013,7 +7015,7 @@ MINTERNAL int RenderBalls(RenderContext* renderContext, u16 funcParam) {
             z >>= 1;
         }
 
-        width = (p1 << 8) / z;
+        width = (p1 << ZSCALE) / z;
     }
 
     DrawParamsBalls* drawParams;
