@@ -236,7 +236,8 @@ void Intro_Free(Intro* intro, SceneSetup* sceneSetup) {
 
     Images8Bit* images = &intro->imageStore.images;
     for (int i = 0; i < MArraySize(*images); i++) {
-        MFree(images + i);
+        Image8Bit* image = MArrayGetPtr(*images, i);
+        MFree(image->data);
     }
 
     MArrayFree(*images);

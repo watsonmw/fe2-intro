@@ -2426,7 +2426,7 @@ void Raster_Draw(RasterContext *raster) {
     MArrayClear(raster->drawNodeStack);
     DoRasterTree(raster, zTreeMem, drawNode);
 #ifdef MEMDEBUG
-    // Check rasterer hasn't overwriten memory as far as we can tell
+    // Check rasterizer hasn't overwriten memory as far as we can tell
     MMemDebugCheck(raster->surface->pixels);
 #ifdef FINSPECTOR
     MMemDebugCheck(raster->surface->insOffset);
@@ -2518,7 +2518,7 @@ typedef struct sRenderFrame {
     VertexData* vertexTrans;
 
     u16 numNormals;
-    u16* normals;
+    u16* normalColours;
 
 #ifdef FINSPECTOR
     u8* fileDataStartAddress;
@@ -2849,8 +2849,11 @@ MINTERNAL int IsInViewport(i32 radius, i32 x, i32 y, i32 z) {
     return 1;
 }
 
-// Get one of a constant, temporary variable, or scene value from an 8 bit parameter
-// value.
+// Get a value, either:
+// - a small constant (6bits)
+// - a large constant (6bits << 10)
+// - temporary/scratch variable
+// - scene/model value
 // Returns a 16 bit value.
 MINTERNAL u16 GetValueForParam8(RenderFrame* rf, u16 param8) {
     u16 cmd = param8 & 0xc0;
@@ -2875,8 +2878,10 @@ MINTERNAL u16 GetValueForParam8(RenderFrame* rf, u16 param8) {
     }
 }
 
-// Get one of a constant, temporary variable, or scene value from a 16 bit parameter
-// value.
+// Get a value, either:
+// - a constant (15 bits can be specified, bit 0 is always 0)
+// - temporary/scratch variable
+// - scene/model value
 // Returns a 16 bit value.
 MINTERNAL u16 GetValueForParam16(RenderFrame* rf, u16 param16) {
     if (param16 & 0x80) {
@@ -3397,9 +3402,9 @@ MINTERNAL u8* GetFontByteCodeForCharacter(FontModelData* fontModel, u16 offset) 
     return (base + fontModel->offsets[offset]);
 }
 
-// neg light indicates backface (not facing view vec)
-// zero light indicates not facing light source
-// NOTE: normals have a vertex associated with them, which should have already been transformed
+// negative values indicates backface (normal not facing view vector)
+// zero value indicates normal not facing light source
+// NOTE: normals have a vertex associated with them, which should have already been transformed to screen space
 MINTERNAL u16 CalcNormalLightTint(RenderFrame* rf, u8 normalIndex) {
     u16 normalOffset = rf->normalOffset + ((normalIndex & 0x7e) << 1);
 
@@ -3425,7 +3430,7 @@ MINTERNAL u16 CalcNormalLightTint(RenderFrame* rf, u8 normalIndex) {
     v[1] = hi8s(vPacked2);
     v[2] = lo8s(vPacked2);
 
-    // Both odd vertex and normals have their x axis reversed
+    // Odd indexed vertices and normals have their x-axis reversed
     if (normalIndex & 0x1) {
         n[0] = -n[0];
         if (!(vi & 0x1)) {
@@ -3667,20 +3672,22 @@ MINTERNAL int SetupNewTransformMatrix(RenderContext* renderContext, RenderFrame*
 
 MINTERNAL void FrameRenderObjects(RenderContext* rc, ModelData* model);
 
-// Calc the vertex 12 bit colour.
-// Only 9 bits (3red/3green/3blue) are used for the colour
+// Calc the vertex 12 bit colour (4 red / 4 green / 4 blue), given a normal and colour.
+//
+// Only 9 bits (3 red / 3 green / 3 blue) of the input colour are used for the
+// colour directly, the rest are modifier flags.
 //
 // r & 0x1    - Emit colour directly / don't add normal colour
-// g & 0x1    - Add the scene tint colour
-// b & 0x1    - Is usually masked out / left out of bytecode format
+// g & 0x1    - Add the scene base colour (sometimes diffuse, sometimes just object instance colour)
+// b & 0x1    - Is masked out / left out of bytecode format
 MINTERNAL u16 CalcNormalColour(RenderFrame* rf, u16 colourParam, u8 normalIndex) {
-    u16* n = rf->normals + normalIndex;
-    u16 normalLightTint = *n;
+    u16* colourPtr = rf->normalColours + normalIndex;
+    u16 normalLightTint = *colourPtr;
     if (normalLightTint == NORMAL_NOT_CALCULATED) {
         normalLightTint = CalcNormalLightTint(rf, normalIndex);
     }
 
-    *n = normalLightTint;
+    *colourPtr = normalLightTint;
 
     if (normalLightTint & 0x8000) {
         return NORMAL_FACING_AWAY;
@@ -3699,11 +3706,13 @@ MINTERNAL u16 CalcNormalColour(RenderFrame* rf, u16 colourParam, u8 normalIndex)
     return colour;
 }
 
-// Calc the vertex 12 bit colour.
-// Only 9 bits are used for the colour, the rest are flags.
+// Calc the vertex 12 bit colour, given an input colour and a tint index.
 //
-// g & 0x1    - Add the scene tint colour
-// !(b & 0x1) - Add the normal colour
+// Only 9 bits are used to specify colour directly from the input colour, the rest are flags.
+//
+// r & 0x1    - Emit colour directly / don't add normal colour
+// g & 0x1    - Add the scene base colour (sometimes diffuse, sometimes just object instance colour)
+// b & 0x1    - Is masked out / left out of bytecode format
 MINTERNAL u16 CalcColour(RenderFrame* rf, u16 colourParam, u8 normalLightTint) {
     u16 colour = (colourParam & (u16)0xeee);
 
@@ -4748,9 +4757,9 @@ MINTERNAL i32 RComplexBezier(RenderContext* renderContext, u16 funcParam) {
 
     if (v4->vVec[2] < ZCLIPNEAR || v1->vVec[2] < ZCLIPNEAR || v3->vVec[2] < ZCLIPNEAR || v2->vVec[2] < ZCLIPNEAR) {
 
-        // Original code just renders a line instead, but that makes eagle look ugly in the intro, where it clips
-        // intro the screen and causes a green triangle to fill half the screen.  Here we split the bezier in half
-        // geometrically.
+        // Original code just renders a line instead, but that makes one of the eagles look ugly in the intro; during
+        // the final attach sequence it clips into the screen and causes a green triangle to fill half the screen.  Here
+        // we split the bezier in half geometrically - and raster it as two lines instead.
         Vec3i32 p0, p1, p2;
         Vec3132Midpoint(v1->vVec, v2->vVec, p0);
         Vec3132Midpoint(v2->vVec, v3->vVec, p1);
@@ -4974,7 +4983,7 @@ MINTERNAL i32 RComplexJoin(RenderContext* renderContext, u16 funcParam) {
 //
 // Perspective projected points for a cubic Bezier approximation of a circle.
 //
-// A circle when perspective projected results in conic section on the view plane - usually a ellipse.
+// A circle when perspective projected results in conic section on the view plane - usually an ellipse.
 //
 // Only ellipses are handled here.
 //
@@ -5133,7 +5142,7 @@ MINTERNAL int RComplexCircle(RenderContext* renderContext, u16 funcParam) {
 }
 
 MINTERNAL void InterpretComplexByteCode(RenderContext* renderContext, RenderFrame* rf) {
-    // Call render funcs until hit end byte code, or draw buffer is full
+    // Call render funcs until we hit the end of the model byte code, or draw buffer is full
     while (!ByteCodeIsDone(rf)) {
 #ifdef FINSPECTOR
         u32 byteCodeOffset = rf->byteCodePos - rf->fileDataStartAddress;
@@ -6029,7 +6038,7 @@ MINTERNAL int RenderTeardrop(RenderContext* renderContext, u16 funcParam) {
 }
 
 MINTERNAL int RenderVectorTextOneStack(RenderContext* rc, RenderFrame* rf, u16 param1, u16 normalIndex, u16 colour) {
-    u16 normalColour = *(rf->normals + normalIndex);
+    u16 normalColour = *(rf->normalColours + normalIndex);
 
     u16 param2 = ByteCodeRead16u(rf);
 
@@ -6102,17 +6111,17 @@ MINTERNAL int RenderVectorTextOneStack(RenderContext* rc, RenderFrame* rf, u16 p
 #elif FRAME_MEM_USE_STACK_DARY
     i8 textBuffer[textBufSize];
     u16 normals[newRenderFrame->numNormals];
-    newRenderFrame->normals = normals;
+    newRenderFrame->normalColours = normals;
 #elif FRAME_MEM_USE_MALLOC
     newRenderFrame->normals = (u16 *)MMemStackAlloc(rc->memStack, newRenderFrame->numNormals * sizeof(u16));
 
     i8* textBuffer = (i8*)MMemStackAlloc(rc->memStack, textBufSize);
 #endif
 
-    newRenderFrame->normals[0] = 0;
-    newRenderFrame->normals[1] = 0;
+    newRenderFrame->normalColours[0] = 0;
+    newRenderFrame->normalColours[1] = 0;
     for (int i = 2; i < newRenderFrame->numNormals; i++) {
-        newRenderFrame->normals[i] = normalColour;
+        newRenderFrame->normalColours[i] = normalColour;
     }
 
     newRenderFrame->frameId = 2;
@@ -6207,7 +6216,7 @@ MINTERNAL int RenderIf(RenderContext* renderContext, u16 funcParam) {
     u16 param1 = ByteCodeRead16u(rf);
     if (param1 & 0x8000) {
         u8 normalIndex = param1 & 0x7f;
-        u16* n = rf->normals + normalIndex;
+        u16* n = rf->normalColours + normalIndex;
         u16 normalColour = *n;
         if (normalColour == NORMAL_NOT_CALCULATED) {
             normalColour = CalcNormalLightTint(rf, normalIndex);
@@ -6248,7 +6257,7 @@ MINTERNAL int RenderIfNot(RenderContext* renderContext, u16 funcParam) {
     u16 param1 = ByteCodeRead16u(rf);
     if (param1 & 0x8000) {
         u8 normalIndex = param1 & 0x7f;
-        u16* n = rf->normals + normalIndex;
+        u16* n = rf->normalColours + normalIndex;
         u16 normalColour = *n;
         if (normalColour == NORMAL_NOT_CALCULATED) {
             normalColour = CalcNormalLightTint(rf, normalIndex);
@@ -7138,7 +7147,7 @@ MINTERNAL int RenderColour(RenderContext* scene, u16 funcParam) {
     u8 normalIndex = param1 & 0x7f;
     if (param1 & 0x80) {
         u16 colour = CalcNormalColour(rf, colourParam, normalIndex);
-        rf->normals[0] = colour;
+        rf->normalColours[0] = colour;
     } else {
         u16 colour = CalcNormalColour(rf, colourParam, normalIndex);
         rf->baseColour = colour;
@@ -8603,19 +8612,19 @@ MINTERNAL void FrameRenderObjects(RenderContext* rc, ModelData* model) {
 #endif
     if (rf->numNormals > 0) {
 #if FRAME_MEM_USE_STACK_ALLOC
-        rf->normals = (u16*)alloca(rf->numNormals * sizeof(u16));
+        rf->normalColours = (u16*)alloca(rf->numNormals * sizeof(u16));
 #elif FRAME_MEM_USE_STACK_DARY
-        rf->normals = normals;
+        rf->normalColours = normals;
 #elif FRAME_MEM_USE_MALLOC
-        rf->normals = (u16*)MMemStackAlloc(rc->memStack, rf->numNormals * sizeof(u16));
+        rf->normalColours = (u16*)MMemStackAlloc(rc->memStack, rf->numNormals * sizeof(u16));
 #endif
-        rf->normals[0] = rf->shadeRamp[3];
-        rf->normals[1] = rf->shadeRamp[4];
+        rf->normalColours[0] = rf->shadeRamp[3];
+        rf->normalColours[1] = rf->shadeRamp[4];
         for (int i = 2; i < rf->numNormals; i++) {
-            rf->normals[i] = NORMAL_NOT_CALCULATED;
+            rf->normalColours[i] = NORMAL_NOT_CALCULATED;
         }
     } else {
-        rf->normals = NULL;
+        rf->normalColours = NULL;
     }
 
     rf->frameId = 2;
@@ -8632,7 +8641,7 @@ MINTERNAL void FrameRenderObjects(RenderContext* rc, ModelData* model) {
 #endif
 
     rf->vertexTrans = NULL;
-    rf->normals = NULL;
+    rf->normalColours = NULL;
 }
 
 void Render_Init(SceneSetup* sceneSetup, RasterContext* raster) {

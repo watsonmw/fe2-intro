@@ -37,7 +37,7 @@ enum Audio_SampleEnum {
     Audio_SampleEnum_Explosion3 = 7,
     Audio_SampleEnum_Explosion4 = 8,
     Audio_SampleEnum_Explosion5 = 9,
-    Audio_SampleEnum_Lazer1 = 10,
+    Audio_SampleEnum_Laser1 = 10,
     Audio_SampleEnum_Plasma1 = 11,
     Audio_SampleEnum_LandingGearUp = 12,
     Audio_SampleEnum_LandingGearDown = 13,
@@ -53,7 +53,7 @@ enum Audio_SampleEnum {
     Audio_SampleEnum_Alert = 30,
     Audio_SampleEnum_Explosion6 = 31,
     Audio_SampleEnum_Hyperspace = 33,
-    Audio_SampleEnum_Lazer2 = 35,
+    Audio_SampleEnum_Laser2 = 35,
     Audio_SampleEnum_Plasma2 = 36,
     Audio_SampleEnum_Wind2 = 37,
 };

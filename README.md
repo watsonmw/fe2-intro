@@ -20,7 +20,11 @@ Also includes:
 Running
 ---
 
-Releases are available here:
+The Web version can be run directly from here:
+
+    https://watsonmw.com/fintro/fe2-intro.html
+
+Amiga & PC releases are available here:
 
     https://github.com/watsonmw/fe2-intro/releases
 
@@ -125,12 +129,12 @@ described in entertaining detail here:
     http://www.jongware.com/galaxy7.html 
 
 This project implements much more than is described there though, I'd say 95%
-of the original Frontier's graphics code is implemented here, mostly just 2d
-and navigation / galaxy rendering is missing.  Every 3d model including ships
-and planets can be rendered.
+of the original Frontier's graphics code is implemented here, mostly just some
+2d and navigation / galaxy rendering is missing.  Every 3d model including all
+ships and planets can be rendered.
 
 A music and sound fx player is included in 'audio.c'.  It shows how to emulate
-amiga sounds in SDL, and how the original mod format is laid out.  The original
+Amiga sounds in SDL, and how the original mod format is laid out.  The original
 samples are cleaned up a bit to reduce clicking / popping.  (If anyone wants to
 contribute 16-bit samples for each of the 12 or so instruments, and can keep
 the same overall sound, let me know, and I'll add them as overrides.)
@@ -154,3 +158,7 @@ the same overall sound, let me know, and I'll add them as overrides.)
 The renderer is pretty close to the original, but allows for higher resolutions
 and uses divides a bit more frequently.  The original had to run on 68000 which
 only did slow 16 bit divides, but that's not an issue for us.
+
+For details about the original renderer see my: 'Frontier: Elite 2 engine study':
+
+    https://watsonmw.com/fintro

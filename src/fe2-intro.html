@@ -26,6 +26,7 @@
         outline: 1px solid white;
       }
       div.overlay { position: fixed; z-index: 1; width: 100%; opacity: 0.0; transition: .4s ease; }
+      div.loading-overlay { position: fixed; z-index: 1; width: 100%; height: 100%; }
     </style>
   </head>
   <body>
@@ -44,6 +45,9 @@
         </svg>
       </button>
     </div>
+    <div class="loading-overlay" id="loading-overlay">
+      <div style="position: absolute; bottom: 0;"><p id="status" style="color:white;font-family: Geneva,monospace"></p></div>
+    </div>
     <script type='text/javascript'>
       var Module = {
         preRun: [],
@@ -53,7 +57,7 @@
             if (arguments.length > 1) {
               text = Array.prototype.slice.call(arguments).join(' ');
             }
-            console.log(text);
+            console.log(Date.now(), text);
           };
         })(),
         printErr: function(text) {
@@ -70,35 +74,18 @@
           if (text === Module.setStatus.last.text) {
             return;
           }
-          var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
           var now = Date.now();
-          if (m && now - Module.setStatus.last.time < 30) {
-            return;
-          }
-          Module.setStatus.last.time = now;
-          Module.setStatus.last.text = text;
-          if (m) {
-            text = m[1];
-            var value = parseInt(m[2])*100;
-            var max = parseInt(m[4])*100;
-            console.log("Progress ", value, max);
-          } else {
-            console.log("Progress none");
-          }
-          console.log("status --- ", text, " ---");
+          console.log(now, text);
+          var statusEl = document.getElementById("status");
+          statusEl.innerText = text;
         },
-        totalDependencies: 0,
-        monitorRunDependencies: function(left) {
-          this.totalDependencies = Math.max(this.totalDependencies, left);
-          if (left) {
-            console.log("dependencies", this.totalDependencies, left);
-          } else if (left === 0 && this.totalDependencies > 0) {
-            console.log("dependencies loaded");
-          }
+        onRuntimeInitialized: function() {
+          var overlay = document.getElementById("loading-overlay");
+          overlay.style.display = 'none';
         }
       };
       var resizeCanvas = (function() {
-        var resizeCanvas = function() {
+        var resizeCanvasFunc = function() {
           // Control the canvas location directly
           var canvas = document.getElementById('canvas');
           var width = document.documentElement.clientWidth;
@@ -121,14 +108,13 @@
           canvas.style.width = Math.floor(newWidth) + "px";
           canvas.style.height = Math.floor(newHeight) + "px";
         }
-        // window.addEventListener('resize', resizeCanvas, false);
-        window.addEventListener('resize', resizeCanvas, false);
+        window.addEventListener('resize', resizeCanvasFunc, false);
         // Initial layout
-        resizeCanvas();
+        resizeCanvasFunc();
         // Final layout, if running in fullscreen mode as a fullscreen app on Chrome the view area is a bit small
         // the first time the screen is rendered.
-        setTimeout(resizeCanvas, 0);
-        return resizeCanvas;
+        setTimeout(resizeCanvasFunc, 0);
+        return resizeCanvasFunc;
       }());
       var OverlayControls = (function(){
         var docEl = window.document.documentElement;
