@@ -104,25 +104,29 @@ enum PaletteEntryStateEnum {
     PALETTESTATE_REFD_FRESH = 6,     // Used in this frame
 };
 
-typedef struct sDynamicPalette {
+typedef struct sVirtualPalette {
     u8 state;
     u8 index;
     u16 colourOf4096;
-} MSTRUCTPACKED DynamicPalette;
+} MSTRUCTPACKED VirtualPalette;
 
 typedef struct sUpdateColour {
     u8 index;
     u16 colour;
 } UpdateColour;
 
+#define PALETTE_3D_COLOURS 0x80
+#define PALETTE_VIRTUAL_COLOURS 0x100
+
 typedef struct sPaletteContext {
     // Current set of colours
-    DynamicPalette palette[256];
+    VirtualPalette virtualPalette[PALETTE_VIRTUAL_COLOURS];
 
     // 12bit colour lookup table, contains index into palette if currently allocated or 0xff if not used
     u8 allColours[4096];
 
-    u8 freeColours[256];
+    // Free colour index list
+    u8 freeColours[PALETTE_VIRTUAL_COLOURS];
     u8 nextFreeColour;
 
     u16 backgroundColour;
@@ -132,7 +136,7 @@ typedef struct sPaletteContext {
     u16 updatedColoursNum;
 
     // New / updated colours this frame
-    UpdateColour updateColours[256];
+    UpdateColour updateColours[PALETTE_VIRTUAL_COLOURS];
 } PaletteContext;
 
 typedef struct sSpanLine {

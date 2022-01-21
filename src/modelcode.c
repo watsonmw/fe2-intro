@@ -71,7 +71,7 @@ static void PrintParam16Base10(char* buff, int buffSize, u16 param16) {
     snprintf(buff, buffSize, "%d", val);
 }
 
-static void PrintBallSize(char* buff, int buffSize, u16 param) {
+static void PrintCircleSize(char* buff, int buffSize, u16 param) {
     u16 cmd = param & 0xc0;
     u16 val = param & 0x3f;
 
@@ -866,7 +866,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     case MathFunc_DivPower2Signed:
                         snprintf(buff3, buffSize, "%s / (1 ^ %s)", buff1, buff2);
                         break;
-                    case MathFunc_RGetIndirectOffset:
+                    case MathFunc_GetModelVar:
                         snprintf(buff3, buffSize, "indirect(%s, %s)", buff1, buff2);
                         break;
                     case MathFunc_ZeroIfGreater:
@@ -908,7 +908,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MStringAppendf(strOutput, "sound %d", (int)data0_12);
                 break;
             }
-            case Render_CONE: {
+            case Render_CYLINDER: {
                 u16 data1 = 0;
                 MMemReadU16(&dataReader, &data1);
                 u16 data2 = 0;
@@ -931,12 +931,12 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 const char* cap1Render = (data2 & 0x80) ? " c:1" : "";
                 const char* cap2Render = (data3 & 0x80) ? " c:1" : "";
 
-                MStringAppendf(strOutput, "cone colour:#%03x (v:%d n:%d r:%d%s) (v:%d n:%d r:%d%s)",
+                MStringAppendf(strOutput, "cylinder colour:#%03x (v:%d n:%d r:%d%s) (v:%d n:%d r:%d%s)",
                                (int)data0_12, (int)v1, (int)n1, (int)r1, cap1Render,
                                (int)v2, (int)n2, (int)r2, cap2Render);
                 break;
             }
-            case Render_CONE_COLOUR_CAP: {
+            case Render_CYLINDER_COLOUR_CAP: {
                 u16 data1 = 0;
                 MMemReadU16(&dataReader, &data1);
                 u16 data2 = 0;
@@ -961,7 +961,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 u16 colour2 = 0;
                 MMemReadU16(&dataReader, &colour2);
 
-                MStringAppendf(strOutput, "cone colour:#%03x (v:%d n:%d r:%d", (int)data0_12, (int)v1, (int)n1,
+                MStringAppendf(strOutput, "cylinder colour:#%03x (v:%d n:%d r:%d", (int)data0_12, (int)v1, (int)n1,
                         (int)r1);
                 if (data2 & 0x80) {
                     MStringAppendf(strOutput, " c:#%03x", (int)colour1);
@@ -1040,7 +1040,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 }
                 break;
             }
-            case Render_CLEARZ: {
+            case Render_ZTREE_PUSH_POP: {
                 if (data0 & 0x8000) {
                     MStringAppendf(strOutput, "ztree pop");
                 } else {
@@ -1074,8 +1074,8 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                                (int)v1i, (int)v2i, (int)v3i, (int)v4i, (int)normalIndex, (int)colourParam);
                 break;
             }
-            case Render_IF_VIEWSPACE_DIST: {
-                // Skip if two vertices are within / past a certain distance in view coordinates
+            case Render_IF_SCREENSPACE_DIST: {
+                // Skip if two vertices are within / past a certain distance in screen coordinates
                 // Test skipped if any vertex is behind camera
                 u16 data1 = 0;
                 MMemReadU16(&dataReader, &data1);
@@ -1118,13 +1118,13 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 }
                 break;
             }
-            case Render_BALLS: {
+            case Render_CICLES: {
                 u16 colour = data0_12 & 0xfff;
-                MStringAppendf(strOutput, "balls colour:#%03x ", (int)colour);
+                MStringAppendf(strOutput, "circles colour:#%03x ", (int)colour);
 
                 u16 data1 = 0;
                 MMemReadU16(&dataReader, &data1);
-                PrintBallSize(buff1, buffSize, data1);
+                PrintCircleSize(buff1, buffSize, data1);
                 MStringAppendf(strOutput, "%s ", buff1);
 
                 b32 start = TRUE;
@@ -3387,7 +3387,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             ModelWriteU16(ctxt, (axis << 5) | Render_MATRIX_SETUP);
         } else if (StrCmp(ctxt, "mcopy") == 0) {
             ModelWriteU16(ctxt, 0xc010 | Render_MATRIX_COPY);
-        } else if (StrCmp(ctxt, "balls") == 0) {
+        } else if (StrCmp(ctxt, "circles") == 0) {
             token = NextToken(ctxt);
 
             u16 colour = 0;
@@ -3418,14 +3418,14 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             }
 
             if (!gotColour) {
-                RETURN_ERROR("Syntax error: balls command missing 'colour' param");
+                RETURN_ERROR("Syntax error: circles command missing 'colour' param");
             }
 
             if (!gotFixed && !gotSize) {
-                RETURN_ERROR("Syntax error: balls requires 'size' or 'fixed' param");
+                RETURN_ERROR("Syntax error: circles requires 'size' or 'fixed' param");
             }
 
-            ModelWriteU16(ctxt, (colour & 0xffe) << 4 | Render_BALLS);
+            ModelWriteU16(ctxt, (colour & 0xffe) << 4 | Render_CICLES);
             ModelWriteU16(ctxt, sizeParam);
 
             u16 vParam = 0;
@@ -3654,7 +3654,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             ModelWriteU16(ctxt, (u16)((u8)vdata[2]) << 8 | (u16)((u8)vdata[3]));
             ModelWriteU16(ctxt, (u16)((u8)normal));
 
-        } else if (StrCmp(ctxt, "cone") == 0) {
+        } else if (StrCmp(ctxt, "cylinder") == 0) {
             u16 colour = 0;
 
             token = NextToken(ctxt);
@@ -3695,9 +3695,9 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                                  (!gotCap2 || capColour2 != colour);
 
             if (altColourCaps) {
-                ModelWriteU16(ctxt, (colour  & 0xffe) << 4 | Render_CONE_COLOUR_CAP);
+                ModelWriteU16(ctxt, (colour  & 0xffe) << 4 | Render_CYLINDER_COLOUR_CAP);
             } else {
-                ModelWriteU16(ctxt, (colour  & 0xffe) << 4 | Render_CONE);
+                ModelWriteU16(ctxt, (colour  & 0xffe) << 4 | Render_CYLINDER);
             }
 
             ModelWriteU16(ctxt, ((u16)((u8)vertex2) << 8) | (u8)vertex1);
@@ -3730,7 +3730,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             }
 
             if (StrCmp(ctxt, "pop") == 0) {
-                ModelWriteU16(ctxt, 0x8000 | Render_CLEARZ);
+                ModelWriteU16(ctxt, 0x8000 | Render_ZTREE_PUSH_POP);
             } else if (StrCmp(ctxt, "push") == 0) {
                 token = NextToken(ctxt);
                 if (token != ModelParserToken_LABEL || ((StrCmp(ctxt, "vertex") != 0) && (StrCmp(ctxt, "v") != 0))) {
@@ -3739,7 +3739,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
 
                 i8 index;
                 RETURN_IF_ERROR(ReadI8(ctxt, &index));
-                ModelWriteU16(ctxt, ((u16)((u8)index) << 5) | Render_CLEARZ);
+                ModelWriteU16(ctxt, ((u16)((u8)index) << 5) | Render_ZTREE_PUSH_POP);
             } else {
                 RETURN_ERROR_VAL("Syntax error: ztree '%s' should be 'push' or 'pop'");
             }

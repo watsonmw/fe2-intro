@@ -1647,7 +1647,7 @@ void Surface_DrawLineClipped(Surface* surface, int x1, int y1, int x2, int y2, u
 }
 
 MINLINE u8 Palette_GetDynamicColourIndex(RasterContext* context, u8 paletteIndex) {
-    return context->paletteContext.palette[paletteIndex].index;
+    return context->paletteContext.virtualPalette[paletteIndex].index;
 }
 
 static u8 Palette_GetIndexFor12bitColour(PaletteContext* context, u16 colour12bit) {
@@ -1663,12 +1663,12 @@ static u8 Palette_GetIndexFor12bitColour(PaletteContext* context, u16 colour12bi
 
         context->nextFreeColour++;
         context->allColours[colour12bit] = newColourIndex;
-        context->palette[newColourIndex].state = PALETTESTATE_REQUEST;
-        context->palette[newColourIndex].colourOf4096 = colour12bit;
+        context->virtualPalette[newColourIndex].state = PALETTESTATE_REQUEST;
+        context->virtualPalette[newColourIndex].colourOf4096 = colour12bit;
         return newColourIndex;
     } else {
-        if (context->palette[index].state >= PALETTESTATE_REFD_NON_FRESH) {
-            context->palette[index].state = PALETTESTATE_REFD_FRESH;
+        if (context->virtualPalette[index].state >= PALETTESTATE_REFD_NON_FRESH) {
+            context->virtualPalette[index].state = PALETTESTATE_REFD_FRESH;
         }
         return index;
     }
@@ -1688,44 +1688,44 @@ void Palette_SetupForNewFrame(PaletteContext* context, b32 resetAll) {
         memset(context->allColours, 0xff, 4096);
 
         for (u8 i = 0; i < 16; ++i) {
-            context->palette[i].state = PALETTESTATE_FIXED;
-            context->palette[i].index = i;
+            context->virtualPalette[i].state = PALETTESTATE_FIXED;
+            context->virtualPalette[i].index = i;
 
             u16 gray = i;
             u16 colour = gray << 8 | gray << 4 | gray;
-            context->palette[i].colourOf4096 = colour;
+            context->virtualPalette[i].colourOf4096 = colour;
             context->allColours[colour] = i;
         }
 
         context->lastBackgroundColour = 0;
 
-        for (int i = 16; i < 0x100; ++i) {
-            context->palette[i].colourOf4096 = 0x0;
-            context->palette[i].index = 0x0;
-            context->palette[i].state = PALETTESTATE_FREE;
+        for (int i = 16; i < PALETTE_VIRTUAL_COLOURS; ++i) {
+            context->virtualPalette[i].colourOf4096 = 0x0;
+            context->virtualPalette[i].index = 0x0;
+            context->virtualPalette[i].state = PALETTESTATE_FREE;
         }
     }
 
     SetDefaultBackgroundColour(context);
 
     int nextNewColour = 0;
-    for (int i = 0; i < 0x100; ++i) {
-        u8 state = context->palette[i].state;
+    for (int i = 0; i < PALETTE_VIRTUAL_COLOURS; ++i) {
+        u8 state = context->virtualPalette[i].state;
         switch (state) {
             case PALETTESTATE_FIXED:
             case PALETTESTATE_REQUEST:
             case PALETTESTATE_REFD_NON_FRESH:
                 break;
             case PALETTESTATE_MATCHED: {
-                u16 colour = context->palette[i].colourOf4096;
+                u16 colour = context->virtualPalette[i].colourOf4096;
                 context->allColours[colour] = 0xff;
-                context->palette[i].state = PALETTESTATE_FREE;
+                context->virtualPalette[i].state = PALETTESTATE_FREE;
             }
             case PALETTESTATE_FREE:
                 context->freeColours[nextNewColour++] = i;
                 break;
             default:
-                context->palette[i].state--;
+                context->virtualPalette[i].state--;
                 break;
         }
     }
@@ -1736,8 +1736,8 @@ void Palette_SetupForNewFrame(PaletteContext* context, b32 resetAll) {
 
 typedef enum ePaletteEntryUnusedStateEnum {
     PALETTEENTRY_FREE = 0,  // Never allocated / previously free'd
-    PALETTEENTRY_USED = 1,  // Currently allocated, but not used this frame
-    PALETTEENTRY_UNUSED = 2 // Currently allocated and used this frame
+    PALETTEENTRY_USED = 1,  // Currently allocated and used this frame
+    PALETTEENTRY_UNUSED = 2 // Currently allocated, but not used this frame
 } PaletteEntryUnusedStateEnum;
 
 typedef struct sPaletteEntryUnused {
@@ -1746,18 +1746,19 @@ typedef struct sPaletteEntryUnused {
 } PaletteEntryUnused;
 
 void Palette_CalcDynamicColourUpdates(PaletteContext* context) {
-    PaletteEntryUnused paletteEntryState[0x80];
-    u16 freeColoursIx[0x80];
-    u16 freeColours[0x80];
+    PaletteEntryUnused paletteEntryState[PALETTE_3D_COLOURS];
+    u16 freeColoursIx[PALETTE_3D_COLOURS];
+    u16 freeColours[PALETTE_3D_COLOURS];
 
     UpdateColour* updateColours = context->updateColours;
 
     memset(paletteEntryState, 0x00, sizeof(paletteEntryState));
 
-    for (int i = 0; i < 0xff; ++i) {
-        u8 pState = context->palette[i].state;
+    // Build current palette entry list
+    for (int i = 0; i < PALETTE_VIRTUAL_COLOURS - 1; ++i) {
+        u8 pState = context->virtualPalette[i].state;
         if (pState >= PALETTESTATE_REFD_NON_FRESH) {
-            u8 a = context->palette[i].index;
+            u8 a = context->virtualPalette[i].index;
             if (a >= 0x80) {
                 PaletteEntryUnusedStateEnum state;
                 if (pState == PALETTESTATE_REFD_NON_FRESH) {
@@ -1773,7 +1774,7 @@ void Palette_CalcDynamicColourUpdates(PaletteContext* context) {
 
     // First add any palette entry's not allocated to free list
     int o = 0;
-    for (int i = 0; i < 0x80; ++i) {
+    for (int i = 0; i < PALETTE_3D_COLOURS; ++i) {
         PaletteEntryUnusedStateEnum state = paletteEntryState[i].state;
         if (state == PALETTEENTRY_FREE) {
             freeColoursIx[o] = i + 0x80;
@@ -1783,7 +1784,7 @@ void Palette_CalcDynamicColourUpdates(PaletteContext* context) {
     }
 
     // Then add any colours not used this frame to free list
-    for (int i = 0; i < 0x80; ++i) {
+    for (int i = 0; i < PALETTE_3D_COLOURS; ++i) {
         PaletteEntryUnusedStateEnum state = paletteEntryState[i].state;
         if (state == PALETTEENTRY_UNUSED) {
             freeColoursIx[o] = i + 0x80;
@@ -1797,23 +1798,23 @@ void Palette_CalcDynamicColourUpdates(PaletteContext* context) {
 
     int updateColourIndex = 0;
 
-    for (int i = 0; i < 0xff; ++i) {
-        u8 pState = context->palette[i].state;
+    for (int i = 0; i < PALETTE_VIRTUAL_COLOURS - 1; ++i) {
+        u8 pState = context->virtualPalette[i].state;
         if (pState == PALETTESTATE_REQUEST) {
-            u16 colour = context->palette[i].colourOf4096;
+            u16 colour = context->virtualPalette[i].colourOf4096;
             u8 matchedOffset = 0;
 
             u8 pOutOffset = freeColoursIx[nextFreeColour];
             if (pOutOffset != 0) {
                 matchedOffset = freeColours[nextFreeColour++];
                 if (matchedOffset != 0xff) {
-                    context->palette[matchedOffset].state = PALETTESTATE_FREE;
-                    u16 colourToFree = context->palette[matchedOffset].colourOf4096;
+                    context->virtualPalette[matchedOffset].state = PALETTESTATE_FREE;
+                    u16 colourToFree = context->virtualPalette[matchedOffset].colourOf4096;
                     context->allColours[colourToFree] = 0xff;
                 }
 
-                context->palette[i].state = PALETTESTATE_REFD_FRESH;
-                context->palette[i].index = pOutOffset;
+                context->virtualPalette[i].state = PALETTESTATE_REFD_FRESH;
+                context->virtualPalette[i].index = pOutOffset;
 
                 updateColours[updateColourIndex].index = pOutOffset;
                 updateColours[updateColourIndex].colour = colour;
@@ -1826,33 +1827,33 @@ void Palette_CalcDynamicColourUpdates(PaletteContext* context) {
                     if ((newColour & 0xf00) != 0) {
                         newColour -= 0x100;
                         matchedOffset = context->allColours[newColour];
-                        if (matchedOffset != 0xff && context->palette[matchedOffset].state != PALETTESTATE_REQUEST) {
+                        if (matchedOffset != 0xff && context->virtualPalette[matchedOffset].state != PALETTESTATE_REQUEST) {
                             goto found;
                         }
                     }
                     if ((newColour & 0x0f0) != 0) {
                         newColour -= 0x10;
                         matchedOffset = context->allColours[newColour];
-                        if (matchedOffset != 0xff && context->palette[matchedOffset].state != PALETTESTATE_REQUEST) {
+                        if (matchedOffset != 0xff && context->virtualPalette[matchedOffset].state != PALETTESTATE_REQUEST) {
                             goto found;
                         }
                     }
                     if ((newColour & 0x00f) != 0) {
                         newColour -= 0x1;
                         matchedOffset = context->allColours[newColour];
-                        if (matchedOffset != 0xff && context->palette[matchedOffset].state != PALETTESTATE_REQUEST) {
+                        if (matchedOffset != 0xff && context->virtualPalette[matchedOffset].state != PALETTESTATE_REQUEST) {
                             goto found;
                         }
                     }
                 }
                 found:
 
-                pState = context->palette[matchedOffset].state;
+                pState = context->virtualPalette[matchedOffset].state;
                 if (pState >= PALETTESTATE_REFD_NON_FRESH) {
-                    context->palette[matchedOffset].state = PALETTESTATE_REFD_FRESH;
+                    context->virtualPalette[matchedOffset].state = PALETTESTATE_REFD_FRESH;
                 }
-                context->palette[i].index = context->palette[matchedOffset].index;
-                context->palette[i].state = PALETTESTATE_MATCHED;
+                context->virtualPalette[i].index = context->virtualPalette[matchedOffset].index;
+                context->virtualPalette[i].state = PALETTESTATE_MATCHED;
             }
         }
     }
@@ -1883,7 +1884,7 @@ void Palette_CopyDynamicColoursRGB(PaletteContext* context, RGB* palette) {
 
 void Palette_CopyFixedColoursRGB(PaletteContext* context, RGB* palette) {
     for (int i = 0; i < 16; ++i) {
-        DynamicPalette colour = context->palette[i];
+        VirtualPalette colour = context->virtualPalette[i];
 
         RGB* rgb = &(palette[colour.index]);
 
@@ -1895,8 +1896,8 @@ void Palette_CopyFixedColoursRGB(PaletteContext* context, RGB* palette) {
 void Palette_CopyAllColoursRGB(PaletteContext* context, RGB* palette) {
     palette[BACKGROUND_COLOUR_INDEX] = Colour12ConvertToRGB(context->backgroundColour);
 
-    for (int i = 0; i < 0xff; ++i) {
-        DynamicPalette colour = context->palette[i];
+    for (int i = 0; i < PALETTE_VIRTUAL_COLOURS - 1; ++i) {
+        VirtualPalette colour = context->virtualPalette[i];
 
         RGB* rgb = &(palette[colour.index]);
 
@@ -1914,7 +1915,7 @@ void Palette_CopyAllColoursRGB(PaletteContext* context, RGB* palette) {
 
 void Palette_CopyDynamicColours16(PaletteContext* context, u16* palette) {
     for (int i = 0; i < 0xff; ++i) {
-        DynamicPalette colour = context->palette[i];
+        VirtualPalette colour = context->virtualPalette[i];
 
         if (colour.state > 0 &&
             colour.state != PALETTESTATE_FREE &&
@@ -1929,7 +1930,7 @@ void Palette_CopyFixedColours16(PaletteContext* context, u16* palette) {
     palette[BACKGROUND_COLOUR_INDEX] = context->backgroundColour;
 
     for (int i = 0; i < 16; ++i) {
-        DynamicPalette colour = context->palette[i];
+        VirtualPalette colour = context->virtualPalette[i];
         palette[colour.index] = colour.colourOf4096;
     }
 }
@@ -2174,9 +2175,9 @@ MINTERNAL int DoDrawFunc(RasterContext *context, DrawFunc *drawFunc) {
             DrawParamsText* params = (DrawParamsText*)(&drawFunc->params);
             return sizeof(DrawParamsText);
         }
-        case DRAW_FUNC_BALLS: {
+        case DRAW_FUNC_CIRCLES: {
             if (context->legacy) {
-                DrawParamsLegacyBalls* params = (DrawParamsLegacyBalls*) (&drawFunc->params);
+                DrawParamsLegacyCircles* params = (DrawParamsLegacyCircles*) (&drawFunc->params);
 
                 u16 colour = Palette_GetDynamicColourIndex(context, params->colour);
 
@@ -2189,9 +2190,9 @@ MINTERNAL int DoDrawFunc(RasterContext *context, DrawFunc *drawFunc) {
                     Surface_DrawCircleFill(context->surface, x, y, d, colour);
                 }
 
-                return sizeof(DrawParamsLegacyBalls) + ((i + 1) * 2);
+                return sizeof(DrawParamsLegacyCircles) + ((i + 1) * 2);
             } else {
-                DrawParamsBalls* params = (DrawParamsBalls*) (&drawFunc->params);
+                DrawParamsCircles* params = (DrawParamsCircles*) (&drawFunc->params);
 
                 u16 colour = Palette_GetDynamicColourIndex(context, params->colour);
 
@@ -2203,7 +2204,7 @@ MINTERNAL int DoDrawFunc(RasterContext *context, DrawFunc *drawFunc) {
                     Surface_DrawCircleFill(context->surface, x, y, d, colour);
                 }
 
-                return sizeof(DrawParamsBalls) + (params->num * 2);
+                return sizeof(DrawParamsCircles) + (params->num * 2);
             }
         }
         case DRAW_FUNC_BODY_START: {
@@ -2375,7 +2376,7 @@ MINTERNAL int DoRenderNode(RasterContext* context, RasterOpNode* renderNode) {
         case DRAW_FUNC_FLARE:
         case DRAW_FUNC_CIRCLE:
         case DRAW_FUNC_RINGED_CIRCLE:
-        case DRAW_FUNC_BALLS:
+        case DRAW_FUNC_CIRCLES:
         case DRAW_FUNC_TEXT:
         case DRAW_FUNC_SUBTREE:
             DoDrawFunc(context, drawFunc);
@@ -2481,8 +2482,6 @@ typedef struct sRenderFrame {
 
     Vec3i32 lineStartVec;
 
-    Matrix3x3i16 modelMatrix;
-
     u16 shadeRamp[8];
 
     VertexData* parentVertexTrans;
@@ -2490,6 +2489,9 @@ typedef struct sRenderFrame {
 
     // Tmp variables for byte code to write/read
     u16 tmpVariable[8];
+
+    // Tmp matrix built by model code
+    Matrix3x3i16 tmpMatrix;
 
     // View direction in model space
     Vec3i16 viewM;
@@ -2717,7 +2719,7 @@ ZNODE_APPEND_FUNC(BatchLine, DRAW_FUNC_LINE, DrawParamsLineColour)
 ZNODE_APPEND_FUNC(BatchBezierLine, DRAW_FUNC_BEZIER_LINE, DrawParamsBezierColour)
 ZNODE_APPEND_FUNC(BatchTri, DRAW_FUNC_TRI, DrawParamsTri)
 ZNODE_APPEND_FUNC(BatchCircle, DRAW_FUNC_CIRCLE, DrawParamsCircle)
-ZNODE_APPEND_FUNC(BatchBalls, DRAW_FUNC_BALLS, DrawParamsBalls)
+ZNODE_APPEND_FUNC(BatchBalls, DRAW_FUNC_CIRCLES, DrawParamsCircles)
 ZNODE_APPEND_FUNC(BatchHighlight, DRAW_FUNC_FLARE, DrawParamsFlare)
 ZNODE_APPEND_FUNC(BatchRingedCircle, DRAW_FUNC_RINGED_CIRCLE, DrawParamsRingedCircle)
 ZNODE_APPEND_FUNC(BatchQuad, DRAW_FUNC_QUAD, DrawParamsQuad)
@@ -2732,7 +2734,7 @@ ZNODE_ADD_FUNC(AddLineNode, DRAW_FUNC_LINE, DrawParamsLineColour)
 ZNODE_ADD_FUNC(AddBezierLineNode, DRAW_FUNC_BEZIER_LINE, DrawParamsBezierColour)
 ZNODE_ADD_FUNC(AddTriNode, DRAW_FUNC_TRI, DrawParamsTri)
 ZNODE_ADD_FUNC(AddCircleNode, DRAW_FUNC_CIRCLE, DrawParamsCircle)
-ZNODE_ADD_FUNC(AddBallsNode, DRAW_FUNC_BALLS, DrawParamsBalls)
+ZNODE_ADD_FUNC(AddCirclesNode, DRAW_FUNC_CIRCLES, DrawParamsCircles)
 ZNODE_ADD_FUNC(AddRingedCircleNode, DRAW_FUNC_RINGED_CIRCLE, DrawParamsRingedCircle)
 ZNODE_ADD_FUNC(AddHighlightNode, DRAW_FUNC_FLARE, DrawParamsFlare)
 ZNODE_ADD_FUNC(AddQuadNode, DRAW_FUNC_QUAD, DrawParamsQuad)
@@ -2852,7 +2854,7 @@ MINTERNAL int IsInViewport(i32 radius, i32 x, i32 y, i32 z) {
 // Get a value, either:
 // - a small constant (6bits)
 // - a large constant (6bits << 10)
-// - temporary/scratch variable
+// - register
 // - scene/model value
 // Returns a 16 bit value.
 MINTERNAL u16 GetValueForParam8(RenderFrame* rf, u16 param8) {
@@ -2880,7 +2882,7 @@ MINTERNAL u16 GetValueForParam8(RenderFrame* rf, u16 param8) {
 
 // Get a value, either:
 // - a constant (15 bits can be specified, bit 0 is always 0)
-// - temporary/scratch variable
+// - register
 // - scene/model value
 // Returns a 16 bit value.
 MINTERNAL u16 GetValueForParam16(RenderFrame* rf, u16 param16) {
@@ -2912,7 +2914,21 @@ MINTERNAL int CheckClipped(RenderContext* objectContext, ModelData* modelData) {
     return IsInViewport(radius, rf->objViewVec[0], rf->objViewVec[1], rf->objViewVec[2]);
 }
 
-MINTERNAL void ViewProjectVertex(RenderFrame* rf, VertexData* vertex) {
+MINTERNAL void TranslateProjectVertexDirect(RenderFrame* rf, VertexData* vertex) {
+    Vec3i32Add(vertex->wVec, rf->objViewVec, vertex->vVec);
+
+    if (vertex->vVec[2] < ZCLIPNEAR) {
+        vertex->sVec.x = PT_ZCLIPPED;
+        vertex->sVec.y = PT_ZCLIPPED;
+        vertex->projectedState = rf->frameId;
+        return;
+    }
+
+    vertex->sVec = ScreenCoords(ZProjecti32(vertex->vVec));
+    vertex->projectedState = rf->frameId;
+}
+
+MINTERNAL void TranslateProjectVertex(RenderFrame* rf, VertexData* vertex) {
     Vec3i32Add(vertex->wVec, rf->objViewVec, vertex->vVec);
 
     if (vertex->projectedState < 0) {
@@ -2939,11 +2955,11 @@ MINTERNAL i32 NextRandom(RenderContext* rc, u16 scale) {
     return ((i32)r1) >> scale;
 }
 
-MINTERNAL VertexData* TransformModelCoords(RenderContext *rc, RenderFrame* rf, i16 vertexIndex);
+MINTERNAL VertexData* TransformVertexRecursive(RenderContext *rc, RenderFrame* rf, i16 vertexIndex);
 
-MINTERNAL VertexData* ProjectVertex(RenderContext *scene, RenderFrame* rf, i16 vertexIndex);
+MINTERNAL VertexData* TransformAndProjectVertex(RenderContext *rc, RenderFrame* rf, i16 vertexIndex);
 
-MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf, i16 vertexIndex, i16 projectedState) {
+MINTERNAL VertexData* TransformProjectVertexRecursive(RenderContext* rc, RenderFrame* rf, i16 vertexIndex, i16 projectedState) {
     if (vertexIndex < 0) {
         i16 v1x = rf->parentFrameVertexIndexes[-(vertexIndex + 1)];
         VertexData* src = rf->parentVertexTrans + v1x;
@@ -3006,7 +3022,7 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
             v2->wVec[2] = z - (dz * 2);
 
             VertexData* vOrig = rf->vertexTrans + vertexIndex;
-            ViewProjectVertex(rf, vOrig);
+            TranslateProjectVertex(rf, vOrig);
             return vOrig;
         }
         case 0x03:
@@ -3022,10 +3038,10 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
             v2->projectedState = rf->frameId;
 
             i16 v3i = hi8s(vertexData2);
-            VertexData* v3 = ProjectVertex(rc, rf, v3i);
+            VertexData* v3 = TransformAndProjectVertex(rc, rf, v3i);
 
             i16 v4i = lo8s(vertexData2);
-            VertexData* v4 = ProjectVertex(rc, rf, v4i);
+            VertexData* v4 = TransformAndProjectVertex(rc, rf, v4i);
 
             i32 x = ((i32)v3->sVec.x + (i32)v4->sVec.x) >> 1;
             i32 y = ((i32)v3->sVec.y + (i32)v4->sVec.y) >> 1;
@@ -3043,10 +3059,10 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
             vertexData2 = vertexData2 ^ 0x101;
 
             i16 v5i = hi8s(vertexData2);
-            VertexData* v5 = ProjectVertex(rc, rf, v5i);
+            VertexData* v5 = TransformAndProjectVertex(rc, rf, v5i);
 
             i16 v6i = lo8s(vertexData2);
-            VertexData* v6 = ProjectVertex(rc, rf, v6i);
+            VertexData* v6 = TransformAndProjectVertex(rc, rf, v6i);
 
             x = ((i32)v5->sVec.x + (i32)v6->sVec.x) >> 1;
             y = ((i32)v5->sVec.y + (i32)v6->sVec.y) >> 1;
@@ -3078,7 +3094,7 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
 
             VertexData* v3 = rf->vertexTrans + v3i;
             if (v3->projectedState == 0) {
-                TransformModelCoords(rc, rf, v3i);
+                TransformVertexRecursive(rc, rf, v3i);
             }
             v1->wVec[0] = -v3->wVec[0];
             v1->wVec[1] = -v3->wVec[1];
@@ -3086,14 +3102,14 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
 
             VertexData* v4 = rf->vertexTrans + v4i;
             if (v4->projectedState == 0) {
-                TransformModelCoords(rc, rf, v4i);
+                TransformVertexRecursive(rc, rf, v4i);
             }
             v2->wVec[0] = -v4->wVec[0];
             v2->wVec[1] = -v4->wVec[1];
             v2->wVec[2] = -v4->wVec[2];
 
             VertexData* vOrig = rf->vertexTrans + vertexIndex;
-            ViewProjectVertex(rf, vOrig);
+            TranslateProjectVertex(rf, vOrig);
             return vOrig;
         }
         case 0x07:
@@ -3112,7 +3128,7 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
 
             VertexData* v3 = rf->vertexTrans + v3i;
             if (v3->projectedState == 0) {
-                TransformModelCoords(rc, rf, v3i);
+                TransformVertexRecursive(rc, rf, v3i);
             }
 
             u16 scale = (vertexData1 & 0xff);
@@ -3126,7 +3142,7 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
 
             VertexData* v4 = rf->vertexTrans + v4i;
             if (v4->projectedState == 0) {
-                TransformModelCoords(rc, rf, v4i);
+                TransformVertexRecursive(rc, rf, v4i);
             }
 
             v2->wVec[0] = v4->wVec[0] + rz;
@@ -3134,7 +3150,7 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
             v2->wVec[2] = v4->wVec[2] + ry;
 
             VertexData* vOrig = rf->vertexTrans + vertexIndex;
-            ViewProjectVertex(rf, vOrig);
+            TranslateProjectVertex(rf, vOrig);
             return vOrig;
         }
         case 0x09:
@@ -3177,7 +3193,7 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
             v2->wVec[2] = z - dz;
 
             VertexData* vOrig = rf->vertexTrans + vertexIndex;
-            ViewProjectVertex(rf, vOrig);
+            TranslateProjectVertex(rf, vOrig);
             return vOrig;
         }
         default: {
@@ -3194,20 +3210,20 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
                     i16 v1i = hi8s(vertexData2);
                     VertexData* vertex1 = rf->vertexTrans + v1i;
                     if (vertex1->projectedState == 0) {
-                        TransformModelCoords(rc, rf, v1i);
+                        TransformVertexRecursive(rc, rf, v1i);
                     }
 
                     i16 v2i = lo8s(vertexData2);
                     VertexData* vertex2 = rf->vertexTrans + v2i;
                     if (vertex2->projectedState == 0) {
-                        TransformModelCoords(rc, rf, v2i);
+                        TransformVertexRecursive(rc, rf, v2i);
                     }
 
                     vOrig->wVec[0] = (vertex1->wVec[0] + vertex2->wVec[0]) / 2;
                     vOrig->wVec[1] = (vertex1->wVec[1] + vertex2->wVec[1]) / 2;
                     vOrig->wVec[2] = (vertex1->wVec[2] + vertex2->wVec[2]) / 2;
 
-                    ViewProjectVertex(rf, vOrig);
+                    TranslateProjectVertex(rf, vOrig);
                     return vOrig;
                 }
                 case 0x0d:
@@ -3215,10 +3231,10 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
                     // Screen space average of two projected pointed (project them first if needed)
                     // Don't do for sibling vertex.
                     i16 v1i = hi8s(vertexData2);
-                    VertexData* v1 = ProjectVertex(rc, rf, v1i);
+                    VertexData* v1 = TransformAndProjectVertex(rc, rf, v1i);
 
                     i16 v2i = lo8s(vertexData2);
-                    VertexData* v2 = ProjectVertex(rc, rf, v2i);
+                    VertexData* v2 = TransformAndProjectVertex(rc, rf, v2i);
 
                     i32 z = v1->vVec[2];
 
@@ -3252,26 +3268,26 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
                     i16 v1i = hi8s(vertexData2);
                     VertexData* vertex1 = rf->vertexTrans + v1i;
                     if (vertex1->projectedState == 0) {
-                        TransformModelCoords(rc, rf, v1i);
+                        TransformVertexRecursive(rc, rf, v1i);
                     }
 
                     i16 v2i = lo8s(vertexData2);
                     VertexData* vertex2 = rf->vertexTrans + v2i;
                     if (vertex2->projectedState == 0) {
-                        TransformModelCoords(rc, rf, v2i);
+                        TransformVertexRecursive(rc, rf, v2i);
                     }
 
                     i16 v3i = lo8s(vertexData1);
                     VertexData* vertex3 = rf->vertexTrans + v3i;
                     if (vertex3->projectedState == 0) {
-                        TransformModelCoords(rc, rf, v3i);
+                        TransformVertexRecursive(rc, rf, v3i);
                     }
 
                     vOrig->wVec[0] = (vertex1->wVec[0] + vertex2->wVec[0] - vertex3->wVec[0]);
                     vOrig->wVec[1] = (vertex1->wVec[1] + vertex2->wVec[1] - vertex3->wVec[1]);
                     vOrig->wVec[2] = (vertex1->wVec[2] + vertex2->wVec[2] - vertex3->wVec[2]);
 
-                    ViewProjectVertex(rf, vOrig);
+                    TranslateProjectVertex(rf, vOrig);
                     return vOrig;
                 }
                 case 0x11:
@@ -3280,30 +3296,30 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
                     i16 v1i = lo8s(vertexData2);
                     VertexData* vertex1 = rf->vertexTrans + v1i;
                     if (vertex1->projectedState == 0) {
-                        TransformModelCoords(rc, rf, v1i);
+                        TransformVertexRecursive(rc, rf, v1i);
                     }
 
                     i16 v2i = hi8s(vertexData2);
                     VertexData* vertex2 = rf->vertexTrans + v2i;
                     if (vertex2->projectedState == 0) {
-                        TransformModelCoords(rc, rf, v2i);
+                        TransformVertexRecursive(rc, rf, v2i);
                     }
 
                     vOrig->wVec[0] = (vertex1->wVec[0] + vertex2->wVec[0]);
                     vOrig->wVec[1] = (vertex1->wVec[1] + vertex2->wVec[1]);
                     vOrig->wVec[2] = (vertex1->wVec[2] + vertex2->wVec[2]);
 
-                    ViewProjectVertex(rf, vOrig);
+                    TranslateProjectVertex(rf, vOrig);
                     break;
                 }
                 case 0x13:
                 case 0x14: {
                     // LERP between two vertices
                     i16 v1i = hi8s(vertexData2);
-                    VertexData* vertex1 = ProjectVertex(rc, rf, v1i);
+                    VertexData* vertex1 = TransformAndProjectVertex(rc, rf, v1i);
 
                     i16 v2i = lo8s(vertexData2);
-                    VertexData* vertex2 = ProjectVertex(rc, rf, v2i);
+                    VertexData* vertex2 = TransformAndProjectVertex(rc, rf, v2i);
 
                     u16 p1 = GetValueForParam8(rf, vertexData1 & 0xff);
                     p1 >>= 1;
@@ -3329,7 +3345,7 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
 
                     Vec3i32Add(vNew, vertex1->wVec, vOrig->wVec);
 
-                    ViewProjectVertex(rf, vOrig);
+                    TranslateProjectVertex(rf, vOrig);
                     return vOrig;
                 }
                 case 0x15:
@@ -3355,42 +3371,28 @@ MINTERNAL VertexData* ProjectVertexRecursive(RenderContext* rc, RenderFrame* rf,
 MINTERNAL VertexData* TransformVertex(RenderContext* rc, RenderFrame* rf, i16 vertexIndex) {
     VertexData* v1 = rf->vertexTrans + vertexIndex;
     if (v1->projectedState == 0) {
-        return TransformModelCoords(rc, rf, vertexIndex);
+        return TransformVertexRecursive(rc, rf, vertexIndex);
     } else {
         Vec3i32Add(v1->wVec, rf->objViewVec, v1->vVec);
         return v1;
     }
 }
 
-MINTERNAL void ProjectVertexDirect(RenderFrame* rf, VertexData* vertex) {
-    Vec3i32Add(vertex->wVec, rf->objViewVec, vertex->vVec);
-
-    if (vertex->vVec[2] < ZCLIPNEAR) {
-        vertex->sVec.x = PT_ZCLIPPED;
-        vertex->sVec.y = PT_ZCLIPPED;
-        vertex->projectedState = rf->frameId;
-        return;
-    }
-
-    vertex->sVec = ScreenCoords(ZProjecti32(vertex->vVec));
-    vertex->projectedState = rf->frameId;
-}
-
-MINTERNAL VertexData* ProjectVertex(RenderContext* rc, RenderFrame* rf, i16 vertexIndex) {
+MINTERNAL VertexData* TransformAndProjectVertex(RenderContext* rc, RenderFrame* rf, i16 vertexIndex) {
     VertexData* vertex = rf->vertexTrans + vertexIndex;
     i16 projectionMode = vertex->projectedState;
     if (projectionMode != rf->frameId) {
         if (projectionMode) {
-            ProjectVertexDirect(rf, vertex);
+            TranslateProjectVertexDirect(rf, vertex);
         } else {
-            ProjectVertexRecursive(rc, rf, vertexIndex, 1);
+            TransformProjectVertexRecursive(rc, rf, vertexIndex, 1);
         }
     }
     return vertex;
 }
 
-MINTERNAL VertexData* TransformModelCoords(RenderContext* rc, RenderFrame* rf, i16 vertexIndex) {
-    return ProjectVertexRecursive(rc, rf, vertexIndex, -1);
+MINTERNAL VertexData* TransformVertexRecursive(RenderContext* rc, RenderFrame* rf, i16 vertexIndex) {
+    return TransformProjectVertexRecursive(rc, rf, vertexIndex, -1);
 }
 
 MINTERNAL FontModelData* GetFontModel(SceneSetup* sceneSetup, u16 offset) {
@@ -3650,7 +3652,7 @@ MINTERNAL void TransformLightAndViewVectors(RenderContext *scene) {
 MINTERNAL int SetupNewTransformMatrix(RenderContext* renderContext, RenderFrame* newRenderFrame, RenderFrame* prevRenderFrame, u16 param) {
     u16 flipOffset = (param & (u16)0x7);
     if (flipOffset == 6) {
-        Matrix3i16Copy(prevRenderFrame->modelMatrix, newRenderFrame->modelViewMatrix);
+        Matrix3i16Copy(prevRenderFrame->tmpMatrix, newRenderFrame->modelViewMatrix);
         newRenderFrame->matrixWinding = prevRenderFrame->newMatrixWinding;
     } else {
         newRenderFrame->matrixWinding = FlipMatrixAxis(prevRenderFrame, newRenderFrame->modelViewMatrix, param);
@@ -4040,10 +4042,10 @@ static void RenderLineParams(RenderContext* renderContext, RenderFrame* rf, u16 
     }
 
     i16 vi1 = lo8s(param1);
-    VertexData* v1 = ProjectVertex(renderContext, rf, vi1);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi1);
 
     i16 vi2 = hi8s(param1);
-    VertexData* v2 = ProjectVertex(renderContext, rf, vi2);
+    VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi2);
 
     RenderLineWithVerts(renderContext, rf, v1, v2, colour);
 }
@@ -4160,13 +4162,13 @@ MINTERNAL void RenderTriParams(RenderContext* renderContext, RenderFrame* rf, u1
     }
 
     i16 vi1 = lo8s(param1);
-    VertexData* v1 = ProjectVertex(renderContext, rf, vi1);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi1);
 
     i16 vi2 = hi8s(param2);
-    VertexData* v2 = ProjectVertex(renderContext, rf, vi2);
+    VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi2);
 
     i16 vi3 = hi8s(param1);
-    VertexData* v3 = ProjectVertex(renderContext, rf, vi3);
+    VertexData* v3 = TransformAndProjectVertex(renderContext, rf, vi3);
 
     RenderTriVerts(renderContext, rf, v1, v3, v2, colour);
 }
@@ -4220,9 +4222,9 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
         while (v1->vVec[2] < ZCLIPNEAR) {
             VertexData* t = v1;
             v1 = v2;
-            v2 = v4;
-            v4 = v3;
-            v3 = t;
+            v2 = v3;
+            v3 = v4;
+            v4 = t;
         }
 
         DrawParamsLine*  spanDraw = BatchSpanLine(renderContext->zTree);
@@ -4743,17 +4745,17 @@ MINTERNAL i32 RComplexBezier(RenderContext* renderContext, u16 funcParam) {
     u16 param2 = ByteCodeRead16u(rf);
 
     i16 vi1 = hi8s(param1);
-    VertexData* v1 = ProjectVertex(renderContext, rf, vi1);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi1);
     rf->complexBeginVertexIx = vi1;
 
     i16 vi2 = lo8s(param1);
-    VertexData* v2 = ProjectVertex(renderContext, rf, vi2);
+    VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi2);
 
     i16 vi3 = hi8s(param2);
-    VertexData* v3 = ProjectVertex(renderContext, rf, vi3);
+    VertexData* v3 = TransformAndProjectVertex(renderContext, rf, vi3);
 
     i16 vi4 = lo8s(param2);
-    VertexData* v4 = ProjectVertex(renderContext, rf, vi4);
+    VertexData* v4 = TransformAndProjectVertex(renderContext, rf, vi4);
 
     if (v4->vVec[2] < ZCLIPNEAR || v1->vVec[2] < ZCLIPNEAR || v3->vVec[2] < ZCLIPNEAR || v2->vVec[2] < ZCLIPNEAR) {
 
@@ -4877,11 +4879,11 @@ MINTERNAL i32 RComplexFuncLine(RenderContext* renderContext, u16 funcParam) {
     u16 param1 = ByteCodeRead16u(rf);
 
     i16 vi1 = lo8s(funcParam);
-    VertexData* v1 = ProjectVertex(renderContext, rf, vi1);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi1);
     rf->complexBeginVertexIx = vi1;
 
     i16 vi2 = lo8s(param1);
-    VertexData* v2 = ProjectVertex(renderContext, rf, vi2);
+    VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi2);
 
     return ClipSpanLine(renderContext, v1, v2, vi2);
 }
@@ -4890,7 +4892,7 @@ MINTERNAL i32 RComplexLineCont(RenderContext* renderContext, u16 funcParam) {
     RenderFrame* rf = GetRenderFrame(renderContext);
 
     i16 vi = lo8s(funcParam);
-    VertexData* v = ProjectVertex(renderContext, rf, vi);
+    VertexData* v = TransformAndProjectVertex(renderContext, rf, vi);
 
     return AddSpanLineCont(renderContext, rf, vi);
 }
@@ -4905,13 +4907,13 @@ MINTERNAL i32 RComplexBezierCont(RenderContext* renderContext, u16 funcParam) {
 
     if (v1->vVec[2] >= ZCLIPNEAR) {
         i16 vi2 = lo8s(funcParam);
-        VertexData* v2 = ProjectVertex(renderContext, rf, vi2);
+        VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi2);
 
         i16 vi3 = hi8s(param1);
-        VertexData* v3 = ProjectVertex(renderContext, rf, vi3);
+        VertexData* v3 = TransformAndProjectVertex(renderContext, rf, vi3);
 
         i16 vi4 = lo8s(param1);
-        VertexData* v4 = ProjectVertex(renderContext, rf, vi4);
+        VertexData* v4 = TransformAndProjectVertex(renderContext, rf, vi4);
 
         if (v4->vVec[2] < ZCLIPNEAR || v1->vVec[2] < ZCLIPNEAR || v3->vVec[2] < ZCLIPNEAR || v2->vVec[2] < ZCLIPNEAR) {
             return ClipSpanLine(renderContext, v1, v4, vi4);
@@ -4929,7 +4931,7 @@ MINTERNAL i32 RComplexBezierCont(RenderContext* renderContext, u16 funcParam) {
         }
     } else {
         i16 vi4 = lo8s(param1);
-        VertexData* v4 = ProjectVertex(renderContext, rf, vi4);
+        VertexData* v4 = TransformAndProjectVertex(renderContext, rf, vi4);
 
         if (v4->vVec[2] >= ZCLIPNEAR) {
             rf->complexCurrentlyZClipped = 0;
@@ -5058,7 +5060,7 @@ MINTERNAL int RComplexCircle(RenderContext* renderContext, u16 funcParam) {
     RenderFrame* rf = GetRenderFrame(renderContext);
 
     i16 vi = lo8s(funcParam);
-    VertexData* v = ProjectVertex(renderContext, rf, vi);
+    VertexData* v = TransformAndProjectVertex(renderContext, rf, vi);
 
     if (v->vVec[2] < ZCLIPNEAR) {
         rf->complexJoinToBeginning = 0;
@@ -5197,16 +5199,16 @@ MINTERNAL void RenderQuadParams(RenderContext* renderContext, RenderFrame* rf, u
     }
 
     i16 vi2 = lo8s(param1);
-    VertexData* v2 = ProjectVertex(renderContext, rf, vi2);
+    VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi2);
 
     i16 vi4 = hi8s(param2);
-    VertexData* v4 = ProjectVertex(renderContext, rf, vi4);
+    VertexData* v4 = TransformAndProjectVertex(renderContext, rf, vi4);
 
     i16 vi3 = hi8s(param1);
-    VertexData* v3 = ProjectVertex(renderContext, rf, vi3);
+    VertexData* v3 = TransformAndProjectVertex(renderContext, rf, vi3);
 
     i16 vi1 = lo8s(param2);
-    VertexData* v1 = ProjectVertex(renderContext, rf, vi1);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi1);
 
     RenderQuadVerts(renderContext, rf, v1, v2, v3, v4, colour);
 }
@@ -5517,26 +5519,26 @@ MINTERNAL int RenderSubModel(RenderContext* renderContext, RenderFrame* rf, u16 
         if (v1i == 0x7f) {
             goto doneProjects;
         }
-        ProjectVertex(renderContext, rf, v1i);
+        TransformAndProjectVertex(renderContext, rf, v1i);
 
         v2i = lo8s(param2);
         if (v2i == 0x7f) {
             goto doneProjects;
         }
-        ProjectVertex(renderContext, rf, v2i);
+        TransformAndProjectVertex(renderContext, rf, v2i);
 
         v3i = hi8s(param2);
         if (v3i == 0x7f) {
             goto doneProjects;
         }
-        ProjectVertex(renderContext, rf, v3i);
+        TransformAndProjectVertex(renderContext, rf, v3i);
 
         v4i = hi8s(param3);
         if (v4i == 0x7f) {
             goto doneProjects;
         }
 
-        ProjectVertex(renderContext, rf, v4i);
+        TransformAndProjectVertex(renderContext, rf, v4i);
     }
 
 doneProjects:
@@ -5593,7 +5595,7 @@ MINTERNAL int RenderCircle(RenderContext* renderContext, u16 funcParam) {
     b32 lightSource = (param2 & 0x80);
 
     i16 vi1 = hi8s(param2);
-    VertexData* v1 = ProjectVertex(renderContext, rf, vi1);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi1);
 
     u32 radiusParam = GetValueForParam16(rf, param1);
     i32 radius = radiusParam >> 1;
@@ -5768,7 +5770,7 @@ MINTERNAL int RenderComplex(RenderContext* renderContext, u16 funcParam) {
     rf->complexSkipIfPointZClipped = param1 & 0x80;
 
     i16 vi1 = lo8s(param2);
-    VertexData* v1 = ProjectVertex(renderContext, rf, vi1);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi1);
 
     if (renderContext->currentBatchId) {
         u16* drawFunc = BatchSpanStart(renderContext->zTree);
@@ -5920,14 +5922,14 @@ MINTERNAL int RenderTeardrop(RenderContext* renderContext, u16 funcParam) {
     u16 param2 = ByteCodeRead16u(rf);
 
     i16 vi1 = lo8s(param1);
-    VertexData* v1 = ProjectVertex(renderContext, rf, vi1);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi1);
 
     if (v1->vVec[2] <= 0x200) {
         return 0;
     }
 
     i16 vi2 = hi8s(param1);
-    VertexData* v2 = ProjectVertex(renderContext, rf, vi2);
+    VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi2);
 
     if (v2->vVec[2] <= 0x200) {
         return 0;
@@ -6353,7 +6355,7 @@ MINTERNAL int RenderCalc(RenderContext* renderContext, u16 funcParam) {
             u16Result = ((i16)p1) / (1u << p2);
             break;
         }
-        case MathFunc_RGetIndirectOffset: {
+        case MathFunc_GetModelVar: {
             u16 i = (p1 + p2);
             u16Result = rf->renderContext->modelVars[i];
             break;
@@ -6424,7 +6426,7 @@ MINTERNAL int RenderModel(RenderContext* renderContext, u16 funcParam) {
     u16 param1 = ByteCodeRead16u(rf);
 
     i16 vi = lo8s(param1);
-    ProjectVertex(renderContext, rf, vi);
+    TransformAndProjectVertex(renderContext, rf, vi);
 
     return RenderSubModel(renderContext, rf, funcParam, param1, vi, 0, rf->baseColour);
 }
@@ -6603,14 +6605,14 @@ MINTERNAL void RenderConeParams(RenderContext* renderContext, RenderFrame* rf, u
                                 u16 colour1, u16 colour2) {
 
     i16 v1i = lo8s(param1);
-    VertexData* v1 = ProjectVertex(renderContext, rf, v1i);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, v1i);
 
     if (v1->vVec[2] < ZCLIPNEAR) {
         return;
     }
 
     i16 v2i = hi8s(param1);
-    VertexData* v2 = ProjectVertex(renderContext, rf, v2i);
+    VertexData* v2 = TransformAndProjectVertex(renderContext, rf, v2i);
 
     if (v2->vVec[2] < ZCLIPNEAR) {
         return;
@@ -6656,7 +6658,7 @@ MINTERNAL void RenderConeParams(RenderContext* renderContext, RenderFrame* rf, u
         Vec3i32CrossProdNormal(capNormalV, rf->lightV, lightSplitAxis);
 
         // Calc how much light is perp to the cap (if the cap directly faces the light the rest of the cylinder
-        // only gets ambient light - ok - well - it could be a cone but this just an approx).
+        // only gets ambient light - ok - well - it could be a cone but this is just an approx).
         i32 light = Vec3i32Length(lightSplitAxis); // sin of the angle between cap normal and light
         if (light >= 0x1000) {
             u16 tintIndex = (((light >> 12) ^ 0x7) & 0xff);
@@ -6898,16 +6900,16 @@ MINTERNAL int RenderLineBezier(RenderContext* renderContext, u16 funcParam) {
     }
 
     i16 vi3 = lo8s(param1);
-    VertexData* v3 = ProjectVertex(renderContext, rf, vi3);
+    VertexData* v3 = TransformAndProjectVertex(renderContext, rf, vi3);
 
     i16 vi1 = hi8s(param1);
-    VertexData* v1 = ProjectVertex(renderContext, rf, vi1);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi1);
 
     i16 vi4 = lo8s(param2);
-    VertexData* v4 = ProjectVertex(renderContext, rf, vi4);
+    VertexData* v4 = TransformAndProjectVertex(renderContext, rf, vi4);
 
     i16 vi2 = hi8s(param2);
-    VertexData* v2 = ProjectVertex(renderContext, rf, vi2);
+    VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi2);
 
     if (v2->vVec[2] < ZCLIPNEAR || v4->vVec[2] < ZCLIPNEAR || v2->vVec[2] < ZCLIPNEAR || v1->vVec[2] < ZCLIPNEAR) {
         return 0;
@@ -6931,20 +6933,20 @@ MINTERNAL int RenderLineBezier(RenderContext* renderContext, u16 funcParam) {
 
 // Skip if two vertices are within / past a certain distance in view coordinates
 // Test skipped if any vertex is behind camera
-MINTERNAL int RenderViewspaceDist(RenderContext* renderContext, u16 funcParam) {
+MINTERNAL int RenderScreenSpaceDist(RenderContext* renderContext, u16 funcParam) {
     RenderFrame* rf = GetRenderFrame(renderContext);
 
     u16 param1 = ByteCodeRead16u(rf);
     u16 param2 = ByteCodeRead16u(rf);
 
     i16 v1i = lo8s(param2);
-    VertexData* v1 = ProjectVertex(renderContext, rf, v1i);
+    VertexData* v1 = TransformAndProjectVertex(renderContext, rf, v1i);
     if (v1->vVec[2] < ZCLIPNEAR) {
         return 0;
     }
 
     i16 v2i = hi8s(param2);
-    VertexData* v2 = ProjectVertex(renderContext, rf, v2i);
+    VertexData* v2 = TransformAndProjectVertex(renderContext, rf, v2i);
     if (v2->vVec[2] < ZCLIPNEAR) {
         return 0;
     }
@@ -6981,7 +6983,7 @@ MINTERNAL int RenderViewspaceDist(RenderContext* renderContext, u16 funcParam) {
     return 0;
 }
 
-MINTERNAL int RenderBalls(RenderContext* renderContext, u16 funcParam) {
+MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
     RenderFrame* rf = GetRenderFrame(renderContext);
 
     u16 param0 = (funcParam >> 4);
@@ -7027,13 +7029,13 @@ MINTERNAL int RenderBalls(RenderContext* renderContext, u16 funcParam) {
         width = (p1 << ZSCALE) / z;
     }
 
-    DrawParamsBalls* drawParams;
+    DrawParamsCircles* drawParams;
 
     if (renderContext->currentBatchId != 0) {
         drawParams = BatchBalls(renderContext->zTree);
     } else {
         i32 z = CalcZ0(rf);
-        drawParams = AddBallsNode(renderContext->zTree, z);
+        drawParams = AddCirclesNode(renderContext->zTree, z);
     }
 
     drawParams->width = width;
@@ -7048,7 +7050,7 @@ MINTERNAL int RenderBalls(RenderContext* renderContext, u16 funcParam) {
             break;
         }
 
-        VertexData* v1 = ProjectVertex(renderContext, rf, vi);
+        VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi);
 
         if (v1->vVec[2] >= ZCLIPNEAR) {
             i16 x = v1->sVec.x - 1;
@@ -7065,7 +7067,7 @@ MINTERNAL int RenderBalls(RenderContext* renderContext, u16 funcParam) {
             break;
         }
 
-        VertexData* v2 = ProjectVertex(renderContext, rf, vi);
+        VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi);
 
         if (v2->vVec[2] >= ZCLIPNEAR) {
             i16 x = v2->sVec.x - 1;
@@ -7090,7 +7092,7 @@ MINTERNAL int RenderMatrixSetup(RenderContext* renderContext, u16 funcParam) {
 
     u16 param0 = (funcParam) >> 4;
     if (param0 & 0x800) {
-        Matrix3x3i16Identity(rf->modelMatrix);
+        Matrix3x3i16Identity(rf->tmpMatrix);
         return 0;
     }
 
@@ -7110,11 +7112,11 @@ MINTERNAL int RenderMatrixSetup(RenderContext* renderContext, u16 funcParam) {
 
     if (r >> 16 == 0) {
         u16 angle = r & 0xffff;
-        Matrix3x3i16RotateAxisAngle(rf->modelMatrix, rotationAxis, angle);
+        Matrix3x3i16RotateAxisAngle(rf->tmpMatrix, rotationAxis, angle);
     } else {
         i16 cosine = a << 14 / r;
         i16 sine = b << 14 / r;
-        Matrix3x3i16RotateAxis(rf->modelMatrix, rotationAxis, sine, cosine);
+        Matrix3x3i16RotateAxis(rf->tmpMatrix, rotationAxis, sine, cosine);
     }
 
     return 0;
@@ -7162,7 +7164,7 @@ MINTERNAL int RenderModelScale(RenderContext* scene, u16 funcParam) {
     u16 param1 = ByteCodeRead16u(rf);
 
     i16 vi = lo8s(param1);
-    ProjectVertex(scene, rf, vi);
+    TransformAndProjectVertex(scene, rf, vi);
 
     u16 param2 = ByteCodeRead16u(rf);
     u16 colourParam = (param2 << 1) & 0xfff;
@@ -7185,7 +7187,7 @@ MINTERNAL int RenderMatrixTransform(RenderContext* scene, u16 funcParam) {
     u16 param1 = ByteCodeRead16u(rf);
 
     if (!(funcParam & (u16) 0x8000)) {
-        rf->newMatrixWinding = FlipMatrixAxis(rf, rf->modelMatrix, (funcParam >> 7) & 0xff);
+        rf->newMatrixWinding = FlipMatrixAxis(rf, rf->tmpMatrix, (funcParam >> 7) & 0xff);
 
         if (!param1) {
             return 0;
@@ -7195,7 +7197,7 @@ MINTERNAL int RenderMatrixTransform(RenderContext* scene, u16 funcParam) {
     u16 rotationAxis = (funcParam >> 5) & (u16) 0x3;
     u16 angle = GetValueForParam16(rf, param1);
 
-    Matrix3x3i16RotateAxisAngle(rf->modelMatrix, rotationAxis, angle);
+    Matrix3x3i16RotateAxisAngle(rf->tmpMatrix, rotationAxis, angle);
 
     return 0;
 }
@@ -7210,10 +7212,10 @@ MINTERNAL int RenderMatrixCopy(RenderContext* scene, u16 funcParam) {
             return 0;
         } else {
             if (param0 == 0xc01) {
-                Matrix3i16Copy(rf->modelMatrix, rf->modelViewMatrix);
+                Matrix3i16Copy(rf->tmpMatrix, rf->modelViewMatrix);
             } else {
                 MLogf("Unhandled matrix setup %d 2", param0);
-                Matrix3i16Copy(rf->modelMatrix, rf->modelViewMatrix);
+                Matrix3i16Copy(rf->tmpMatrix, rf->modelViewMatrix);
             }
             return 0;
         }
@@ -8020,7 +8022,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     workspace.detailLevel = 16 + renderContext->renderDetail2;
 
     u16 vi = param2 & 0xff;
-    VertexData* v = ProjectVertex(renderContext, rf, vi);
+    VertexData* v = TransformAndProjectVertex(renderContext, rf, vi);
 
     i16 frameScale = rf->scale + 7;
 
@@ -8512,6 +8514,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
         workspace.detailParam = 0;
         workspace.doneRenderFeatures = -1;
 
+        // Shade sphere if necessary
         if (workspace.colourMode & 0x8) {
             Vec3i16 vec;
             vec[0] = rf->lightV[0];
@@ -8821,11 +8824,11 @@ MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf)
                 ret = RenderAudioCue(renderContext, funcParam);
                 break;
             }
-            case Render_CONE: {
+            case Render_CYLINDER: {
                 ret = RenderCone(renderContext, funcParam);
                 break;
             }
-            case Render_CONE_COLOUR_CAP: {
+            case Render_CYLINDER_COLOUR_CAP: {
                 ret = RenderConeCapped(renderContext, funcParam);
                 break;
             }
@@ -8841,7 +8844,7 @@ MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf)
                 ret = RenderIfNotVar(renderContext, funcParam);
                 break;
             }
-            case Render_CLEARZ: {
+            case Render_ZTREE_PUSH_POP: {
                 ret = RenderClearZ(renderContext, funcParam);
                 break;
             }
@@ -8849,12 +8852,12 @@ MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf)
                 ret = RenderLineBezier(renderContext, funcParam);
                 break;
             }
-            case Render_IF_VIEWSPACE_DIST: {
-                ret = RenderViewspaceDist(renderContext, funcParam);
+            case Render_IF_SCREENSPACE_DIST: {
+                ret = RenderScreenSpaceDist(renderContext, funcParam);
                 break;
             }
-            case Render_BALLS: {
-                ret = RenderBalls(renderContext, funcParam);
+            case Render_CICLES: {
+                ret = RenderCircles(renderContext, funcParam);
                 break;
             }
             case Render_MATRIX_SETUP: {

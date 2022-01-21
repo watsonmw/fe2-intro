@@ -71,15 +71,15 @@ typedef enum eRenderEnum {
     Render_CALC_A = 0xd,
     Render_MODEL = 0xe,
     Render_AUDIO_CUE = 0xf,
-    Render_CONE = 0x10,
-    Render_CONE_COLOUR_CAP = 0x11,
+    Render_CYLINDER = 0x10,
+    Render_CYLINDER_COLOUR_CAP = 0x11,
     Render_BITMAP_TEXT = 0x12,
     Render_IF_NOT_VAR = 0x13,
     Render_IF_VAR = 0x14,
-    Render_CLEARZ = 0x15,
+    Render_ZTREE_PUSH_POP = 0x15,
     Render_LINE_BEZIER = 0x16,
-    Render_IF_VIEWSPACE_DIST = 0x17,
-    Render_BALLS = 0x18,
+    Render_IF_SCREENSPACE_DIST = 0x17,
+    Render_CICLES = 0x18,
     Render_MATRIX_SETUP = 0x19,
     Render_COLOUR = 0x1a,
     Render_MODEL_SCALE = 0x1b,
@@ -100,7 +100,7 @@ typedef enum eMathFuncEnum {
     MathFunc_Min = 7,
     MathFunc_Mult2 = 8,
     MathFunc_DivPower2Signed = 9,
-    MathFunc_RGetIndirectOffset = 10,
+    MathFunc_GetModelVar = 10,
     MathFunc_ZeroIfGreater = 11,
     MathFunc_ZeroIfLess = 12,
     MathFunc_MultSine = 13,
@@ -127,7 +127,7 @@ typedef enum eDrawFuncEnum {
     DRAW_FUNC_FLARE = 15,
     DRAW_FUNC_CIRCLE = 16,
     DRAW_FUNC_RINGED_CIRCLE = 17,
-    DRAW_FUNC_BALLS = 18,
+    DRAW_FUNC_CIRCLES = 18,
     DRAW_FUNC_TEXT = 19,
     DRAW_FUNC_SUBTREE = 20,
     DRAW_FUNC_BODY_START = 21,
@@ -210,18 +210,18 @@ typedef struct sDrawParamsCircle {
     u16 diameter;
 } MSTRUCTPACKED DrawParamsCircle;
 
-typedef struct sDrawParamsLegacyBalls {
+typedef struct sDrawParamsLegacyCircles {
     u16 width;
     u16 colour;
     u16 pos[];
-}  MSTRUCTPACKED DrawParamsLegacyBalls;
+}  MSTRUCTPACKED DrawParamsLegacyCircles;
 
-typedef struct sDrawParamsBalls {
+typedef struct sDrawParamsCircles {
     u16 width;
     u16 colour;
     u16 num;
     u16 pos[];
-}  MSTRUCTPACKED DrawParamsBalls;
+}  MSTRUCTPACKED DrawParamsCircles;
 
 typedef struct sDrawParamsRingedCircle {
     u16 innerColour;

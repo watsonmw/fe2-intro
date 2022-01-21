@@ -1127,9 +1127,9 @@ vertices: ; 15
 normals: ; 0
 
 code:
-  balls colour:#767 fixed:2 17, 20, 28, 4, 0, 9, 18, 25
-  balls colour:#bab fixed:0 17, 20, 28, 4, 0, 9, 18, 25, -1, 5, 12, 14, 24, 3, -3, 14, 23, 6, 22, 26, 28
-  balls fixed:2 colour:#79f 7, 10, 29
+  circles colour:#767 fixed:2 17, 20, 28, 4, 0, 9, 18, 25
+  circles colour:#bab fixed:0 17, 20, 28, 4, 0, 9, 18, 25, -1, 5, 12, 14, 24, 3, -3, 14, 23, 6, 22, 26, 28
+  circles fixed:2 colour:#79f 7, 10, 29
   highlight vertex:-4 radius:60 colour:#f8e
   highlight vertex:2 radius:180 colour:#f69
   highlight vertex:8 radius:100 colour:#f8e
@@ -1140,7 +1140,7 @@ code:
 
 
 ; Single Courier Engine
-; Update: Add end caps, so cone smoothly connects to front part of engine
+; Update: Add end caps, so cylinder smoothly connects to front part of engine
 model: 106
   scale1: 10,
   scale2: 0,
@@ -1177,7 +1177,7 @@ normals: ; 8
 code:
   batch end
   ztree push v:0
-  cone colour:#667 (v:0 n:2 r:7) (v:2 n:4 r:4 c:#177)
+  cylinder colour:#667 (v:0 n:2 r:7) (v:2 n:4 r:4 c:#177)
   quad -4, -3, 26, -2 colour:#666
   mquad 14, 4, 6, 12 colour:#444 normal:6
   mquad 16, 6, 8, 14 colour:#444 normal:8

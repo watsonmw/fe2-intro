@@ -90,7 +90,7 @@ Use that to build this project:
     emcmake cmake . -B emscripten-release -DCMAKE_BUILD_TYPE=Release
     make -C emscripten-release fintro
 
-A Python script for serving up the Emscripten compiled version locally is provided.
+A Python 2.7 script for serving up the Emscripten compiled version locally is provided.
 
     python scripts/wasmserver.py
 
@@ -121,10 +121,10 @@ Might be a while before that is ported to the Amiga though :P
 Implementation
 ---
 
-Frontier renders the 3d world using its own byte code (well 16bit code, because
+Frontier renders the 3d world using its own byte code (well 16-bit code, because
 it was written with 16 bit buses in mind). This code specifies the primitives to
 display, level of detail calculations, animations, and more.  Much of this is
-described in entertaining detail here:
+described in entertaining detail here (for FFE):
 
     http://www.jongware.com/galaxy7.html 
 
@@ -157,7 +157,7 @@ the same overall sound, let me know, and I'll add them as overrides.)
 
 The renderer is pretty close to the original, but allows for higher resolutions
 and uses divides a bit more frequently.  The original had to run on 68000 which
-only did slow 16 bit divides, but that's not an issue for us.
+only did slow 16-bit divides, but that's not an issue for us.
 
 For details about the original renderer see my: 'Frontier: Elite 2 engine study':
 
