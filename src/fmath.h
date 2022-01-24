@@ -1,3 +1,8 @@
+//
+// Reverse Engineered from:
+//   [Frontier: Elite II © David Braben 1993 & 1994](https://en.wikipedia.org/wiki/Frontier:_Elite_II)
+//
+
 #ifndef FINTRO_FMATH_H
 #define FINTRO_FMATH_H
 

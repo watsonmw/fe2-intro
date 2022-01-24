@@ -1,3 +1,8 @@
+//
+// Reverse Engineered from:
+//   [Frontier: Elite II © David Braben 1993 & 1994](https://en.wikipedia.org/wiki/Frontier:_Elite_II)
+//
+
 #include "render.h"
 #include "renderinternal.h"
 #include "mlib.h"
@@ -7092,33 +7097,47 @@ MINTERNAL int RenderMatrixSetup(RenderContext* renderContext, u16 funcParam) {
 
     u16 param0 = (funcParam) >> 4;
     if (param0 & 0x800) {
+        // Just set tmp matrix to identify and return
         Matrix3x3i16Identity(rf->tmpMatrix);
         return 0;
     }
 
-    // Orientate matrix to light source
+    // Orientate given axis awy from light source
     u16 rotationAxis = (param0 >> 1) & 0x3;
-    u16 o1 = sMatrixRotationOffsets3[rotationAxis + 1];
+    u16 lightAxis = sMatrixRotationOffsets3[rotationAxis];
+    i32 x = rf->lightM[lightAxis];
+    lightAxis = sMatrixRotationOffsets3[lightAxis];
+    i32 y = rf->lightM[lightAxis];
 
-    // Normalize
-    i32 a = rf->lightM[o1];
-
-    u16 o2 = sMatrixRotationOffsets3[o1];
-    i32 b = rf->lightM[o2];
-
-    i32 sq = (a * a) + (b * b);
-    i32 r = FMath_SqrtFunc32(sq);
+    i32 sq = x * x + y * y;
+    i32 r = (i32)FMath_SqrtFunc32(sq);
     r *= 0x8101;
 
-    if (r >> 16 == 0) {
-        u16 angle = r & 0xffff;
-        Matrix3x3i16RotateAxisAngle(rf->tmpMatrix, rotationAxis, angle);
+    i16 sine = 0;
+    i16 cosine = 0;
+
+    r = r >> 16;
+    if (r == 0) {
+        u16 mask = 1 << 0xf;
+        if (x & mask) {
+            u16 lookupAngle = (x ^ mask) >> 4;
+            sine = (i16)-FMath_sine[lookupAngle];
+        } else {
+            sine = FMath_sine[x >> 4];
+        }
+        y += 0x4000;
+        if (y & mask) {
+            u16 lookupAngle = (y ^ mask) >> 4;
+            cosine = (i16)-FMath_sine[lookupAngle];
+        } else {
+            cosine = FMath_sine[y >> 4];
+        }
     } else {
-        i16 cosine = a << 14 / r;
-        i16 sine = b << 14 / r;
-        Matrix3x3i16RotateAxis(rf->tmpMatrix, rotationAxis, sine, cosine);
+        sine = (i16)((x << (i32)14) / r);
+        cosine = (i16)((y << (i32)14) / r );
     }
 
+    Matrix3x3i16RotateAxis(rf->tmpMatrix, rotationAxis, cosine, sine);
     return 0;
 }
 

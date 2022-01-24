@@ -1,3 +1,8 @@
+//
+// Reverse Engineered from:
+//   [Frontier: Elite II © David Braben 1993 & 1994](https://en.wikipedia.org/wiki/Frontier:_Elite_II)
+//
+
 #include "fintro.h"
 #include "render.h"
 
