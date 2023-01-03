@@ -47,8 +47,8 @@ add_executable(
 )
 
 # Define DEBUG c/c++ macro when compiling in debug mode
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG")
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG")
 
 IF(MINGW)
     include_directories(C:/msys64/mingw32/include)
@@ -57,12 +57,12 @@ IF(MINGW)
     target_compile_options(fintro PRIVATE -mconsole)
 ENDIF()
 
-target_compile_definitions(fintro PRIVATE -DUSE_SDL -DFINTRO_SCREEN_RES=3)
+target_compile_definitions(fintro PRIVATE -DUSE_SDL -DFINTRO_SCREEN_RES=3 -DM_CLIB_USE_ALIGNED)
 target_compile_options(fintro PRIVATE -ggdb)
 
 # Point to your actual AmigaOS NDK
 target_compile_definitions(fintro-amiga PRIVATE -DAMIGA -DFINTRO_SCREEN_RES=2)
-target_include_directories(fintro-amiga PRIVATE ../../m68k-amigaos/ndk-include ../../m68k-amigaos/include)
+target_include_directories(fintro-amiga PRIVATE C:/Amiga/m68k-amigaos/ndk-include C:/Amiga/m68k-amigaos/include)
 
 IF(APPLE)
     find_library(SDL2_LIBRARY SDL2 REQUIRED)

@@ -212,7 +212,7 @@ static void Audio_CopyAndFixSamples(AudioContext* audio) {
     audio->samplesDataSize = 0x20000;
 #ifdef AMIGA
     // Allocate some chip ram that will be used to store the fixed up samples
-    audio->samplesData = (u8*) AllocMem(audio->samplesDataSize, MEMF_PUBLIC | MEMF_CHIP);
+    audio->samplesData = (u8*) AllocMem(audio->samplesDataSize, MEMF_CHIP);
 #else
     audio->samplesData = (u8*) MMalloc(audio->samplesDataSize);
 #endif
@@ -385,13 +385,13 @@ void Audio_Exit(AudioContext* audio) {
     SDL_CloseAudioDevice(audio->sdlAudioID); audio->sdlAudioID = 0;
 
     if (audio->audioOutputBuffer != NULL) {
-        MFree(audio->audioOutputBuffer); audio->audioOutputBuffer = NULL;
+        MFree(audio->audioOutputBuffer, audio->audioOutputBufferSize); audio->audioOutputBuffer = NULL;
     }
 
     for (int i = 0; i < AUDIO_SAMPLE_CACHE_SIZE; ++i) {
         SampleConvert* s = audio->sampleCache + i;
         if (s->sampleConverted != NULL) {
-            MFree(s->sampleConverted); s->sampleConverted = NULL;
+            MFree(s->sampleConverted, s->sampleConvertedBufferSize); s->sampleConverted = NULL;
         }
     }
 #endif
@@ -401,7 +401,7 @@ void Audio_Exit(AudioContext* audio) {
 
     FreeMem(audio->samplesData, audio->samplesDataSize);
 #else
-    MFree(audio->samplesData);
+    MFree(audio->samplesData, audio->samplesDataSize);
 #endif
     audio->samplesData = 0;
 }
@@ -1182,7 +1182,8 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
     }
 
     if (sampleConvert->sampleConverted) {
-        MFree(sampleConvert->sampleConverted); sampleConvert->sampleConverted = NULL;
+        MFree(sampleConvert->sampleConverted, sampleConvert->sampleConvertedBufferSize);
+        sampleConvert->sampleConverted = NULL;
     }
 
     // period = ticks per second / samples per second
@@ -1195,7 +1196,8 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
                       AUDIO_S16, 1, PLAYBACK_FEQ);
 
     cvt.len = hw->len * 2;
-    cvt.buf = (Uint8 *) MMalloc(cvt.len * cvt.len_mult);
+    int buffReqSize = cvt.len * cvt.len_mult;
+    cvt.buf = (Uint8 *) MMalloc(buffReqSize);
 
     memcpy(cvt.buf, hw->pos, cvt.len);
 
@@ -1203,6 +1205,7 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
     if (r == 0) {
         sampleConvert->sampleConverted = (i16*)cvt.buf;
         sampleConvert->sampleConvertedLen = cvt.len_cvt / 2;
+        sampleConvert->sampleConvertedBufferSize = buffReqSize;
         sampleConvert->samplePtr = hw->pos;
         sampleConvert->sampleLen = hw->len;
         sampleConvert->period = hw->period;
@@ -1213,7 +1216,9 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
         sampleConvert->sampleLen = 0;
         sampleConvert->period = 0;
         sampleConvert->sampleConvertedLen = 0;
+        sampleConvert->sampleConvertedBufferSize = 0;
         sampleConvert->used = 0;
+        MFree(cvt.buf, buffReqSize);
     }
 
     if (sDebugLog) {
@@ -1260,7 +1265,7 @@ void Audio_Render(AudioContext* audio, int ticks, b32 output) {
 
     if (output) {
         if (audio->audioOutputBufferSize < outputSize) {
-            audio->audioOutputBuffer = (i16*)MRealloc(audio->audioOutputBuffer, outputSize);
+            audio->audioOutputBuffer = (i16*)MRealloc(audio->audioOutputBuffer, audio->audioOutputBufferSize, outputSize);
             audio->audioOutputBufferSize = outputSize;
         }
         audio->audioOutputContentSize = outputSize;

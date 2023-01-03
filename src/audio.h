@@ -138,6 +138,7 @@ typedef struct sSampleConvert {
 
     i16* sampleConverted;
     u32 sampleConvertedLen;
+    u32 sampleConvertedBufferSize;
 
     u32 cacheClock;
     u8 used;

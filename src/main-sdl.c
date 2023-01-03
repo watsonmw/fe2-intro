@@ -1,5 +1,3 @@
-#include <stdio.h>
-
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <SDL2/SDL.h>
@@ -34,7 +32,8 @@ static ModelsArray sOrigModels;
 static const char* sFileToCompile = NULL;
 static const char* sFileToHotCompile = NULL;
 
-#define INTRO_OVERRIDES "data/model-overrides-le.dat"
+#define INTRO_OVERRIDES_LE "data/model-overrides-le.dat"
+#define INTRO_OVERRIDES_BE "data/model-overrides-be.dat"
 
 static void UpdateSurfaceTexture(Surface* surface, RGB* palette, u8* pixels, int pitch) {
     for (int y = 0; y < surface->height; ++y) {
@@ -82,7 +81,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         const char* arg = argv[i];
         if (*arg == '-') {
-            if (strcmp("mod", arg + 1) == 0) {
+            if (MStrCmp("mod", arg + 1) == 0) {
                 i++;
                 if (i >= argc) {
                     return -1;
@@ -94,11 +93,11 @@ static i32 ParseCommandLine(int argc, char** argv) {
                         sModToPlay = mod;
                     }
                 }
-            } else if (strcmp("fullscreen", arg + 1) == 0) {
+            } else if (MStrCmp("fullscreen", arg + 1) == 0) {
                 sFullscreen = TRUE;
-            } else if (strcmp("windowed", arg + 1) == 0) {
+            } else if (MStrCmp("windowed", arg + 1) == 0) {
                 sFullscreen = FALSE;
-            } else if (strcmp("f", arg + 1) == 0) {
+            } else if (MStrCmp("f", arg + 1) == 0) {
                 i++;
                 if (i >= argc) {
                     return -1;
@@ -110,13 +109,13 @@ static i32 ParseCommandLine(int argc, char** argv) {
                         sFrameOffset = offset;
                     }
                 }
-            } else if (strcmp("dump-intro-models", arg + 1) == 0) {
+            } else if (MStrCmp("dump-intro-models", arg + 1) == 0) {
                 sDumpIntroModels = TRUE;
-            } else if (strcmp("dump-game-models", arg + 1) == 0) {
+            } else if (MStrCmp("dump-game-models", arg + 1) == 0) {
                 sDumpGameModels = TRUE;
-            } else if (strcmp("dump-galmap-models", arg + 1) == 0) {
+            } else if (MStrCmp("dump-galmap-models", arg + 1) == 0) {
                 sDumpGalmapModels = TRUE;
-            } else if (strcmp("compile", arg + 1) == 0) {
+            } else if (MStrCmp("compile", arg + 1) == 0) {
                 i += 1;
                 if (i >= argc) {
                     MLog("'-compile' option requires input file.");
@@ -124,7 +123,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
                     return -1;
                 }
                 sFileToCompile = argv[i];
-            } else if (strcmp("hot-reload", arg + 1) == 0) {
+            } else if (MStrCmp("hot-reload", arg + 1) == 0) {
                 i += 1;
                 if (i >= argc) {
                     MLog("'-hot-reload' option requires input file.");
@@ -188,7 +187,7 @@ static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
 }
 
 int CompileFileAndWriteOut(const char* fileToCompile, const char* fileOutputPath, MMemIO* memOutput,
-        ModelsArray* modelsArray) {
+                           ModelsArray* modelsArray, ModelEndianEnum endian, b32 dumpModelsToConsole) {
 
     MReadFileRet r = MFileReadFully(fileToCompile);
     if (r.data == NULL) {
@@ -198,7 +197,8 @@ int CompileFileAndWriteOut(const char* fileToCompile, const char* fileOutputPath
 
     MLogf("Compiling: %s", fileToCompile);
 
-    int result = CompileAndWriteModels(fileToCompile, fileOutputPath, memOutput, modelsArray);
+    int result = CompileAndWriteModels(fileToCompile, fileOutputPath, memOutput, modelsArray, endian,
+                                       dumpModelsToConsole);
 
     return result;
 }
@@ -208,7 +208,8 @@ void HotReload(SceneSetup *introSceneSetup, SceneSetup *sceneSetup) {
     ModelsArray modelsArray;
     MArrayInit(modelsArray);
 
-    CompileFileAndWriteOut(sFileToHotCompile, INTRO_OVERRIDES, &sModelOverrides, &modelsArray);
+    CompileFileAndWriteOut(sFileToHotCompile, INTRO_OVERRIDES_LE, &sModelOverrides, &modelsArray,
+                           ModelEndian_LITTLE, TRUE);
 
     MArrayCopy(sOrigModels, (*introSceneSetup).assets.models);
     for (int i = 0; i < MArraySize(modelsArray); i++) {
@@ -499,7 +500,15 @@ int main(int argc, char**argv) {
         ModelsArray modelsArray;
         MArrayInit(modelsArray);
 
-        result = CompileFileAndWriteOut(sFileToCompile, INTRO_OVERRIDES, &memOutput, &modelsArray);
+        result = CompileFileAndWriteOut(sFileToCompile, INTRO_OVERRIDES_LE, &memOutput, &modelsArray,
+                                        ModelEndian_LITTLE, TRUE);
+
+
+        MArrayClear(modelsArray);
+        MMemReset(&memOutput);
+
+        result = CompileFileAndWriteOut(sFileToCompile, INTRO_OVERRIDES_BE, &memOutput, &modelsArray,
+                                        ModelEndian_BIG, FALSE);
 
         MArrayFree(modelsArray);
         MMemFree(&memOutput);
@@ -558,7 +567,7 @@ int main(int argc, char**argv) {
     MArrayCopy(sLoopContext.introScene.assets.models, sOrigModels);
     ModelsArray overrideModels;
     MArrayInit(overrideModels);
-    MReadFileRet overridesFile = Assets_LoadModelOverrides(INTRO_OVERRIDES, &overrideModels);
+    MReadFileRet overridesFile = Assets_LoadModelOverrides(INTRO_OVERRIDES_LE, &overrideModels);
     for (int i = 0; i < MArraySize(overrideModels); i++) {
         if (overrideModels.arr[i]) {
             MArraySet(sLoopContext.introScene.assets.models, i, overrideModels.arr[i]);
@@ -639,8 +648,10 @@ int main(int argc, char**argv) {
     Assets_FreeAmigaFiles(&assetsDataAmiga);
     MArrayFree(overrideModels);
     if (overridesFile.data) {
-        MFree(overridesFile.data);
+        MFree(overridesFile.data, overridesFile.size);
     }
+
+    MArrayFree(sOrigModels);
 
     Render_Free(sceneSetup);
     Raster_Free(&raster);

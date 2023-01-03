@@ -49,6 +49,7 @@ typedef struct sAssetsDataAmiga {
 
     ModelsArray galmapModels;
     u8** mainStrings;
+    u32 mainStringsLen;
     u8* bitmapFontData;
     AssetsReadEnum assetsRead;
 } AssetsDataAmiga;

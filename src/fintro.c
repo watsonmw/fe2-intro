@@ -62,6 +62,7 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData
 #endif
 
     sceneSetup->moduleStrings = Assets_LoadStringPointers16LE(introFileData + 0x1d8, 33);
+    sceneSetup->moduleStringNum = 33;
 
     Assets_LoadModelPointers16LE(introFileData + 0x3b0, 120, &sceneSetup->assets.models);
     Assets_LoadModelPointers16LE(assetsData->vectorFontData, 15, &sceneSetup->assets.galmapModels);
@@ -151,6 +152,7 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
                            (0x6a34 - (planetByteCodeStart + planetByteCodeLen)));
 
         sceneSetup->moduleStrings = Assets_LoadStringPointers16BE(fileData + 0x76f88, 33);
+        sceneSetup->moduleStringNum = 33 ;
         intro->creditsStringData = (u16*)(fileData + 0x81e16);
     } else if (assetsData->assetsRead == AssetsRead_Amiga_EliteClub) {
         Assets_LoadModelPointers32BE(fileData + 0x7ffdc, 120, &sceneSetup->assets.models);
@@ -162,6 +164,7 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
         ARRAY_REWRITE_BE16(fileData + 0x829f8, 28);
 
         sceneSetup->moduleStrings = Assets_LoadStringPointers16BE(fileData + 0x7fe0e, 33);
+        sceneSetup->moduleStringNum = 33;
         intro->creditsStringData = (u16*)(fileData + 0x8b774);
     } else if (assetsData->assetsRead == AssetsRead_Amiga_EliteClub2) {
         Assets_LoadModelPointers32BE(fileData + 0x7ffdc, 120, &sceneSetup->assets.models);
@@ -173,6 +176,7 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
         ARRAY_REWRITE_BE16(fileData + 0x829f8, 28);
 
         sceneSetup->moduleStrings = Assets_LoadStringPointers16BE(fileData + 0x7fe0e, 33);
+        sceneSetup->moduleStringNum = 33;
         intro->creditsStringData = (u16*)(fileData + 0x8b774);
     }
 
@@ -230,19 +234,19 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
 #if FINTRO_SCREEN_RES == 3
         Image8Bit* upScaledImage = MArrayAddPtr(intro->imageStore.images);
         Render_ImageUpscale2x(&image, upScaledImage);
-        MFree(image.data);
+        MFree(image.data, image.w * image.h);
 #endif
     }
 }
 
 void Intro_Free(Intro* intro, SceneSetup* sceneSetup) {
     MArrayFree(sceneSetup->assets.models);
-    MFree(sceneSetup->moduleStrings);
+    MFree(sceneSetup->moduleStrings, sceneSetup->moduleStringNum * sizeof(u8*));
 
     Images8Bit* images = &intro->imageStore.images;
     for (int i = 0; i < MArraySize(*images); i++) {
         Image8Bit* image = MArrayGetPtr(*images, i);
-        MFree(image->data);
+        MFree(image->data, image->w * image->h);
     }
 
     MArrayFree(*images);

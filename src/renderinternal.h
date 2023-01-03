@@ -6,8 +6,6 @@
 #ifndef FINTRO_RENDER_INTERNAL_H
 #define FINTRO_RENDER_INTERNAL_H
 
-#include <stdint.h>
-
 #include "mlib.h"
 #include "fmath.h"
 

@@ -1,4 +1,4 @@
-Frontier Elite II Intro Player
+Frontier: Elite II Intro Player
 ---
 
 ---
@@ -6,7 +6,7 @@ About
 ---
 
 This is a RTG player for the Frontier intro, it's a full implementation of the
-Frontier Elite II renderer.  The 3d models and music are read from the official
+Frontier: Elite II renderer.  The 3d models and music are read from the official
 Frontier exe.  You must already own Frontier or alternatively download the
 shareware version and send 5 pounds to Frontier Developments.
 
@@ -23,7 +23,7 @@ Requirements
 Tested on FS-UAE / WinUAE and on Vampire V4, reported to work well on a V1200
 by Dr Procton!
 
-Frontier Elite II exe must exist in same directory as 'fintro'.  Use the exe
+'Frontier: Elite II' exe must exist in same directory as 'fintro'.  Use the exe
 from the CD32 version or the final Elite Club shareware version.  This can be
 downloaded from here:
 
@@ -44,7 +44,7 @@ Controls
   Escape     - Exit
   Left Mouse - Exit
 
-Somewhat OS friendly, multitasking is still enabled.  But stop any music players
+Somewhat OS friendly, multi-tasking is still enabled.  But stop any music players
 before starting as it trounces audio registers.
 
 
@@ -69,6 +69,17 @@ FAQ
 Q. Could this be patched into original Amiga exe so we can play FE2 in RTG?
 A. Yes it could be, it would be work, but the original exe had jump tables for
    the renderer that this code mostly re-implements.
+
+Q. It crashes on ApolloOS / AROS!
+A. For me too.  There's at least two issues:
+     - The software interrupt that generates the sound can get corrupted.  This
+       only happens if you run the startup sequence.
+     - PC or status register gets corrupted during rendering, likely also an
+       interrupt issue.
+   Of course, it could be a bug on my side - but it's not for lack of looking -
+   let me just say that!
+   A solution would be to turn off the OS while running, and use HW interrrupts
+   for the sound.
 
 
 ---

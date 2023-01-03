@@ -13,6 +13,111 @@
 
 #include "mlib.h"
 
+// Define to log allocations
+// #define M_LOG_ALLOCATIONS
+
+static MAllocator* sAllocator;
+
+#ifndef M_CLIB_DISABLE
+
+#ifdef M_CLIB_USE_ALIGNED
+#define M_ALLOC_ALIGNMENT 64
+
+void* default_malloc(void* alloc, size_t size) {
+    return _aligned_malloc(size, M_ALLOC_ALIGNMENT);
+}
+
+void* default_realloc(void* alloc, void* mem, size_t oldSize, size_t newSize) {
+    return _aligned_realloc(mem, newSize, M_ALLOC_ALIGNMENT);
+}
+
+void default_free(void* alloc, void* mem, size_t size) {
+    _aligned_free(mem);
+}
+#else
+void* default_malloc(void* alloc, size_t size) {
+    return malloc(size);
+}
+
+void* default_realloc(void* alloc, void* mem, size_t oldSize, size_t newSize) {
+    return realloc(mem, newSize);
+}
+
+void default_free(void* alloc, void* mem, size_t size) {
+    free(mem);
+}
+#endif
+
+static MAllocator sClibMAllocator = {
+    default_malloc,
+    default_realloc,
+    default_free
+};
+
+void MMemUseClibAllocator() {
+    sAllocator = &sClibMAllocator;
+}
+
+#endif
+
+void* MBumpMalloc(void* _ba, size_t size) {
+    MMemBumpAllocator* ba = _ba;
+
+    u8* pos = ba->end;
+    ba->end += size;
+
+    size_t memUsed = ba->end - ba->mem;
+    if (ba->size < memUsed) {
+        MLogf("malloc(%d) failed: out of memory - using %d of %d", size, memUsed, ba->size);
+    }
+
+    return pos;
+}
+
+void* MBumpRealloc(void* _ba, void* mem, size_t oldSize, size_t newSize) {
+    MMemBumpAllocator* ba = _ba;
+
+    u8* pos = ba->end;
+    memcpy(pos, mem, oldSize);
+    ba->end += newSize;
+
+    size_t memUsed = ba->end - ba->mem;
+    if (ba->size < memUsed) {
+        MLogf("realloc(%d) failed: out of memory - using %d of %d", newSize, memUsed, ba->size);
+    }
+
+    return pos;
+}
+
+void MBumpFree(void* _ba, void* mem, size_t size) {
+    // nop
+}
+
+MMemBumpAllocator* MMemBumpAllocInit(u8* mem, size_t size) {
+    MMemBumpAllocator ba;
+    ba.mem = mem;
+    ba.end = mem;
+    ba.size = size;
+    ba.alloc.mallocFunc = MBumpMalloc;
+    ba.alloc.reallocFunc = MBumpRealloc;
+    ba.alloc.freeFunc = MBumpFree;
+
+    MMemBumpAllocator* b = (MMemBumpAllocator*)MBumpMalloc(&ba, sizeof(MMemBumpAllocator));
+    *b = ba;
+    return b;
+}
+
+void MMemBumpDumpInfo(MMemBumpAllocator* ba) {
+    size_t size_used = ba->end - ba->mem;
+    MLogf("Bump allocator used: %d (0x%x) bytes", size_used, size_used);
+}
+
+void MMemAllocSet(MAllocator* allocator) {
+    sAllocator = allocator;
+}
+
+#ifdef M_MEM_DEBUG
+
 /////////////////////////////////////////////////////////
 // Memory overwrite checking
 
@@ -27,12 +132,20 @@ typedef struct sMMemAllocation {
     int line;
 } MMemAllocInfo;
 
-MARRAY_TYPEDEF(MMemAllocInfo, MMemAllocations)
-MARRAY_TYPEDEF(u32, MMemAllocationFreeSpots)
+MARRAY_TYPEDEF(MMemAllocInfo, MMemAllocationSlots)
+MARRAY_TYPEDEF(u32, MMemAllocationFreeSlots)
 
-static MMemAllocations sMemAllocInfo;
-static MMemAllocationFreeSpots sMemAllocFree;
-static b32 sMemDebugInitialized = FALSE;
+typedef struct sMMemDebugContext {
+    MMemAllocationSlots allocSlots;
+    MMemAllocationFreeSlots freeSlots;
+    b32 sMemDebugInitialized;
+    u32 totalAllocations;
+    u32 totalAllocatedBytes;
+    u32 curAllocatedBytes;
+    u32 maxAllocatedBytes;
+} MMemDebugContext;
+
+static MMemDebugContext sMemDebugContext;
 
 MINLINE i32 MMemDebug_ArrayGrowIfNeeded(void** arr, MArrayInfo* p, u32 itemSize, u32 numAdd) {
     u32 minNeeded = p->size + numAdd;
@@ -46,7 +159,7 @@ MINLINE i32 MMemDebug_ArrayGrowIfNeeded(void** arr, MArrayInfo* p, u32 itemSize,
             newCapacity = minNeeded;
         }
 
-        void* mem = realloc(*arr, itemSize * newCapacity);
+        void* mem = sAllocator->reallocFunc(sAllocator, *arr, itemSize *capacity, itemSize * newCapacity);
         if (mem == NULL)  {
             MLogf("MArray realloc failed for %x", *arr);
             return 0;
@@ -69,36 +182,45 @@ MINLINE i32 MMemDebug_ArrayGrowIfNeeded(void** arr, MArrayInfo* p, u32 itemSize,
 #define MMemDebugArrayAddPtr(a) (MMemDebug_ArrayGrowIfNeeded(M_ArrayUnpack(a), 1) ? (((a).arr + (a).p.size++)) : 0)
 
 void MMemDebugInit() {
-    if (!sMemDebugInitialized) {
-        MArrayInit(sMemAllocInfo);
-        MArrayInit(sMemAllocFree);
-        sMemDebugInitialized = TRUE;
+    if (!sMemDebugContext.sMemDebugInitialized) {
+        MArrayInit(sMemDebugContext.allocSlots);
+        MArrayInit(sMemDebugContext.freeSlots);
+        sMemDebugContext.sMemDebugInitialized = TRUE;
     }
 }
 
 void MMemDebugDeinit() {
-    if (!sMemDebugInitialized) {
+    if (!sMemDebugContext.sMemDebugInitialized) {
         return;
     }
 
+    MLogf("Total allocations: %ld", sMemDebugContext.totalAllocations);
+    MLogf("Total allocated: %ld bytes", sMemDebugContext.totalAllocatedBytes);
+    MLogf("Max memory used: %ld bytes", sMemDebugContext.maxAllocatedBytes);
+
     MMemDebugCheckAll();
 
-    for (u32 i = 0; i < MArraySize(sMemAllocInfo); ++i) {
-        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemAllocInfo, i);
+    for (u32 i = 0; i < MArraySize(sMemDebugContext.allocSlots); ++i) {
+        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemDebugContext.allocSlots, i);
         if (memAlloc->start) {
-            MLogf("Leaking allocation: %s:%d 0x%x (%d)", memAlloc->file, memAlloc->line, memAlloc->start, memAlloc->size);
+            MLogf("Leaking allocation: %s:%d 0x%p (%d)", memAlloc->file, memAlloc->line, memAlloc->start,
+                  memAlloc->size);
         }
     }
 
-    free(sMemAllocInfo.arr); sMemAllocInfo.arr = NULL;
-    sMemAllocInfo.p.capacity = 0;
-    sMemAllocInfo.p.size = 0;
+    sAllocator->freeFunc(sAllocator, sMemDebugContext.allocSlots.arr,
+                         sMemDebugContext.allocSlots.p.capacity * sizeof(MMemAllocInfo));
+    sMemDebugContext.allocSlots.arr = NULL;
+    sMemDebugContext.allocSlots.p.capacity = 0;
+    sMemDebugContext.allocSlots.p.size = 0;
 
-    free(sMemAllocFree.arr); sMemAllocFree.arr = NULL;
-    sMemAllocFree.p.capacity = 0;
-    sMemAllocFree.p.size = 0;
+    sAllocator->freeFunc(sAllocator, sMemDebugContext.freeSlots.arr,
+                         sMemDebugContext.freeSlots.p.capacity * sizeof(u32));
+    sMemDebugContext.freeSlots.arr = NULL;
+    sMemDebugContext.freeSlots.p.capacity = 0;
+    sMemDebugContext.freeSlots.p.size = 0;
 
-    sMemDebugInitialized = FALSE;
+    sMemDebugContext.sMemDebugInitialized = FALSE;
 }
 
 static u8 sMagicSentinelValues[4] = { 0x1d, 0xdf, 0x83, 0xc7 };
@@ -115,7 +237,6 @@ u32 MMemDebugSentinelCheck(void* mem, size_t size) {
     u8* ptr = (u8*)mem;
     u32 bytesOverwritten = 0;
 
-
     for (u32 i = 0; i < size; ++i) {
         if (ptr[i] != sMagicSentinelValues[i & 0x3]) {
             bytesOverwritten++;
@@ -125,181 +246,76 @@ u32 MMemDebugSentinelCheck(void* mem, size_t size) {
     return bytesOverwritten;
 }
 
-static const char* sHexChars = "0123456789abcdef";
-
-static void LogBytesOverwritten(u8* start, u8* ptr, u32 bytesOverwritten) {
-    MLogf("offset: %d bytes: %d", start - ptr, bytesOverwritten);
-
-    const int bytesPerLine = 16; // must be power of two - see AND (&) below
-    char buff[bytesPerLine + 1];
-    int buffPos = 0;
-
-    for (int j  = 0; j < bytesOverwritten; ++j) {
-        u8 val = start[j];
-        buff[buffPos++] = sHexChars[val >> 4];
-        buff[buffPos++] = sHexChars[val & 0xf];
-        if ((buffPos & (bytesPerLine - 1)) == 0) {
-            buff[buffPos] = 0;
-            MLog(buff);
-            buffPos = 0;
-        }
+static void LogBytesOverwritten(u8* startSentintel, u8* startOverwrite, u32 bytesOverwritten, b32 isAfter) {
+    if (isAfter) {
+        MLogf("offset: %d bytes: %d", startOverwrite - startSentintel, bytesOverwritten);
+    } else {
+        MLogf("offset: %d bytes: %d", startOverwrite - (SENTINEL_BEFORE + startSentintel), bytesOverwritten);
     }
 
-    if (buffPos) {
-        buff[buffPos] = 0;
-        MLog(buff);
-    }
+    MLogBytes(startOverwrite, bytesOverwritten);
 }
 
-void MMemDebugSentinelCheckMLog(void* mem, size_t size) {
-    u8* ptr = (u8*)mem;
+void MMemDebugSentinelCheckMLog(void* sentinelMemStart, size_t size, b32 isAfter) {
+    u8* sentinelStart = (u8*)sentinelMemStart;
     u32 bytesOverwritten = 0;
 
     int state = 0;
-    u8* start = 0;
+    u8* overwriteStart = 0;
     for (u32 i = 0; i < size; ++i) {
-        if (ptr[i] != sMagicSentinelValues[i & 0x3]) {
+        if (sentinelStart[i] != sMagicSentinelValues[i & 0x3]) {
             if (state == 0) {
-                start = ptr + i;
+                overwriteStart = sentinelStart + i;
                 state = 1;
                 bytesOverwritten = 0;
             }
             bytesOverwritten++;
         } else if (state == 1) {
-            LogBytesOverwritten(start, ptr, bytesOverwritten);
+            LogBytesOverwritten(sentinelStart, overwriteStart, bytesOverwritten, isAfter);
             state = 0;
         }
     }
 
     if (state == 1) {
-        LogBytesOverwritten(start, ptr, bytesOverwritten);
+        LogBytesOverwritten(sentinelStart, overwriteStart, bytesOverwritten, isAfter);
     }
 }
 
 b32 MMemDebugCheckMemAlloc(MMemAllocInfo* memAlloc) {
     if (!memAlloc->mem) {
-        return TRUE;
+        return FALSE;
     }
 
     u32 beforeBytes = MMemDebugSentinelCheck(memAlloc->mem - SENTINEL_BEFORE, SENTINEL_BEFORE);
     u32 afterBytes = MMemDebugSentinelCheck(memAlloc->mem + memAlloc->size, SENTINEL_AFTER);
     if (beforeBytes) {
-        MLogf("MMemDebugCheck: %s:%d : %d bytes overwritten before", memAlloc->file, memAlloc->line, beforeBytes);
-        MMemDebugSentinelCheckMLog(memAlloc->mem - SENTINEL_BEFORE, SENTINEL_BEFORE);
+        MLogf("MMemDebugCheck: %s:%d : %d bytes overwritten before:", memAlloc->file, memAlloc->line, beforeBytes);
+        MMemDebugSentinelCheckMLog(memAlloc->mem - SENTINEL_BEFORE, SENTINEL_BEFORE, FALSE);
         MMemDebugSentinelSet(memAlloc->mem - SENTINEL_BEFORE, SENTINEL_BEFORE);
     }
 
     if (afterBytes) {
-        MLogf("MMemDebugCheck: %s:%d : %d bytes overwritten after", memAlloc->file, memAlloc->line, afterBytes);
-        MMemDebugSentinelCheckMLog(memAlloc->mem + memAlloc->size, SENTINEL_AFTER);
+        MLogf("MMemDebugCheck: %s:%d : %d bytes overwritten after:", memAlloc->file, memAlloc->line, afterBytes);
+        MMemDebugSentinelCheckMLog(memAlloc->mem + memAlloc->size, SENTINEL_AFTER, TRUE);
+        MLogBytes(memAlloc->mem + SENTINEL_BEFORE, 20);
         MMemDebugSentinelSet(memAlloc->mem + memAlloc->size, SENTINEL_AFTER);
     }
 
-    return afterBytes & beforeBytes;
-}
-
-void* _MMemDebugAlloc(const char* file, int line, size_t size) {
-    if (!sMemDebugInitialized) {
-        MMemDebugInit();
-        atexit(MMemDebugDeinit);
-    }
-
-    MMemAllocInfo* memAlloc = NULL;
-    if (MArraySize(sMemAllocFree)) {
-        memAlloc = MArrayGetPtr(sMemAllocInfo, MArrayPop(sMemAllocFree));
-    } else {
-        memAlloc = MMemDebugArrayAddPtr(sMemAllocInfo);
-    }
-
-    size_t start = SENTINEL_BEFORE + 15;
-    size_t allocSize = start + size + SENTINEL_AFTER;
-    memAlloc->start = (u8*)malloc(allocSize);
-    memAlloc->size = size;
-    memAlloc->file = file;
-    memAlloc->line = line;
-    memAlloc->mem = (u8*) (((size_t) (memAlloc->start + start)) & ~((size_t)15u));
-
-    MMemDebugSentinelSet(memAlloc->mem - SENTINEL_BEFORE, SENTINEL_BEFORE);
-    MMemDebugSentinelSet(memAlloc->mem + memAlloc->size, SENTINEL_AFTER);
-
-    return memAlloc->mem;
-}
-
-void MMemDebugFree(void* p) {
-    if (p == NULL) {
-        return;
-    }
-
-    for (u32 i = 0; i < MArraySize(sMemAllocInfo); ++i) {
-        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemAllocInfo, i);
-        if (p == memAlloc->mem) {
-            MMemDebugCheckMemAlloc(memAlloc);
-            free(memAlloc->start);
-            memAlloc->start = 0;
-            memAlloc->mem = 0;
-            *(MMemDebugArrayAddPtr(sMemAllocFree)) = i;
-            return;
-        }
-    }
-
-    MLog("MMemDebugFree called on invalid ptr");
-}
-
-void* _MMemDebugRealloc(const char* file, int line, void* p, size_t size) {
-    if (p == NULL) {
-        return _MMemDebugAlloc(file, line, size);
-    }
-
-    MMemAllocInfo* memAllocFound = NULL;
-    for (u32 i = 0; i < MArraySize(sMemAllocInfo); ++i) {
-        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemAllocInfo, i);
-        if (p == memAlloc->mem) {
-            MMemDebugCheckMemAlloc(memAlloc);
-            memAllocFound = memAlloc;
-            break;
-        }
-    }
-
-    if (memAllocFound == NULL) {
-        MLogf("MMemDebugRealloc called on invalid ptr at line: %s:%d", file, line);
-        return p;
-    }
-
-    size_t start = SENTINEL_BEFORE + 15;
-    size_t allocSize = start + size + SENTINEL_AFTER;
-
-    memAllocFound->size = size;
-    u8* newStart = (u8*)realloc(memAllocFound->start, allocSize);
-    u8* newMem = (u8*) (((size_t) (newStart + start)) & ~((size_t)15u));
-    i64 newOffset = newMem - newStart;
-    i64 oldOffset = memAllocFound->mem - memAllocFound->start;
-    if (newOffset != oldOffset) {
-        memmove(newMem, newStart + oldOffset, size);
-    }
-    memAllocFound->mem = newMem;
-    memAllocFound->start = newStart;
-    memAllocFound->file = file;
-    memAllocFound->line = line;
-
-    MMemDebugSentinelSet(memAllocFound->mem - SENTINEL_BEFORE, SENTINEL_BEFORE);
-    MMemDebugSentinelSet(memAllocFound->mem + memAllocFound->size, SENTINEL_AFTER);
-
-    return memAllocFound->mem;
+    return !(afterBytes | beforeBytes);
 }
 
 b32 MMemDebugCheck(void* p) {
     MMemAllocInfo* memAllocFound = NULL;
-    for (u32 i = 0; i < MArraySize(sMemAllocInfo); ++i) {
-        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemAllocInfo, i);
+    for (u32 i = 0; i < MArraySize(sMemDebugContext.allocSlots); ++i) {
+        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemDebugContext.allocSlots, i);
         if (p == memAlloc->mem) {
-            MMemDebugCheckMemAlloc(memAlloc);
             memAllocFound = memAlloc;
             break;
         }
     }
 
     if (memAllocFound == NULL) {
-        MLog("MMemDebugCheck called on invalid ptr");
+        MLogf("MMemDebugCheck called on invalid ptr %p", p);
         return FALSE;
     }
 
@@ -308,14 +324,170 @@ b32 MMemDebugCheck(void* p) {
 
 b32 MMemDebugCheckAll() {
     b32 memOk = TRUE;
-    for (u32 i = 0; i < MArraySize(sMemAllocInfo); ++i) {
-        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemAllocInfo, i);
+    for (u32 i = 0; i < MArraySize(sMemDebugContext.allocSlots); ++i) {
+        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemDebugContext.allocSlots, i);
         if (!MMemDebugCheckMemAlloc(memAlloc)) {
             memOk = FALSE;
         }
     }
 
     return memOk;
+}
+
+#endif
+
+void* _MMalloc(MDEBUG_SOURCE_DEFINE size_t size) {
+#ifndef M_CLIB_DISABLE
+    if (!sAllocator) {
+        sAllocator = &sClibMAllocator;
+    }
+#endif
+
+#ifdef M_MEM_DEBUG
+#ifdef M_LOG_ALLOCATIONS
+    MLogf("malloc %s:%d %d", file, line, size);
+#endif
+
+    if (!sMemDebugContext.sMemDebugInitialized) {
+        MMemDebugInit();
+        atexit(MMemDebugDeinit);
+    }
+
+    MMemAllocInfo* memAlloc = NULL;
+    int pos = 0;
+    if (MArraySize(sMemDebugContext.freeSlots)) {
+        pos = MArrayPop(sMemDebugContext.freeSlots);
+        memAlloc = MArrayGetPtr(sMemDebugContext.allocSlots, pos);
+    } else {
+        memAlloc = MMemDebugArrayAddPtr(sMemDebugContext.allocSlots);
+        pos = sMemDebugContext.allocSlots.p.size - 1;
+    }
+
+    size_t start = SENTINEL_BEFORE;
+    size_t allocSize = start + size + SENTINEL_AFTER;
+    memAlloc->size = size;
+    memAlloc->start = (u8*)sAllocator->mallocFunc(sAllocator, allocSize);
+    memAlloc->mem = (u8*) memAlloc->start + SENTINEL_BEFORE;
+    memAlloc->file = file;
+    memAlloc->line = line;
+
+    sMemDebugContext.totalAllocations += 1;
+    sMemDebugContext.totalAllocatedBytes += size;
+    sMemDebugContext.curAllocatedBytes += size;
+    if (sMemDebugContext.curAllocatedBytes > sMemDebugContext.maxAllocatedBytes) {
+        sMemDebugContext.maxAllocatedBytes = sMemDebugContext.curAllocatedBytes;
+    }
+
+    MMemDebugSentinelSet(memAlloc->mem - SENTINEL_BEFORE, SENTINEL_BEFORE);
+    MMemDebugSentinelSet(memAlloc->mem + memAlloc->size, SENTINEL_AFTER);
+
+#ifdef M_LOG_ALLOCATIONS
+    MLogf("-> 0x%p", memAlloc->mem);
+#endif
+    return memAlloc->mem;
+#else
+    return sAllocator->mallocFunc(sAllocator, size);
+#endif
+}
+
+void _MFree(MDEBUG_SOURCE_DEFINE void* p, size_t size) {
+#ifndef M_CLIB_DISABLE
+    if (!sAllocator) {
+        sAllocator = &sClibMAllocator;
+    }
+#endif
+    if (p == NULL) {
+        return;
+    }
+
+#ifdef M_MEM_DEBUG
+    for (u32 i = 0; i < MArraySize(sMemDebugContext.allocSlots); ++i) {
+        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemDebugContext.allocSlots, i);
+        if (p == memAlloc->mem) {
+            MMemDebugCheckMemAlloc(memAlloc);
+            if (size != memAlloc->size) {
+                MLogf("MFree %s:%d 0x%p called with size: %d - should be: %d", file, line, p, size,
+                      memAlloc->size);
+            }
+            sAllocator->freeFunc(sAllocator, memAlloc->start, SENTINEL_BEFORE + memAlloc->size + SENTINEL_AFTER);
+            sMemDebugContext.curAllocatedBytes -= memAlloc->size;
+            memAlloc->start = 0;
+            memAlloc->mem = 0;
+#ifdef M_LOG_ALLOCATIONS
+            MLogf("free %s:%d 0x%p %d   allocated @ %s:%d" , file, line, p, memAlloc->size,
+                  memAlloc->file, memAlloc->line);
+#endif
+            *(MMemDebugArrayAddPtr(sMemDebugContext.freeSlots)) = i;
+            return;
+        }
+    }
+
+    MLogf("MFree %s:%d called on invalid ptr: 0x%p", file, line, p);
+#else
+    sAllocator->freeFunc(sAllocator, p, size);
+#endif
+}
+
+void* _MRealloc(MDEBUG_SOURCE_DEFINE void* p, size_t oldSize, size_t newSize) {
+#ifndef M_CLIB_DISABLE
+    if (!sAllocator) {
+        sAllocator = &sClibMAllocator;
+    }
+#endif
+
+#ifdef M_MEM_DEBUG
+#ifdef M_LOG_ALLOCATIONS
+    MLogf("realloc %s:%d %d", file, line, newSize);
+#endif
+    if (p == NULL) {
+        return _MMalloc(MDEBUG_SOURCE_PASS newSize);
+    }
+
+    MMemAllocInfo* memAllocFound = NULL;
+    for (u32 i = 0; i < MArraySize(sMemDebugContext.allocSlots); ++i) {
+        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemDebugContext.allocSlots, i);
+        if (p == memAlloc->mem) {
+            MMemDebugCheckMemAlloc(memAlloc);
+            memAllocFound = memAlloc;
+            break;
+        }
+    }
+
+    if (memAllocFound == NULL) {
+        MLogf("MRealloc called on invalid ptr at line: %s:%d %p", file, line, p);
+        return p;
+    }
+
+    if (memAllocFound->size != oldSize) {
+        MLogf("MRealloc %s:%d 0x%p called with old size: %d - should be: %d", file, line, p, oldSize,
+              memAllocFound->size);
+    }
+
+    sMemDebugContext.totalAllocations += 1;
+    sMemDebugContext.totalAllocatedBytes += newSize;
+    sMemDebugContext.curAllocatedBytes += newSize - memAllocFound->size;
+    if (sMemDebugContext.curAllocatedBytes > sMemDebugContext.maxAllocatedBytes) {
+        sMemDebugContext.maxAllocatedBytes = sMemDebugContext.curAllocatedBytes;
+    }
+
+    size_t allocSize = SENTINEL_BEFORE + newSize + SENTINEL_AFTER;
+    memAllocFound->size = newSize;
+    memAllocFound->start = (u8*)sAllocator->reallocFunc(sAllocator, memAllocFound->start,
+                                                        SENTINEL_BEFORE + oldSize + SENTINEL_AFTER, allocSize);
+    memAllocFound->mem = memAllocFound->start + SENTINEL_BEFORE;
+    memAllocFound->file = file;
+    memAllocFound->line = line;
+
+    MMemDebugSentinelSet( memAllocFound->start, SENTINEL_BEFORE);
+    MMemDebugSentinelSet(memAllocFound->mem + memAllocFound->size, SENTINEL_AFTER);
+
+#ifdef M_LOG_ALLOCATIONS
+    MLogf("-> %p (resized)", memAllocFound->mem);
+#endif
+    return memAllocFound->mem;
+#else
+    return sAllocator->reallocFunc(sAllocator, p, oldSize, newSize);
+#endif
 }
 
 /////////////////////////////////////////////////////////
@@ -343,10 +515,34 @@ void MLog(const char *str) {
     fflush(stdout);
 }
 
+static const char* sHexChars = "0123456789abcdef";
+
+void MLogBytes(const u8* mem, u32 len) {
+    const int bytesPerLine = 64; // must be power of two - see AND (&) below
+    char buff[bytesPerLine + 1];
+    int buffPos = 0;
+
+    for (int j  = 0; j < len; ++j) {
+        u8 val = mem[j];
+        buff[buffPos++] = sHexChars[val >> 4];
+        buff[buffPos++] = sHexChars[val & 0xf];
+        if ((buffPos & (bytesPerLine - 1)) == 0) {
+            buff[buffPos] = 0;
+            MLog(buff);
+            buffPos = 0;
+        }
+    }
+
+    if (buffPos) {
+        buff[buffPos] = 0;
+        MLog(buff);
+    }
+}
+
 /////////////////////////////////////////////////////////
 // Dynamic Array
 
-i32 M_ArrayGrow(MEMDEBUG_SOURCE_DEFINE void** arr, MArrayInfo* p, u32 itemSize, u32 minNeeded) {
+i32 M_ArrayGrow(MDEBUG_SOURCE_DEFINE void** arr, MArrayInfo* p, u32 itemSize, u32 minNeeded) {
     u32 capacity = p->capacity;
     u32 newCapacity = (capacity > 4) ? (2 * capacity) : 8; // allocate for at least 8 elements
 
@@ -354,11 +550,7 @@ i32 M_ArrayGrow(MEMDEBUG_SOURCE_DEFINE void** arr, MArrayInfo* p, u32 itemSize, 
         newCapacity = minNeeded;
     }
 
-#ifdef MEMDEBUG
-    void* mem = _MMemDebugRealloc(file, line, *arr, itemSize * newCapacity);
-#else
-    void* mem = MRealloc(*arr, itemSize * newCapacity);
-#endif
+    void* mem = _MRealloc(MDEBUG_SOURCE_PASS *arr, itemSize * capacity, itemSize * newCapacity);
     if (mem == NULL)  {
         MLogf("MArray realloc failed for %x", *arr);
         return 0;
@@ -377,8 +569,8 @@ i32 M_ArrayGrow(MEMDEBUG_SOURCE_DEFINE void** arr, MArrayInfo* p, u32 itemSize, 
     return 1;
 }
 
-void M_ArrayFree(void** arr, MArrayInfo* p) {
-    MFree(*arr); *arr = NULL;
+void M_ArrayFree(MDEBUG_SOURCE_DEFINE void** arr, MArrayInfo* p, u32 itemSize) {
+    _MFree(MDEBUG_SOURCE_PASS *arr, itemSize * p->capacity); *arr = NULL;
     p->capacity = 0;
     p->size = 0;
 }
@@ -391,7 +583,7 @@ void M_MemResize(MMemIO* memIO, u32 newMinSize) {
     if (memIO->capacity * 2 > newSize) {
         newSize = memIO->capacity * 2;
     }
-    memIO->mem = MRealloc(memIO->mem, newSize);
+    memIO->mem = MRealloc(memIO->mem, memIO->capacity, newSize);
     memIO->pos = memIO->mem + memIO->size;
     memIO->capacity = newSize;
 }
@@ -1011,11 +1203,11 @@ i32 MIniParse(MIni* ini) {
     return 1;
 }
 
-i32 MIniFree(MIni* ini) {
+i32 _MIniFree(MDEBUG_SOURCE_DEFINE MIni* ini) {
     MArrayFree(ini->values);
 
     if (ini->owned) {
-        MFree(ini->data); ini->data = 0;
+        _MFree(MDEBUG_SOURCE_PASS ini->data, ini->dataSize); ini->data = 0;
         ini->owned = 0;
     }
 
@@ -1023,7 +1215,7 @@ i32 MIniFree(MIni* ini) {
 }
 
 i32 MIniReadI32(MIni* ini, const char* key, i32* valOut) {
-    u32 inSize = strlen(key);
+    u32 inSize = MStrLen(key);
 
     for (int i = 0; i < MArraySize(ini->values); i++) {
         MIniPair* pair = MArrayGetPtr(ini->values, i);

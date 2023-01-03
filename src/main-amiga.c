@@ -20,11 +20,6 @@
 #include <proto/cybergraphics.h>
 #endif
 
-#include <stdio.h>
-#include <stdlib.h>
-
-#include <string.h>
-
 #include "assets.h"
 #include "audio.h"
 #include "fintro.h"
@@ -37,7 +32,10 @@
 #define KC_SPACE 0x40
 #define KC_F1 0x50
 
+// Audio runs at 50 frames per second
 #define AUDIO_TICK_DELAY_MICROS (20 * 1000)
+
+// A lot of stack is used by the renderer
 #define MIN_STACK_BYTES 100000
 
 #ifdef __GNUC__
@@ -50,7 +48,12 @@
 #define BUILD_ID "Unknown build : #define BUILD_ID"
 #endif
 
-const STRPTR MNOREMOVE VERSTRING = "$VER: Frontier Elite2 Intro (" MMACRO_QUOTE(BUILD_ID) ") Mark Watson";
+const STRPTR MNOREMOVE VERSTRING = "$VER: Frontier: Elite2 Intro (" MMACRO_QUOTE(BUILD_ID) ") Mark Watson";
+const STRPTR MNOREMOVE STACKSIZE = "$STACK:" MMACRO_QUOTE(MIN_STACK_BYTES) "\n";
+
+#ifdef __VBCC__
+size_t __stack = MIN_STACK_BYTES;
+#endif
 
 #ifndef BUILD_INFO
 #define BUILD_INFO "Unknown build : #define BUILD_INFO"
@@ -99,7 +102,7 @@ static b32 sProfile;
 static b32 sProfileFrame;
 static b32 sProfileSteps;
 
-#define INTRO_OVERRIDES "data/model-overrides-le.dat"
+#define INTRO_OVERRIDES "data/model-overrides-be.dat"
 
 static UWORD sMouseCursorNullGraphic[] = {
         0x0000, 0x0000, // reserved, must be NULL
@@ -127,10 +130,6 @@ struct AudioTimerCallbackInfo {
 };
 
 static struct AudioTimerCallbackInfo sAudioTimer;
-
-#ifdef __VBCC__
-size_t __stack = (1 ^ 16);
-#endif
 
 u64 AOS_GetClockCount(void) {
     struct EClockVal clock;
@@ -339,12 +338,14 @@ static int AOS_processEvents(void) {
                         sDebugMode = !sDebugMode;
                     } else if (code == KC_SPACE) {
                         sPause = !sPause;
-                        if (sPause) {
-                            Audio_ModStop(&sAudio);
-                        } else {
-                            u64 delta = Intro_GetTimeForFrameOffset(&sIntro, sFrameOffset);
-                            sStartTime = sCurrentClock - (((delta + 1) * sClockTickInterval) / 100);
-                            Audio_ModStartAt(&sAudio, sModToPlay, (delta + 1) / 2);
+                        if (sModToPlay) {
+                            if (sPause) {
+                                Audio_ModStop(&sAudio);
+                            } else {
+                                u64 delta = Intro_GetTimeForFrameOffset(&sIntro, sFrameOffset);
+                                sStartTime = sCurrentClock - (((delta + 1) * sClockTickInterval) / 100);
+                                Audio_ModStartAt(&sAudio, sModToPlay, (delta + 1) / 2);
+                            }
                         }
                     } else if (code == KC_F1) {
                         sWaitTOF = !sWaitTOF;
@@ -407,7 +408,7 @@ static void RenderIntroAtTime(Intro* intro, SceneSetup* sceneSetup, int frameOff
 #if defined(__GNUC__)
 void AudioProgressTick(register struct AudioTimerCallbackInfo* audioTimer __asm("a1")) {
 #else
-    void AudioProgressTick(__reg("a1") struct AudioTimerCallbackInfo* audioTimer) {
+void AudioProgressTick(__reg("a1") struct AudioTimerCallbackInfo* audioTimer) {
 #endif
     struct timerequest* ioRequest = (struct timerequest *)GetMsg(&(audioTimer->timerPort));
 
@@ -435,7 +436,7 @@ void StartAudioTickTimer(AudioContext* audioContext) {
 
     /* Set up the (software)interrupt structure. Note that this task runs at  */
     /* priority 0. Software interrupts may only be priority -32, -16, 0, +16, */
-    /* +32. Also not that the correct node type for a software interrupt is   */
+    /* +32. Also, note that the correct node type for a software interrupt is   */
     /* NT_INTERRUPT. (NT_SOFTINT is an internal Exec flag). */
     sAudioTimer.softInterrupt.is_Code = AudioProgressTick;
     sAudioTimer.softInterrupt.is_Data = &sAudioTimer;
@@ -487,7 +488,7 @@ static b32 PathAppend(char* dirInOut, u32 dirLen, const char* fileName) {
 
     char lastChar = dirInOut[dirLen - 1];
 
-    u32 fileNameLen = strlen(fileName);
+    u32 fileNameLen = MStrLen(fileName);
 
     if (lastChar != ':') {
         dirInOut[dirLen++] = '/';
@@ -502,7 +503,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         const char* arg = argv[i];
         if (*arg == '-') {
-            if (strcmp("mod", arg + 1) == 0) {
+            if (MStrCmp("mod", arg + 1) == 0) {
                 i++;
                 if (i >= argc) {
                     return -1;
@@ -514,7 +515,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
                         sModToPlay = mod;
                     }
                 }
-            } else if (strcmp("f", arg + 1) == 0) {
+            } else if (MStrCmp("f", arg + 1) == 0) {
                 i++;
                 if (i >= argc) {
                     return -1;
@@ -526,7 +527,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
                         sFrameOffset = offset;
                     }
                 }
-            } else if (strcmp("pf", arg + 1) == 0) {
+            } else if (MStrCmp("pf", arg + 1) == 0) {
                 sProfileFrame = TRUE;
                 i++;
                 if (i >= argc) {
@@ -539,9 +540,9 @@ static i32 ParseCommandLine(int argc, char** argv) {
                         sFrameOffset = offset;
                     }
                 }
-            } else if (strcmp("p", arg + 1) == 0) {
+            } else if (MStrCmp("p", arg + 1) == 0) {
                 sProfile = TRUE;
-            } else if (strcmp("ps", arg + 1) == 0) {
+            } else if (MStrCmp("ps", arg + 1) == 0) {
                 sProfile = TRUE;
                 sProfileSteps = TRUE;
             }
@@ -553,10 +554,39 @@ static i32 ParseCommandLine(int argc, char** argv) {
     return 0;
 }
 
-__stdargs int main(int argc, char** argv) {
-    AOS_init();
+void* AmigaMalloc(void* alloc, size_t size) {
+    void* mem = AllocMem(size, MEMF_ANY);
+    return mem;
+}
 
-    MMemDebugInit();
+void* AmigaRealloc(void* alloc, void* mem, size_t oldSize, size_t newSize) {
+    if (newSize > 0) {
+        void* newMem = AllocMem(newSize, MEMF_ANY);
+        if (oldSize) {
+            memcpy(newMem, mem, oldSize);
+            FreeMem(mem, oldSize);
+            return newMem;
+        }
+    } else {
+        FreeMem(mem, oldSize);
+        return 0;
+    }
+}
+
+void AmigaFree(void* alloc, void* mem, size_t size) {
+    FreeMem(mem, size);
+}
+
+static MAllocator sAmigaAlloc = {
+    AmigaMalloc,
+    AmigaRealloc,
+    AmigaFree
+};
+
+__stdargs int main(int argc, char** argv) {
+    MMemAllocSet(&sAmigaAlloc);
+
+    AOS_init();
 
     MReadFileRet amigaExeData;
 
@@ -592,7 +622,7 @@ __stdargs int main(int argc, char** argv) {
                 if (pathEnd > 0) {
                     const char* gameName1 = "/game";
                     if (lastChar == ':') {
-                        memcpy(directory + pathEnd, gameName1, strlen(gameName1) + 1);
+                        memcpy(directory + pathEnd, gameName1, MStrLen(gameName1) + 1);
                         MLogf("%s", directory);
                     }
 
@@ -646,8 +676,10 @@ __stdargs int main(int argc, char** argv) {
     // Load intro file data
     Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExeData, assetsRead);
 
-    Audio_Init(&sAudio, amigaExeData.data, amigaExeData.size);
-    Audio_ModStart(&sAudio, sModToPlay);
+    if (sModToPlay) {
+        Audio_Init(&sAudio, amigaExeData.data, amigaExeData.size);
+        Audio_ModStart(&sAudio, sModToPlay);
+    }
 
     Intro_InitAmiga(&sIntro, &introSceneSetup, &assetsDataAmiga);
 
@@ -749,13 +781,17 @@ __stdargs int main(int argc, char** argv) {
 
         LoadRGB4(&aosScreen->ViewPort, sFIntroPalette, 256);
 
-        StartAudioTickTimer(&sAudio);
+        if (sModToPlay) {
+            // Stack the 50 Hz timer that plays the music
+            StartAudioTickTimer(&sAudio);
 
-        if (sFrameOffset) {
-            sCurrentClock = AOS_GetClockCount();
-            u64 delta = Intro_GetTimeForFrameOffset(&sIntro, sFrameOffset);
-            sStartTime = sCurrentClock - (((delta + 1) * sClockTickInterval) / 100);
-            Audio_ModStartAt(&sAudio, sModToPlay, (delta + 1) / 2);
+            // Fast-forward to specific point - used for debugging
+            if (sFrameOffset) {
+                sCurrentClock = AOS_GetClockCount();
+                u64 delta = Intro_GetTimeForFrameOffset(&sIntro, sFrameOffset);
+                sStartTime = sCurrentClock - (((delta + 1) * sClockTickInterval) / 100);
+                Audio_ModStartAt(&sAudio, sModToPlay, (delta + 1) / 2);
+            }
         }
 
         b32 isDone = FALSE;
@@ -799,8 +835,8 @@ __stdargs int main(int argc, char** argv) {
                 }
             }
 
-            // Mod will loop if we don't switch
-            if (Audio_ModDone(&sAudio)) {
+            // Mod will loop if we don't switch to silence when it is done
+            if (sModToPlay && Audio_ModDone(&sAudio)) {
                 Audio_ModStart(&sAudio, Audio_ModEnum_SILENCE);
             }
 
@@ -866,10 +902,14 @@ __stdargs int main(int argc, char** argv) {
             }
         }
 
-        StopAudioTickTimer();
+        if (sModToPlay) {
+            StopAudioTickTimer();
+        }
     }
 
-    Audio_Exit(&sAudio);
+    if (sModToPlay) {
+        Audio_Exit(&sAudio);
+    }
 
     Raster_Free(&raster);
     Surface_Free(&surface);
@@ -878,7 +918,7 @@ __stdargs int main(int argc, char** argv) {
 
     MArrayFree(overrideModels);
     if (overridesFile.data) {
-        MFree(overridesFile.data);
+        MFree(overridesFile.data, overridesFile.size);
     }
 
     Intro_Free(&sIntro, &introSceneSetup);
@@ -899,8 +939,6 @@ __stdargs int main(int argc, char** argv) {
         MFileClose(&fileOut);
         MMemFree(&stats);
     }
-
-    MMemDebugDeinit();
 
     AOS_cleanupAndExit(0);
 
