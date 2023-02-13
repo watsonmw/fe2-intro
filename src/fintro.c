@@ -119,7 +119,6 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData
 
     MArrayInit(intro->imageStore.images);
 
-
     intro->drawFrontierLogo = 0;
 }
 

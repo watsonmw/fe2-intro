@@ -12,6 +12,16 @@
 // You might want check out STB libs and GCC heap debug options before using this, this is just my personal version that
 // integrates custom heap debugging/tracking into the array functionality.
 //
+// The following relies on C undefined behaviour (UB), but has been tested to work on GCC 6.5 (68k) and GCC 12 (x86):
+//
+// - MArray* functions that resize the array backing memory - this rewrites array pointer by de-referencing **void
+//   (another strict aliasing issue) (See stb libs for an C dynamic array that doesn't break aliasing rules).
+//
+// This doesn't *require* -fno-strict-aliasing since gcc is still being conservative about the 'optimization', but the
+// -fno-strict-aliasing option is used for the Amiga compile anyway, since gcc 68k 6.5 makes things slightly worse with
+// strict aliasing optimizations turn on.  Be careful, seemly small changes such as converting an inline function to a
+// macro or inlining parts of mlib.c could cause this to no longer be the case, and require setting of -fno-strict-aliasing.
+//
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

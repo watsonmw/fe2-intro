@@ -296,7 +296,8 @@ void Surface_Clear(Surface* surface, u8 colour) {
         surface->insOffset[i] = 0;
     }
 #else
-    // Clear 4 bytes at a time
+    // Clear 4 bytes at a time for optimization purposes, 'pixels' will be at least 4 byte aligned.
+    // If we don't do this GCC 6.5 will replace with a generic memset() that runs slower on the Amiga.
     u32* pixels32 = (u32*)surface->pixels;
     u32 colour32 = colour;
     u32* end = pixels32 + ((SURFACE_HEIGHT * SURFACE_WIDTH) / 4);
@@ -308,8 +309,7 @@ void Surface_Clear(Surface* surface, u8 colour) {
 }
 
 static void DrawSpanNoClip(u8* restrict pixelsLine, i16 x1, i16 x2, u8 colour) {
-#ifdef AMIGA
-#if defined(__GNUC__)
+#if defined(AMIGA) && defined(__GNUC__)
     u8* restrict dummy1;
     i16 dummy2;
     __asm__ volatile (
@@ -328,14 +328,11 @@ static void DrawSpanNoClip(u8* restrict pixelsLine, i16 x1, i16 x2, u8 colour) {
        // pixelsLine x1 x2 colour
        // 2          3  4  5
     );
-#elif defined(__VBCC__)
-    for (; x1 < x2; x1++) {
-        *(pixelsLine + x1) = colour;
-    }
-#endif
 #else
-    for (; x1 < x2; x1++) {
-        *(pixelsLine + x1) = colour;
+    u8* restrict cur = pixelsLine + x1;
+    u8* restrict end = pixelsLine + x2;
+    for (; cur < end; cur++) {
+        *cur = colour;
     }
 #endif
 }

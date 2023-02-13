@@ -634,9 +634,9 @@ void MMemWriteU16BE(MMemIO* memIO, u16 val) {
         M_MemResize(memIO, newSize);
     }
 
-    *(memIO->pos++) = (val >> 8);
-    *(memIO->pos++) = (val & 0xff);
-
+    u8 a[] = {val >> 8, val & 0xff };
+    memcpy(memIO->pos, a, 2);
+    memIO->pos += 2;
     memIO->size = newSize;
 }
 
@@ -646,9 +646,9 @@ void MMemWriteU16LE(MMemIO* memIO, u16 val) {
         M_MemResize(memIO, newSize);
     }
 
-    *(memIO->pos++) = (val & 0xff);
-    *(memIO->pos++) = (val >> 8);
-
+    u8 a[] = {val & 0xff, val >> 8 };
+    memcpy(memIO->pos, a, 2);
+    memIO->pos += 2;
     memIO->size = newSize;
 }
 
@@ -658,11 +658,9 @@ void MMemWriteU32BE(MMemIO* memIO, u32 val) {
         M_MemResize(memIO, newSize);
     }
 
-    *(memIO->pos++) = (val >> 24);
-    *(memIO->pos++) = (val >> 16) & 0xff;
-    *(memIO->pos++) = (val >> 8) & 0xff;
-    *(memIO->pos++) = (val & 0xff);
-
+    u8 a[] = {val >> 24, (val >> 16) & 0xff, (val >> 8) & 0xff, (val & 0xff) };
+    memcpy(memIO->pos, a, 4);
+    memIO->pos += 4;
     memIO->size = newSize;
 }
 
@@ -672,15 +670,13 @@ void MMemWriteU32LE(MMemIO* memIO, u32 val) {
         M_MemResize(memIO, newSize);
     }
 
-    *(memIO->pos++) = (val & 0xff);
-    *(memIO->pos++) = (val >> 8) & 0xff;
-    *(memIO->pos++) = (val >> 16) & 0xff;
-    *(memIO->pos++) = (val >> 24);
-
+    u8 a[] = { (val & 0xff), (val >> 8) & 0xff, (val >> 16) & 0xff, (val >> 24) };
+    memcpy(memIO->pos, a, 4);
+    memIO->pos += 4;
     memIO->size = newSize;
 }
 
-void MMemWriteU8CopyN(MMemIO* memIO, u8* src, u32 size) {
+void MMemWriteU8CopyN(MMemIO*restrict memIO, u8*restrict src, u32 size) {
     if (size == 0) {
         return;
     }
@@ -696,7 +692,7 @@ void MMemWriteU8CopyN(MMemIO* memIO, u8* src, u32 size) {
     memIO->size = newSize;
 }
 
-void MMemWriteI8CopyN(MMemIO* memIO, i8* src, u32 size) {
+void MMemWriteI8CopyN(MMemIO*restrict memIO, i8*restrict src, u32 size) {
     if (size == 0) {
         return;
     }
@@ -712,7 +708,7 @@ void MMemWriteI8CopyN(MMemIO* memIO, i8* src, u32 size) {
     memIO->size = newSize;
 }
 
-i32 MMemReadI8(MMemIO* memIO, i8* val) {
+i32 MMemReadI8(MMemIO*restrict memIO, i8*restrict val) {
     if (memIO->pos >= memIO->mem + memIO->size) {
         return -1;
     }
@@ -722,7 +718,7 @@ i32 MMemReadI8(MMemIO* memIO, i8* val) {
     return 0;
 }
 
-i32 MMemReadU8(MMemIO* memIO, u8* val) {
+i32 MMemReadU8(MMemIO*restrict memIO, u8*restrict val) {
     if (memIO->pos >= memIO->mem + memIO->size) {
         return -1;
     }
@@ -732,155 +728,171 @@ i32 MMemReadU8(MMemIO* memIO, u8* val) {
     return 0;
 }
 
-i32 MMemReadI16(MMemIO* memIO, i16* val) {
+i32 MMemReadI16(MMemIO*restrict memIO, i16*restrict val) {
     if (memIO->pos + 2 > memIO->mem + memIO->size) {
         return -1;
     }
 
-    *(val) = *((i16*)memIO->pos);
-
+    memcpy(val, memIO->pos, 2);
     memIO->pos += 2;
-
     return 0;
 }
 
-i32 MMemReadI16BE(MMemIO* memIO, i16* val) {
+i32 MMemReadI16BE(MMemIO*restrict memIO, i16*restrict val) {
     if (memIO->pos + 2 > memIO->mem + memIO->size) {
         return -1;
     }
 
-    i16 v = *((i16*)memIO->pos);
+#ifdef MLITTLEENDIAN
+    i16 v;
+    memcpy(&v, memIO->pos, 2);
+    *(val) = MBIGENDIAN16(v);
+#else
+    memcpy(val, memIO->pos, 2);
+#endif
+    memIO->pos += 2;
+    return 0;
+}
+
+i32 MMemReadI16LE(MMemIO*restrict memIO, i16*restrict val) {
+    if (memIO->pos + 2 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+#ifdef MBIGENDIAN
+    i16 v;
+    memcpy(&v, memIO->pos, 2);
     *(val) = MLITTLEENDIAN16(v);
-
+#else
+    memcpy(val, memIO->pos, 2);
+#endif
     memIO->pos += 2;
-
     return 0;
 }
 
-i32 MMemReadI16LE(MMemIO* memIO, i16* val) {
+i32 MMemReadU16(MMemIO*restrict memIO, u16*restrict val) {
     if (memIO->pos + 2 > memIO->mem + memIO->size) {
         return -1;
     }
 
-    i16 v = *((i16*)memIO->pos);
+    memcpy(val, memIO->pos, 2);
+    memIO->pos += 2;
+    return 0;
+}
+
+i32 MMemReadU16BE(MMemIO*restrict memIO, u16*restrict val) {
+    if (memIO->pos + 2 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+#ifdef MLITTLEENDIAN
+    u16 v;
+    memcpy(&v, memIO->pos, 2);
+    *(val) = MBIGENDIAN16(v);
+#else
+    memcpy(val, memIO->pos, 2);
+#endif
+    memIO->pos += 2;
+    return 0;
+}
+
+i32 MMemReadU16LE(MMemIO*restrict memIO, u16*restrict val) {
+    if (memIO->pos + 2 > memIO->mem + memIO->size) {
+        return -1;
+    }
+
+#ifdef MBIGENDIAN
+    u16 v;
+    memcpy(&v, memIO->pos, 2);
     *(val) = MLITTLEENDIAN16(v);
-
+#else
+    memcpy(val, memIO->pos, 2);
+#endif
     memIO->pos += 2;
-
     return 0;
 }
 
-i32 MMemReadU16(MMemIO* memIO, u16* val) {
-    if (memIO->pos + 2 > memIO->mem + memIO->size) {
-        return -1;
-    }
-
-    *(val) = *((u16*)memIO->pos);
-
-    memIO->pos += 2;
-
-    return 0;
-}
-
-i32 MMemReadU16BE(MMemIO* memIO, u16* val) {
-    if (memIO->pos + 2 > memIO->mem + memIO->size) {
-        return -1;
-    }
-
-    u16 v = *((u16*)memIO->pos);
-    *(val) = MLITTLEENDIAN16(v);
-
-    memIO->pos += 2;
-
-    return 0;
-}
-
-i32 MMemReadU16LE(MMemIO* memIO, u16* val) {
-    if (memIO->pos + 2 > memIO->mem + memIO->size) {
-        return -1;
-    }
-
-    u16 v = *((u16*)memIO->pos);
-    *(val) = MLITTLEENDIAN16(v);
-
-    memIO->pos += 2;
-
-    return 0;
-}
-
-i32 MMemReadI32(MMemIO* memIO, i32* val) {
+i32 MMemReadI32(MMemIO*restrict memIO, i32*restrict val) {
     if (memIO->pos + 4 > memIO->mem + memIO->size) {
         return -1;
     }
 
-    *(val) = *((i32*)memIO->pos);
-
+    memcpy(val, memIO->pos, 4);
     memIO->pos += 4;
-
     return 0;
 }
 
-i32 MMemReadI32LE(MMemIO* memIO, i32* val) {
+i32 MMemReadI32LE(MMemIO*restrict memIO, i32*restrict val) {
     if (memIO->pos + 4 > memIO->mem + memIO->size) {
         return -1;
     }
 
-    i32 v = *((i32*)memIO->pos);
+#ifdef MBIGENDIAN
+    i32 v;
+    memcpy(&v, memIO->pos, 4);
     *(val) = MLITTLEENDIAN32(v);
-
+#else
+    memcpy(val, memIO->pos, 4);
+#endif
     memIO->pos += 4;
-
     return 0;
 }
 
-i32 MMemReadI32BE(MMemIO* memIO, i32* val) {
+i32 MMemReadI32BE(MMemIO*restrict memIO, i32*restrict val) {
     if (memIO->pos + 4 > memIO->mem + memIO->size) {
         return -1;
     }
 
-    i32 v = *((i32*)memIO->pos);
+#ifdef MLITTLEENDIAN
+    i32 v;
+    memcpy(&v, memIO->pos, 4);
     *(val) = MBIGENDIAN32(v);
-
+#else
+    memcpy(val, memIO->pos, 4);
+#endif
     memIO->pos += 4;
-
     return 0;
 }
 
-i32 MMemReadU32(MMemIO* memIO, u32* val) {
+i32 MMemReadU32(MMemIO*restrict memIO, u32*restrict val) {
     if (memIO->pos + 4 > memIO->mem + memIO->size) {
         return -1;
     }
 
-    *(val) = *((u32*)memIO->pos);
-
+    memcpy(val, memIO->pos, 4);
     memIO->pos += 4;
-
     return 0;
 }
 
-i32 MMemReadU32LE(MMemIO* memIO, u32* val) {
+i32 MMemReadU32LE(MMemIO*restrict memIO, u32*restrict val) {
     if (memIO->pos + 4 > memIO->mem + memIO->size) {
         return -1;
     }
 
-    u32 v = *((u32*)memIO->pos);
+#ifdef MBIGENDIAN
+    i32 v;
+    memcpy(&v, memIO->pos, 4);
     *(val) = MLITTLEENDIAN32(v);
-
+#else
+    memcpy(val, memIO->pos, 4);
+#endif
     memIO->pos += 4;
-
     return 0;
 }
 
-i32 MMemReadU32BE(MMemIO* memIO, u32* val) {
+i32 MMemReadU32BE(MMemIO*restrict memIO, u32*restrict val) {
     if (memIO->pos + 4 > memIO->mem + memIO->size) {
         return -1;
     }
 
-    u32 v = *((u32*)memIO->pos);
+#ifdef MLITTLEENDIAN
+    i32 v;
+    memcpy(&v, memIO->pos, 4);
     *(val) = MBIGENDIAN32(v);
-
+#else
+    memcpy(val, memIO->pos, 4);
+#endif
     memIO->pos += 4;
-
     return 0;
 }
 

@@ -38,13 +38,13 @@ set -x # echo on
 # /opt/amiga/bin/m68k-amigaos-gprof build/fintro-gcc build/gmon.out > gprof.txt
 #
 
-#
-# -mregparm - gives a 2% speedup and reduces exe size (less moves)
-# -fomit-frame-pointer? - gives a 2% speedup and reduces exe size (less moves)
-# -fno-strict-aliasing ?
-
+# -DM_MEM_DEBUG  - Debug heap allocations
 #DEBUG_FLAGS="-g -DM_MEM_DEBUG"
-OPT_FLAGS="-m68040 -O3 -mregparm=4 -fomit-frame-pointer -fweb -frename-registers"
+
+# -fomit-frame-pointer  - gives a ~ 2% speedup and reduces exe size (less moves)
+# -mregparm             - gives a ~ 2% speedup and reduces exe size (less moves)
+# -fno-strict-aliasing  - code violates strict aliasing, but also strict aliasing generates worse code in gcc6.5 (!)
+OPT_FLAGS="-m68040 -O3 -mregparm=4 -fomit-frame-pointer -fweb -frename-registers -fno-strict-aliasing"
 
 GCC="/opt/amiga/bin/m68k-amigaos-gcc"
 VASM="/opt/amiga/bin/vasmm68k_mot"
