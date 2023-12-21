@@ -38,14 +38,17 @@ set -x # echo on
 # /opt/amiga/bin/m68k-amigaos-gprof build/fintro-gcc build/gmon.out > gprof.txt
 #
 
-#
-# -mregparm - gives a 2% speedup and reduces exe size (less moves)
-# -fomit-frame-pointer? - gives a 2% speedup and reduces exe size (less moves)
-# -fno-strict-aliasing ?
+# -DM_MEM_DEBUG  - Debug heap allocations
+#DEBUG_FLAGS="-g -DM_MEM_DEBUG"
+
+# -fomit-frame-pointer  - gives a ~ 2% speedup and reduces exe size (less moves)
+# -mregparm             - gives a ~ 2% speedup and reduces exe size (less moves)
+# -fno-strict-aliasing  - code violates strict aliasing, but also strict aliasing generates worse code in gcc6.5 (!)
+OPT_FLAGS="-m68040 -O3 -mregparm=4 -fomit-frame-pointer -fweb -frename-registers -fno-strict-aliasing"
 
 GCC="/opt/amiga/bin/m68k-amigaos-gcc"
 VASM="/opt/amiga/bin/vasmm68k_mot"
-CCFLAGS="-m68040 -O3 -DFINTRO_SCREEN_RES=2 -DSURFACE_HEIGHT=360 $PROFILE_OPTS -mregparm=4 -fomit-frame-pointer -fweb -frename-registers"
+CCFLAGS="-DFINTRO_SCREEN_RES=2 -DSURFACE_HEIGHT=360 -DM_CLIB_DISABLE ${DEBUG_FLAGS} ${OPT_FLAGS} ${PROFILE_OPTS}"
 
 # Embed version info into exe for custom profiling code
 BUILD_DATE=`date +"%Y/%m/%d %H:%M:%S"`
@@ -72,3 +75,4 @@ ${GCC} src/assets.c $CCFLAGS -I src -c -o build/assets.o
 # Link with -noixemul for smaller exe size, this disables the UNIX emulation layer, this can be buggy and we don't need
 # it anyway.
 ${GCC} -lm -noixemul $CCFLAGS build/main.o build/mlib.o build/fmath.o build/fintro.o build/render.o build/assets.o build/audio.o ${POST_LDFLAGS} -o build/fintro-gcc
+/opt/amiga/bin/m68k-amigaos-objdump  -S --disassemble build/fintro-gcc > build/fintro-gcc.asm

@@ -1,8 +1,5 @@
 #include "modelcode.h"
 
-#include <stdio.h>
-#include <string.h>
-
 // Decompile / Compile FE2 models
 // The text format here is our own invention and uses a custom parser.
 // It will compile model code loadable by the original version of the game.
@@ -2090,7 +2087,6 @@ MINTERNAL i32 ParseParam16Base10(ModelParserContext* ctxt, u16* outParam) {
     ModelParserTokenEnum token = NextToken(ctxt);
     if (token != ModelParserToken_SQUARE_BRACKET_OPEN) {
         ctxt->result.error = (char*)"Syntax error: expecting [";
-        ctxt->result.staticError = TRUE;
         return -1;
     }
 
@@ -4349,8 +4345,9 @@ void BuildErrorStringWithValue(ModelParserContext* ctxt) {
     }
     valueParam[i] = 0;
     snprintf(error, len, ctxt->result.error, valueParam);
-    MFree(valueParam);
+    MFree(valueParam, len);
     ctxt->result.error = error;
+    ctxt->result.errorLen = len;
     ctxt->result.staticError = FALSE;
 }
 
@@ -4390,7 +4387,6 @@ MARRAY_TYPEDEF(ModelOffset, ModelOffsetsArray)
 
 ModelCompileResult CompileMultipleModels(const char* dataIn, u32 sizeIn, MMemIO* memOutput, ModelsArray* outModels,
         ModelEndianEnum endian, b32 dumpModelsToConsole) {
-
 
     ModelType modelType = ModelType_OBJ;
 
@@ -4433,7 +4429,7 @@ ModelCompileResult CompileMultipleModels(const char* dataIn, u32 sizeIn, MMemIO*
                 DecompileModelToConsole(modelData, parserContext.result.modelIndex, modelType);
             }
             ModelOffset* modelOffset = MArrayAddPtr(modelOffsets);
-            modelOffset->modelIndex =parserContext.result.modelIndex;
+            modelOffset->modelIndex = parserContext.result.modelIndex;
             modelOffset->offset= parserContext.result.modelStartOffset;
         }
 
@@ -4477,27 +4473,30 @@ i32 WriteModels(const char* filename, ModelsArray* models, MMemIO* modelsMem) {
     return -1;
 }
 
-i32 CompileAndWriteModels(const char* modelsFile, const char* outputFile, MMemIO* outModelMem, ModelsArray* outModels) {
+i32 CompileAndWriteModels(const char* modelsFile, const char* outputFile, MMemIO* outModelMem, ModelsArray* outModels,
+                          ModelEndianEnum endian, b32 dumpModelsToConsole) {
     MReadFileRet file = MFileReadFully(modelsFile);
     if (file.size == 0) {
         return -1;
     }
 
     ModelCompileResult result = CompileMultipleModels((const char*)file.data, file.size, outModelMem, outModels,
-            ModelEndian_LITTLE, TRUE);
+                                                      endian, dumpModelsToConsole);
 
     if (result.error) {
         MLogf("Got error: %s", result.error);
         MLogf("    at line: %d, column: %d", result.errorLine, result.errorColumn);
         if (!result.staticError) {
-            MFree(result.error); result.error = NULL;
+            MFree(result.error, result.errorLen); result.error = NULL;
         }
-        MFree(file.data);
+        MFree(file.data, file.size);
         return -2;
     }
 
     MLogf("Saving %s...", outputFile);
     WriteModels(outputFile, outModels, outModelMem);
+
+    MFree(file.data, file.size);
 
     return 0;
 }
@@ -4534,7 +4533,7 @@ void TestModelCompile(MMemIO* memOutput, const char* testData, u32 testDataLen,
 
     if (result.error) {
         if (!result.staticError) {
-            MFree(result.error); result.error = NULL;
+            MFree(result.error, result.errorLen); result.error = NULL;
         }
     }
 }

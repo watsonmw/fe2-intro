@@ -3,7 +3,7 @@
 //   [Frontier: Elite II © David Braben 1993 & 1994](https://en.wikipedia.org/wiki/Frontier:_Elite_II)
 //
 
-#ifdef USE_SDL
+#ifdef M_USE_SDL
 #include <SDL2/SDL.h>
 #elif AMIGA
 #include <proto/exec.h>
@@ -17,11 +17,12 @@
 #define MOD_CHANNEL_PROGRESS_END 4
 
 #define AMIGA_CHIP_CLOCK_TICKS 3579545
-#define PLAYBACK_FEQ 44100
-#define SAMPLES_PER_TICK (PLAYBACK_FEQ / 50)
 
+#ifdef AUDIO_BUFFERED_PLAYBACK
+#define SAMPLES_PER_TICK (AUDIO_PLAYBACK_FEQ / 50)
 #define VOLUME_SCALE 128
 #define AUDIO_BUFFER_SIZE 4096
+#endif
 
 // Sentinel value to indicate volume is not set yet
 #define VOLUME_UNSET 0xffffu
@@ -32,7 +33,11 @@
 #define NOTE_STATE_PTRS_WRITTEN 1
 #define NOTE_STATE_WRITE_NEXT 3
 
-#include "amigahw.h"
+#include "platform/amiga/amigahw.h"
+
+#ifdef WASM_DIRECT
+#include "wasm_funcs.h"
+#endif
 
 // First hunk offset, this is to apply any fix-ups to relocated address pointers
 #define FILE_MAP_OFFSET 0x228
@@ -166,8 +171,8 @@ static const u16 sAudioSamplesVolumeOffsets[] = {
 
 static void Audio_ProgressTickInternal(AudioContext* audio);
 
-#ifdef USE_SDL
-void Audio_Render(AudioContext* audio, int ticks, b32 output);
+#ifdef M_USE_SDL
+static void Audio_RenderInternal(AudioContext* audio, u32 numSamples, u32 numTicks, b32 bWriteFrames);
 
 SDLCALL void Audio_Callback(void *userdata, Uint8 * stream, int bytesRequested) {
     AudioContext* audio = (AudioContext*)userdata;
@@ -186,16 +191,19 @@ SDLCALL void Audio_Callback(void *userdata, Uint8 * stream, int bytesRequested) 
     }
 
     u32 numSamples = bytesRequested / 4;
-    u32 ticks = ((numSamples * 50) / PLAYBACK_FEQ) + 1;
+    u32 ticks = ((numSamples * 50) / AUDIO_PLAYBACK_FEQ) + 1;
 
     audio->audioBytesWriten = 0;
 
     if (audio->modStartTickOffset) {
-        Audio_Render(audio, audio->modStartTickOffset, FALSE);
+        Audio_RenderInternal(audio, 0, audio->modStartTickOffset, FALSE);
         audio->modStartTickOffset = 0;
     }
 
-    Audio_Render(audio, ticks, TRUE);
+    Audio_RenderInternal(audio, 0, ticks, TRUE);
+
+//    u32 numFrames = bytesRequested / 4;
+//    Audio_RenderFrames(audio, numFrames);
 
     sizeRemaining = audio->audioOutputContentSize;
     if (bytesRequested <= sizeRemaining) {
@@ -208,11 +216,24 @@ SDLCALL void Audio_Callback(void *userdata, Uint8 * stream, int bytesRequested) 
 }
 #endif
 
+
+void Audio_RenderFrames(AudioContext* audio, u32 numFrames) {
+    audio->audioBytesWriten = 0;
+    if (audio->modStartTickOffset) {
+        u32 skipFrames = (AUDIO_PLAYBACK_FEQ * audio->modStartTickOffset) / 50;
+        Audio_RenderInternal(audio, skipFrames, audio->modStartTickOffset, FALSE);
+        audio->modStartTickOffset = 0;
+    }
+
+    u32 ticks = ((numFrames * 50) / AUDIO_PLAYBACK_FEQ) + 1;
+    Audio_RenderInternal(audio, numFrames, ticks, TRUE);
+}
+
 static void Audio_CopyAndFixSamples(AudioContext* audio) {
     audio->samplesDataSize = 0x20000;
 #ifdef AMIGA
     // Allocate some chip ram that will be used to store the fixed up samples
-    audio->samplesData = (u8*) AllocMem(audio->samplesDataSize, MEMF_PUBLIC | MEMF_CHIP);
+    audio->samplesData = (u8*) AllocMem(audio->samplesDataSize, MEMF_CHIP);
 #else
     audio->samplesData = (u8*) MMalloc(audio->samplesDataSize);
 #endif
@@ -310,32 +331,6 @@ static u8* Audio_GetSampleData(u32 sampleOffset) {
 u32 Audio_Init(AudioContext* audio, u8* data, u32 size) {
     memset(audio, 0, sizeof(AudioContext));
 
-#ifdef USE_SDL
-    SDL_AudioSpec want, have;
-    SDL_AudioDeviceID sdlAudioID;
-
-    memset(&want, 0, sizeof(want));
-    want.freq = PLAYBACK_FEQ;
-    want.format = AUDIO_S16;
-    want.channels = 2;
-    want.samples = AUDIO_BUFFER_SIZE;
-    want.callback = Audio_Callback;
-    want.userdata = audio;
-
-    sdlAudioID = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
-    if (sdlAudioID == 0) {
-        MLogf("Failed to open audio: %s", SDL_GetError());
-        return 1;
-    } else {
-        if (have.format != want.format) {
-            MLog("We didn't get S16 audio format.");
-            return 2;
-        }
-    }
-
-    audio->sdlAudioID = sdlAudioID;
-#endif
-
     audio->data = data;
     audio->dataSize = size;
 
@@ -367,31 +362,54 @@ u32 Audio_Init(AudioContext* audio, u8* data, u32 size) {
     }
     HW_WRITE16(AMIGA_DMACON,AMIGA_CON_CLR | 0xf);
     HW_WRITE16(AMIGA_ADKCON,AMIGA_CON_CLR | 0xff);
-#else
+#elif defined(AUDIO_BUFFERED_PLAYBACK)
     for (int i = 0; i < AUDIO_NUM_CHANNELS; ++i) {
         audio->hw[i] = audio->channelRegisters + i;
     }
-#endif
+#ifdef M_USE_SDL
+    SDL_AudioSpec want, have;
+    SDL_AudioDeviceID sdlAudioID;
 
-#ifdef USE_SDL
+    memset(&want, 0, sizeof(want));
+    want.freq = AUDIO_PLAYBACK_FEQ;
+    want.format = AUDIO_S16;
+    want.channels = 2;
+    want.samples = AUDIO_BUFFER_SIZE;
+    want.callback = Audio_Callback;
+    want.userdata = audio;
+
+    sdlAudioID = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+    if (sdlAudioID == 0) {
+        MLogf("Failed to open audio: %s", SDL_GetError());
+        return 1;
+    } else {
+        if (have.format != want.format) {
+            MLog("We didn't get S16 audio format.");
+            return 2;
+        }
+    }
+
+    audio->sdlAudioID = sdlAudioID;
+
     SDL_PauseAudioDevice(audio->sdlAudioID, 0);
+#endif
 #endif
 
     return 0;
 }
 
 void Audio_Exit(AudioContext* audio) {
-#ifdef USE_SDL
+#ifdef M_USE_SDL
     SDL_CloseAudioDevice(audio->sdlAudioID); audio->sdlAudioID = 0;
 
     if (audio->audioOutputBuffer != NULL) {
-        MFree(audio->audioOutputBuffer); audio->audioOutputBuffer = NULL;
+        MFree(audio->audioOutputBuffer, audio->audioOutputBufferSize); audio->audioOutputBuffer = NULL;
     }
 
     for (int i = 0; i < AUDIO_SAMPLE_CACHE_SIZE; ++i) {
         SampleConvert* s = audio->sampleCache + i;
         if (s->sampleConverted != NULL) {
-            MFree(s->sampleConverted); s->sampleConverted = NULL;
+            MFree(s->sampleConverted, s->sampleConvertedBufferSize); s->sampleConverted = NULL;
         }
     }
 #endif
@@ -401,7 +419,7 @@ void Audio_Exit(AudioContext* audio) {
 
     FreeMem(audio->samplesData, audio->samplesDataSize);
 #else
-    MFree(audio->samplesData);
+    MFree(audio->samplesData, audio->samplesDataSize);
 #endif
     audio->samplesData = 0;
 }
@@ -706,7 +724,7 @@ void Audio_ModStartAt(AudioContext* audio, u16 modIndex, u32 tickOffset) {
         channel->volumeHW = VOLUME_UNSET;
     }
 
-#ifdef USE_SDL
+#ifdef AUDIO_BUFFERED_PLAYBACK
     for (int i = 0; i < AUDIO_NUM_CHANNELS; ++i) {
         if (audio->channelSamples[i]) {
             audio->channelSamples[i]->used = 0;
@@ -734,13 +752,21 @@ void Audio_ModStop(AudioContext* audio) {
     Audio_ModStart(audio, Audio_ModEnum_SILENCE);
 }
 
-#ifdef USE_SDL
+#ifdef M_USE_SDL
 void Audio_Pause(AudioContext* audio) {
     SDL_PauseAudioDevice(audio->sdlAudioID, 1);
 }
 
 void Audio_Resume(AudioContext* audio) {
     SDL_PauseAudioDevice(audio->sdlAudioID, 0);
+}
+#elif WASM_DIRECT
+void Audio_Pause(AudioContext* audio) {
+    WASM_AudioPause();
+}
+
+void Audio_Resume(AudioContext* audio) {
+    WASM_AudioResume();
 }
 #endif
 
@@ -1131,9 +1157,114 @@ void Audio_ProgressTick(AudioContext* audio) {
     audio->modTick++;
 }
 
-#ifdef USE_SDL
+#ifdef AUDIO_BUFFERED_PLAYBACK
 
-// Covert an source 8-bit sample at the given AMIGA sound hardware period to a 16bit sample at the device playback
+// Function to up convert audio sample to a sample buffer at the specified higher sample rate
+// Returns the length samples written to the output buffer
+u32 ConvertAudio8to16(i8* srcSampleBuf, u16 srcSampleSize, i16* outputSampleBuf, u32 convertedFrames) {
+    i8* srcSample = srcSampleBuf;
+    i16* dstSample = outputSampleBuf;
+    int dout = convertedFrames - 1;
+    int din = srcSampleSize - 1;
+    int d = 2 * din - dout;
+
+    for (int i = 0; i < convertedFrames; i++) {
+        i16 s = ((i16)(*srcSample));
+        *dstSample = (i16)(s << 8);
+        if (d > 0) {
+            srcSample++;
+            d -= 2 * dout;
+        }
+        d += 2 * din;
+        dstSample++;
+    }
+
+    return convertedFrames;
+}
+
+u32 ConvertAudio8to16_Linear(i8* srcSampleBuf, u16 srcSampleSize, i16* outputSampleBuf, u32 convertedFrames) {
+    // Just try linear interpolation
+    i8* srcSample = srcSampleBuf;
+    i16* dstSample = outputSampleBuf;
+
+    int dx = convertedFrames / (srcSampleSize-1);
+    int dxa = convertedFrames % (srcSampleSize-1);
+    int acc = 0;
+
+    int prev = ((int)(*srcSample++)) << 8;
+    int ext = dx;
+    acc += dxa;
+    for (int i = 1; i < srcSampleSize; i++) {
+        int cur = ((int)(*srcSample++)) << 8;
+        for (int j = 0; j < ext; j++) {
+            int new = ((cur * j) + (prev * (ext - j))) / (ext);
+            *dstSample++ = (i16)(new);
+        }
+        acc += dxa;
+        if (acc >= srcSampleSize) {
+            ext = dx + 1;
+            acc -= srcSampleSize;
+        } else {
+            ext = dx;
+        }
+        prev = cur;
+    }
+
+//    if (dstSample != outputSampleBuf + convertedFrames) {
+//        dstSample -= convertedFrames;
+//        asm("int $3");
+//    }
+
+    return convertedFrames;
+}
+
+u32 ConvertAudio8to16_LinearFilter(i8* srcSampleBuf, u16 srcSampleSize, i16* outputSampleBuf, u32 convertedFrames) {
+    // Linear interpolation with filter
+    i8* srcSample = srcSampleBuf;
+    i8* srcSampleEnd = srcSampleBuf + srcSampleSize;
+    i16* dstSample = outputSampleBuf;
+    int dout = convertedFrames - 1;
+    int din = srcSampleSize - 1;
+    int d = 2 * din - dout;
+
+    for (int i = 0; i < convertedFrames; i++) {
+        i16 s = ((i16)(*srcSample));
+        *dstSample = (i16)(s << 8);
+        if (d > 0) {
+            srcSample++;
+            d -= 2 * dout;
+        }
+        d += 2 * din;
+        dstSample++;
+    }
+
+    return convertedFrames;
+}
+
+u32 ConvertAudio8to16_Sinc(i8* srcSampleBuf, u16 srcSampleSize, i16* outputSampleBuf, u32 convertedFrames) {
+    // Linear interpolation with filter
+    i8* srcSample = srcSampleBuf;
+    i8* srcSampleEnd = srcSampleBuf + srcSampleSize;
+    i16* dstSample = outputSampleBuf;
+    int dout = convertedFrames - 1;
+    int din = srcSampleSize - 1;
+    int d = 2 * din - dout;
+
+    for (int i = 0; i < convertedFrames; i++) {
+        i16 s = ((i16)(*srcSample));
+        *dstSample = (i16)(s << 8);
+        if (d > 0) {
+            srcSample++;
+            d -= 2 * dout;
+        }
+        d += 2 * din;
+        dstSample++;
+    }
+
+    return convertedFrames;
+}
+
+// Covert a source 8-bit sample at the given Amiga sound hardware period to a 16-bit sample at the device playback
 // sample rate.
 // Converted samples are cached, so we don't have to keep converting.
 SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
@@ -1182,20 +1313,23 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
     }
 
     if (sampleConvert->sampleConverted) {
-        MFree(sampleConvert->sampleConverted); sampleConvert->sampleConverted = NULL;
+        MFree(sampleConvert->sampleConverted, sampleConvert->sampleConvertedBufferSize);
+        sampleConvert->sampleConverted = NULL;
     }
 
+#ifdef OLD_SDL
     // period = ticks per second / samples per second
     // samples per second = ticks per second / period
-    u32 samplesPerSecond = (AMIGA_CHIP_CLOCK_TICKS / hw->period);
+    u32 amigaFramesPerSecond = (AMIGA_CHIP_CLOCK_TICKS / hw->period);
 
     SDL_AudioCVT cvt;
     SDL_BuildAudioCVT(&cvt,
-                      AUDIO_S8, 1, samplesPerSecond,
-                      AUDIO_S16, 1, PLAYBACK_FEQ);
+                      AUDIO_S8, 1, amigaFramesPerSecond,
+                      AUDIO_S16, 1, AUDIO_PLAYBACK_FEQ);
 
     cvt.len = hw->len * 2;
-    cvt.buf = (Uint8 *) MMalloc(cvt.len * cvt.len_mult);
+    int buffReqSize = cvt.len * cvt.len_mult;
+    cvt.buf = (Uint8 *) MMalloc(buffReqSize);
 
     memcpy(cvt.buf, hw->pos, cvt.len);
 
@@ -1203,6 +1337,7 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
     if (r == 0) {
         sampleConvert->sampleConverted = (i16*)cvt.buf;
         sampleConvert->sampleConvertedLen = cvt.len_cvt / 2;
+        sampleConvert->sampleConvertedBufferSize = buffReqSize;
         sampleConvert->samplePtr = hw->pos;
         sampleConvert->sampleLen = hw->len;
         sampleConvert->period = hw->period;
@@ -1213,26 +1348,70 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
         sampleConvert->sampleLen = 0;
         sampleConvert->period = 0;
         sampleConvert->sampleConvertedLen = 0;
+        sampleConvert->sampleConvertedBufferSize = 0;
         sampleConvert->used = 0;
+        MFree(cvt.buf, buffReqSize);
     }
 
-    if (sDebugLog) {
+//    if (sDebugLog) {
         char buffer[40];
 
         u32 sampleId = hw->pos - audio->data;
-        if (writeOrig) {
-            snprintf(buffer, 40, "music/orig-%x-%x.raw", sampleId, hw->len);
-
-            MFileWriteDataFully(buffer, (u8*) hw->pos, hw->len * 2);
-        }
+//        if (writeOrig) {
+//            snprintf(buffer, 40, "music/orig-%x-%x.raw", sampleId, hw->len);
+//
+//            MFileWriteDataFully(buffer, (u8*) hw->pos, hw->len * 2);
+//        }
 
         if (r == 0) {
-            snprintf(buffer, 40, "music/mod-%x-%x.raw", sampleId, hw->period);
+            snprintf(buffer, 40, "music/mod-old-%x-%x.raw", sampleId, hw->period);
 
             MFileWriteDataFully(buffer, (u8*) sampleConvert->sampleConverted, cvt.len_cvt);
         }
-    }
+//    }
+#else
+    // period = ticks per second / samples per second
+    // samples per second = ticks per second / period
+    u32 amigaFramesPerSecond = (AMIGA_CHIP_CLOCK_TICKS / hw->period);
+    int convertedFrames = (hw->len * 2 * AUDIO_PLAYBACK_FEQ) / amigaFramesPerSecond;
+    int buffReqSize = convertedFrames * 2;
 
+    i16* buffer = (i16*)MMalloc(buffReqSize);
+    int r = ConvertAudio8to16_Linear((i8*)hw->pos, hw->len*2, buffer, convertedFrames);
+    if (r != 0) {
+        sampleConvert->sampleConverted = buffer;
+        sampleConvert->sampleConvertedLen = convertedFrames;
+        sampleConvert->sampleConvertedBufferSize = buffReqSize;
+        sampleConvert->samplePtr = hw->pos;
+        sampleConvert->sampleLen = hw->len;
+        sampleConvert->period = hw->period;
+        sampleConvert->cacheClock = audio->sampleConvertClock++;
+        sampleConvert->used++;
+//        if (sDebugLog) {
+            char fileNameBuffer[40];
+
+            u32 sampleId = hw->pos - audio->data;
+//            if (writeOrig) {
+//                snprintf(fileNameBuffer, 40, "music/orig-%x-%x.raw", sampleId, hw->len);
+//
+//                MFileWriteDataFully(fileNameBuffer, (u8*) hw->pos, hw->len * 2);
+//            }
+
+            snprintf(fileNameBuffer, 40, "music/mod-new-%x-%x.raw", sampleId, hw->period);
+
+            MFileWriteDataFully(fileNameBuffer, (u8*) sampleConvert->sampleConverted,
+                                sampleConvert->sampleConvertedBufferSize);
+//        }
+    } else {
+        sampleConvert->samplePtr = NULL;
+        sampleConvert->sampleLen = 0;
+        sampleConvert->period = 0;
+        sampleConvert->sampleConvertedLen = 0;
+        sampleConvert->sampleConvertedBufferSize = 0;
+        sampleConvert->used = 0;
+        MFree(buffer, buffReqSize);
+    }
+#endif
     return sampleConvert;
 }
 
@@ -1254,23 +1433,29 @@ void Audio_ReloadSampleIfChanged(AudioContext* audio, u16 channelId, ChannelRegi
     }
 }
 
-void Audio_Render(AudioContext* audio, int ticks, b32 output) {
-    u32 overallSamples = (PLAYBACK_FEQ * ticks) / 50;
+void Audio_RenderInternal(AudioContext* audio, u32 numSamples, u32 numTicks, b32 bWriteFrames) {
+    u32 overallSamples = (AUDIO_PLAYBACK_FEQ * numTicks) / 50;
+    // u32 outputSize = numSamples * 2 * 2;
     u32 outputSize = overallSamples * 2 * 2;
 
-    if (output) {
+    if (bWriteFrames) {
         if (audio->audioOutputBufferSize < outputSize) {
-            audio->audioOutputBuffer = (i16*)MRealloc(audio->audioOutputBuffer, outputSize);
+            audio->audioOutputBuffer = (i16*)MRealloc(audio->audioOutputBuffer, audio->audioOutputBufferSize, outputSize);
             audio->audioOutputBufferSize = outputSize;
         }
         audio->audioOutputContentSize = outputSize;
     }
 
+#ifdef AUDIO_BUFFERED_PLAYBACK_WASM
+    float* outLeft = audio->audioOutputBufferLeft;
+    float* outRight = audio->audioOutputBufferRight;
+#else
     i16* out = audio->audioOutputBuffer;
+#endif
 
     i32 channelOut[4];
 
-    for (int tick = 0; tick < ticks; tick++) {
+    for (int tick = 0; tick < numTicks; tick++) {
         audio->modTick++;
         if (sDebugLog) {
             MLogf("tick: %d %x", audio->modTick, audio->channelMask);
@@ -1330,16 +1515,20 @@ void Audio_Render(AudioContext* audio, int ticks, b32 output) {
                 }
             }
 
-            if (output) {
+            if (bWriteFrames) {
+#ifdef AUDIO_BUFFERED_PLAYBACK_WASM
+                float leftValue = (channelOut[0] + channelOut[3]) / (float)(1 << 24);
+                float rightValue = (channelOut[1] + channelOut[2]) / (float)(1 << 24);
+                // Do some stereo mixing, so samples are not just heard in one ear.  Later Amiga models did this.
+                *(outLeft++) = (leftValue * 3 + rightValue) / 4;
+                *(outRight++) = (rightValue * 3 + leftValue) / 4;
+#else
                 i32 leftValue = (channelOut[0] + channelOut[3]) / VOLUME_SCALE;
                 i32 rightValue = (channelOut[1] + channelOut[2]) / VOLUME_SCALE;
-
-                // Do some stereo mixing, it sounds a little fuller.
+                // Do some stereo mixing, so samples are not just heard in one ear.  Later Amiga models did this.
                 *(out++) = (leftValue * 3 + rightValue) / 4;
                 *(out++) = (rightValue * 3 + leftValue) / 4;
-
-//                *(out++) = leftValue;
-//                *(out++) = rightValue;
+#endif
             }
         }
 
@@ -1349,8 +1538,13 @@ void Audio_Render(AudioContext* audio, int ticks, b32 output) {
         audio->lastValue[3] = channelOut[3];
     }
 
-    if (output && sDebugLog) {
-        MFileWriteDataFully("music/output.raw", (u8*) audio->audioOutputBuffer, overallSamples * 4);
+//    if (bWriteFrames && sDebugLog) {
+    if (bWriteFrames) {
+        static MFile sOutputRaw;
+        if (!sOutputRaw.open) {
+            sOutputRaw = MFileWriteOpen("music/output.raw");
+        }
+        MFileWriteData(&sOutputRaw, (u8*) audio->audioOutputBuffer, overallSamples * 4);
     }
 }
 #endif

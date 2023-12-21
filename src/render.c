@@ -9,11 +9,6 @@
 #include "fmath.h"
 #include "audio.h"
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <limits.h>
-
 #if FINTRO_SCREEN_RES == 1
 #define SCREEN_SCALE 1
 #define ZCLIPNEAR 0x40
@@ -75,9 +70,8 @@
 // TODO:
 //   - Some matrix setup modes are not implemented (not needed for intro)
 //   - Some text rendering options are not implemented (not needed for intro)
-//   - Many text souring/formatting functions are not implemented (not needed for intro)
-//   - Bitmap text in model not supported
-//   - Document
+//   - Many text sourcing / formatting functions are not implemented (not needed for intro)
+//   - Bitmap text attached to model not supported e.g. HUD strings
 
 #ifdef __GNUC__
 // Slightly faster than malloc/alloc solutions in GCC 6.3
@@ -97,7 +91,7 @@ MINTERNAL void MMemStackInit(MMemStack* memStack, size_t size) {
 }
 
 MINTERNAL void MMemStackFree(MMemStack* memStack) {
-    MFree(memStack->mem);
+    MFree(memStack->mem, memStack->size);
 }
 
 MINTERNAL u8* MMemStackAlloc(MMemStack* memStack, size_t size) {
@@ -287,9 +281,9 @@ void Surface_Init(Surface* surface, u16 width, u16 height) {
 }
 
 void Surface_Free(Surface* surface) {
-    MFree(surface->pixels); surface->pixels = 0;
+    MFree(surface->pixels, surface->width * surface->height); surface->pixels = 0;
 #ifdef FINSPECTOR
-    MFree(surface->insOffset); surface->insOffset = 0;
+    MFree(surface->insOffset, surface->width * surface->height * 2); surface->insOffset = 0;
 #endif
 }
 
@@ -302,7 +296,8 @@ void Surface_Clear(Surface* surface, u8 colour) {
         surface->insOffset[i] = 0;
     }
 #else
-    // Clear 4 bytes at a time
+    // Clear 4 bytes at a time for optimization purposes, 'pixels' will be at least 4 byte aligned.
+    // If we don't do this GCC 6.5 will replace with a generic memset() that runs slower on the Amiga.
     u32* pixels32 = (u32*)surface->pixels;
     u32 colour32 = colour;
     u32* end = pixels32 + ((SURFACE_HEIGHT * SURFACE_WIDTH) / 4);
@@ -313,11 +308,8 @@ void Surface_Clear(Surface* surface, u8 colour) {
 #endif
 }
 
-// tests
-// - writing words is better than bytes?
 static void DrawSpanNoClip(u8* restrict pixelsLine, i16 x1, i16 x2, u8 colour) {
-#ifdef AMIGA
-#if defined(__GNUC__)
+#if defined(AMIGA) && defined(__GNUC__)
     u8* restrict dummy1;
     i16 dummy2;
     __asm__ volatile (
@@ -330,20 +322,17 @@ static void DrawSpanNoClip(u8* restrict pixelsLine, i16 x1, i16 x2, u8 colour) {
         ".done%=:\n\t"
        : "=a"(dummy1), "=d"(dummy2)
        : "a"(pixelsLine), "d"(x1), "1"(x2), "d"(colour)
-
+       : "cc", "memory"
        // dummy1 dummy2
        // 0      1
        // pixelsLine x1 x2 colour
        // 2          3  4  5
     );
-#elif defined(__VBCC__)
-    for (; x1 < x2; x1++) {
-        *(pixelsLine + x1) = colour;
-    }
-#endif
 #else
-    for (; x1 < x2; x1++) {
-        *(pixelsLine + x1) = colour;
+    u8* restrict cur = pixelsLine + x1;
+    u8* restrict end = pixelsLine + x2;
+    for (; cur < end; cur++) {
+        *cur = colour;
     }
 #endif
 }
@@ -1240,7 +1229,7 @@ MINTERNAL void SpanRenderer_Clear(SpanRenderer *spanRenderer) {
 }
 
 MINTERNAL void SpanRenderer_Free(SpanRenderer *spanRenderer) {
-    MFree(spanRenderer->spans); spanRenderer->spans = NULL;
+    MFree(spanRenderer->spans, spanRenderer->memSize); spanRenderer->spans = NULL;
 }
 
 MINTERNAL void SpanRenderer_Init(SpanRenderer *spanRenderer, u16 height) {
@@ -1276,12 +1265,12 @@ MINTERNAL void SpanRenderer_Print(SpanRenderer* spans, Surface* surface) {
             continue;
         }
 
-        printf("%x : %x : ", (int)row, nSpansRow);
+        MLogf("%x : %x : ", (int)row, nSpansRow);
         for (u16 i = 0; i < nSpansRow; i += 1) {
             int x1 = spanLine->span[i];
-            printf("%x ", x1);
+            MLogf("%x ", x1);
         }
-        printf("\n");
+        MLogf("\n");
     }
 
     MLog("done");
@@ -1289,7 +1278,6 @@ MINTERNAL void SpanRenderer_Print(SpanRenderer* spans, Surface* surface) {
 
 MINTERNAL void SpanRenderer_Draw(SpanRenderer *spans, Surface *surface, u8 colour) {
     // SpanPrint(spans, surface);
-
     u8* pixelsLine = surface->pixels + (spans->spanStart * SURFACE_WIDTH);
     SpanLine* spanLine = spans->spans + spans->spanStart;
     i16 rowsLeft =  spans->spanEnd - spans->spanStart;
@@ -1330,10 +1318,10 @@ MINTERNAL void BodySpans_Clear(BodySpanRenderer* spanRenderer) {
 
 MINTERNAL void BodySpans_Free(BodySpanRenderer* spanRenderer) {
     if (spanRenderer->spans) {
-        MFree(spanRenderer->spans); spanRenderer->spans = NULL;
+        MFree(spanRenderer->spans, spanRenderer->height * sizeof(BodySpan)); spanRenderer->spans = NULL;
     }
     if (spanRenderer->rowBeginColour) {
-        MFree(spanRenderer->rowBeginColour); spanRenderer->rowBeginColour = NULL;
+        MFree(spanRenderer->rowBeginColour, spanRenderer->height * sizeof(u16)); spanRenderer->rowBeginColour = NULL;
     }
 }
 
@@ -1473,9 +1461,9 @@ MINTERNAL void BodySpans_Print(BodySpanRenderer* spans) {
         rowBeginColour = *rowBeginColours;
 
         if (bodySpan->num) {
-            printf("%x : %x ", spansY, bodySpan->num);
+            MLogf("%x : %x ", spansY, bodySpan->num);
             for (int i = 0; i < bodySpan->num; ++i) {
-                printf(", %x %x", bodySpan->s[i].colour, bodySpan->s[i].x);
+                MLogf(", %x %x", bodySpan->s[i].colour, bodySpan->s[i].x);
             }
             MLogf(" : %x", rowBeginColour);
         } else {
@@ -1956,9 +1944,9 @@ MINTERNAL void ZTree_Clear(ZTree* zTree) {
 }
 
 MINTERNAL void ZTree_Init(ZTree* zTree, u32 size) {
-    zTree->size = size;
     u16 maxDrawNodeSize = 0x200;
-    zTree->data = (u8*)MMalloc(size + maxDrawNodeSize);
+    zTree->size = size + maxDrawNodeSize;
+    zTree->data = (u8*)MMalloc(zTree->size);
     zTree->root = zTree->data;
 
     MArrayInit(zTree->subTrees);
@@ -1972,7 +1960,7 @@ MINTERNAL void ZTree_Init(ZTree* zTree, u32 size) {
 }
 
 MINTERNAL void ZTree_Free(ZTree* zTree) {
-    MFree(zTree->data); zTree->data = 0;
+    MFree(zTree->data, zTree->size); zTree->data = 0;
     MArrayFree(zTree->subTrees);
 }
 
@@ -5996,9 +5984,9 @@ MINTERNAL int RenderTeardrop(RenderContext* renderContext, u16 funcParam) {
         i32 blobAxisX = ((dx << 15) + 0x4000);
         if (vDist2d == 0) {
             if (blobAxisX < 0) {
-                blobAxisX = INT_MIN;
+                blobAxisX = I32_MIN;
             } else {
-                blobAxisX = INT_MAX;
+                blobAxisX = I32_MAX;
             }
         } else {
             blobAxisX = blobAxisX / vDist2d;
@@ -6007,9 +5995,9 @@ MINTERNAL int RenderTeardrop(RenderContext* renderContext, u16 funcParam) {
         i32 blobAxisY = ((dy << 15) + 0x4000);
         if (vDist2d == 0) {
             if (blobAxisY < 0) {
-                blobAxisY = INT_MIN;
+                blobAxisY = I32_MIN;
             } else {
-                blobAxisY = INT_MAX;
+                blobAxisY = I32_MAX;
             }
         } else {
             blobAxisY = blobAxisY / vDist2d;
@@ -8925,46 +8913,4 @@ void Render_RenderAndDrawScene(SceneSetup* sceneSetup, b32 resetPalette) {
     Palette_CalcDynamicColourUpdates(&sceneSetup->raster->paletteContext);
     Surface_Clear(sceneSetup->raster->surface, BACKGROUND_COLOUR_INDEX);
     Raster_Draw(sceneSetup->raster);
-}
-
-void testClipping(void) {
-    Vec2i16 p1;
-    p1.x = 240;
-    p1.y = 67;
-
-    Vec2i16 p2;
-    p2.x = -4443;
-    p2.y = 1898;
-
-    b32 shown = ClipLinePoints(&p1, &p2, 320 - 1, 0xa8 - 1);
-    if (!shown || p1.x < 0 || p2.x < 0 || p1.x >= 320 || p2.x >= 320) {
-        MLog("Error");
-    }
-
-    p1.x = 4;
-    p1.y = -54;
-    p2.x = -37;
-    p2.y = 27;
-
-    shown = ClipLinePoints(&p1, &p2, 320 - 1, 0xa8 - 1);
-    if (shown) {
-        MLog("Error");
-    }
-
-    VertexData v1;
-    v1.vVec[0] = -9674271;
-    v1.vVec[1] = -177148;
-    v1.vVec[2] = 4588555;
-
-    VertexData v2;
-    v2.vVec[0] = -10413839;
-    v2.vVec[1] = -177148;
-    v2.vVec[2] = -7369901;
-
-//    Vec2i16 pos = ClipLineZ(&v1, &v2, 640, 336);
-}
-
-void Render_RunTests() {
-    testClipping();
-    FMath_Test();
 }

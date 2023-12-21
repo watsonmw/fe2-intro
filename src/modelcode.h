@@ -1,8 +1,6 @@
 #ifndef FINTRO_MODELCODE_H
 #define FINTRO_MODELCODE_H
 
-#include <stdint.h>
-
 #include "mlib.h"
 #include "fmath.h"
 #include "assets.h"
@@ -51,6 +49,7 @@ void DecompileModelToConsole(ModelData* modelData, u32 modelIndex, ModelType mod
 typedef struct sModelCompileResult {
     u32 modelStartOffset;
     char* error;
+    u32 errorLen;
     b32 staticError;
     i32 errorLine;
     i32 errorColumn;
@@ -75,9 +74,10 @@ ModelCompileResult CompileMultipleModels(const char* dataIn, u32 sizeIn, MMemIO*
                                          ModelEndianEnum endian, b32 dumpModelsToConsole);
 
 // Compile multiple models from file and write binary compiled code to given file
-// The model pointers and memory models are available for direct use (must be free'd)
-// if not in use.
-i32 CompileAndWriteModels(const char* modelsFile, const char* outputFile, MMemIO* outModelMem, ModelsArray* outModels);
+// The model pointers and memory models are available for direct use if compiled to same endian as host.
+// Must be free'd after use.
+i32 CompileAndWriteModels(const char* modelsFile, const char* outputFile, MMemIO* outModelMem, ModelsArray* outModels,
+                          ModelEndianEnum endian, b32 dumpModelsToConsole);
 
 void ModelCompile_Test();
 

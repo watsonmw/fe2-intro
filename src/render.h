@@ -6,8 +6,6 @@
 #ifndef FINTRO_RENDER_H
 #define FINTRO_RENDER_H
 
-#include <stdint.h>
-
 #include "mlib.h"
 #include "fmath.h"
 #include "assets.h"
@@ -259,6 +257,7 @@ typedef struct sSceneSetup {
 
     // List of strings available for rendering
     u8** moduleStrings;
+    u32 moduleStringNum;
 
     AssetsData assets;
 
