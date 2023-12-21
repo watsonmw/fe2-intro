@@ -7,7 +7,7 @@
 
 ## Introduction
 
-[Frontier: Elite 2](https://en.wikipedia.org/wiki/Frontier:_Elite_II) (FE2) was released in late 1993 on the Amiga by
+[Frontier: Elite 2](https://en.wikipedia.org/wiki/Frontier:_Elite_II) (FE2) was released in 1993 on the Amiga by
 [David Braben](https://en.wikipedia.org/wiki/David_Braben).  The game was an ambitious spaceship sim / open galaxy
 sandbox, squeezed into a single floppy disk.  You could launch your ship from a space station, jump to another star
 system, travel to a distant planet, land and dock at the local spaceport, fighting pirates and avoiding police along the
@@ -31,8 +31,8 @@ some notable features of the Frontier 3D engine:
 - Huge variety of star / planet / ship / city / starport models
 
 How was it all done?  Due to variety of the graphics and jam packed features I was more than a bit bamboozled!  Read on
-to find out more about the graphics side of things.  I won't go into the other aspects of the game, you can check out
-the [additional info](#further-reading) sections at the bottom if you are curious.
+to find out more about the graphics side of things.  I won't go into the other aspects of the game (much), but you can
+check out the [additional info](#further-reading) sections at the bottom if you are curious.
 
 
 ## Target Platforms
@@ -51,8 +51,9 @@ possible 4096 colours. The 16 colours were assigned via a 12-bit RGB format: 4 f
 scene was rendered in the top 168 rows, the ship cockpit / controls were displayed in the bottom 32 rows (or the case of
 the intro - the Frontier logo).
 
-The baseline Amiga could support a 32 colours palette, but the AtariST was limited to 16 colours so the engine has to
-work with just 16 colours available.  This may be why the Amiga version is limited to 16 colours as well.
+The baseline Amiga could support a 32 colour palette, but the AtariST was limited to 16 colours so the engine has to
+work with just 16 colours available.  This may be why the Amiga version is limited to 16 colours as well (also it's one
+less bit plane to have to draw into).
 
 The PC version came slightly later, and has a few additions over the Amiga version.  It was translated to x86 assembly
 from the 68K assembly by [Chris Sawyer](https://en.wikipedia.org/wiki/Chris_Sawyer).  PCs were really Moore's law'ing it
@@ -69,31 +70,30 @@ up at the time, and FE2 on the PC made good use of the extra horsepower availabl
 
 Each star / planet / ship / city / starport / building / etc is stored as model with a list of vertices, normals and
 a list of opcodes.  The opcodes encode the lines, triangles, quads, complex polygons to render as part of the model.
-But the opcodes can do much more than this.  Most the model specific rendering logic is pushed in the model code. 
-Things like level of detail, model composition, animations are done via the model code.
+But the opcodes can do much more than this.  Most of the model specific rendering logic is described by the model code. 
+It is used for level of detail (LoD) decisions, model compositions, animations.
 
-Instead of writing assembly code to control how each model is rendered, the opcodes are ran in a VM with a set of
-inputs (time, ship stats, random variables, etc).  These are passed in from the code that requested the object to be
-rendered.
+Instead of writing assembly code to control how each model is rendered, a model's opcodes are run in a Virtual Machine
+(VM) with a set of inputs (e.g. time, position, orientation, ship details, pseudo random variables). These are passed in
+from the code that requested the object to be rendered.
 
-When each object is rendered, its model is looked up and its opcodes are executed in a VM.  These are executed every
-frame to build a raster list (aka draw list).   The raster list contains the list of things to be drawn on screen and
-where they should be drawn.  To find the coordinates for items in the draw list, the models vertices are projected and
-clipped on demand.
+When each object is rendered, its model is looked up and then its opcodes are executed in a VM.  These are executed
+every frame to build a raster list (aka draw list).   The raster list contains the list of things to be drawn on screen
+and where they should be drawn.
 
-As discussed the first few opcodes specify a primitive to render.  There are also opcodes for conditional logic, branches
-and calculations.  These are used many creative purposes, chiefly:
+As discussed the first few opcodes specify a primitive to render.  There are also opcodes for conditional logic,
+branches and calculations.  These are used many creative purposes, chiefly:
 
 - Distance based Level of Detail (LOD)
 - Model Variety (Colours, conditional rendering)
 - Animations (Landing gear, docking, explosions)
 
-Other opcodes instruct the renderer to render entire 3D models:
+Other opcodes instruct the renderer to render entire 3D objects:
 
 - Planets / Stars
 - Spheres
 - Cylinders (e.g. Landing gear wheels, courier engines, railings)
-- Other models (in given reference frame)
+- Other models (in a given reference frame)
 - 3D text strings
 
 More on this later.
@@ -139,7 +139,7 @@ actually drawing the list, it can be easily traversed from back to front, so tha
 the background (painter's algorithm). The depth of any given raster item is typically given by one of its vertices, or
 min / max of all its vertices.  The model code has wide control over which method is used.
 
-Sorting all the polygons/raster items every frame is too slow, so FE2 has a number of techniques to speed things up.
+Sorting all the polygons/raster items every frame is slow, so FE2 has a number of techniques to speed things up.
 
 The binary tree can contain **batch** nodes, these contain a list of raster items all at the same depth (making
 insertions after the first item in the batch a simple append).  This enforces a raster order for a list of items, one 
@@ -150,39 +150,42 @@ convex object a single z depth.
 In some cases, the batching is ideal, it is used to add extra detail to a polygon without the raster items z fighting.
 With a modern renderer you would disable the depth test, or bake into a texture / shader.
 
-Another interesting thing is the model code can add **sub-tree** nodes with their own internal sorting.  The whole sub-tree
-has one z-depth in the outer tree, and any nodes added to the raster list while this sub-tree is active only get added
-to the sub-tree.  This includes depth values that would otherwise be sorted in front of, or behind objects in the outer
-tree.  Frequently used for landing gear, so you don't get any part of the landing gear poking through the main ship
-model / wing - but, unlike with using a batch, items in the sub-tree remain z sorted.
+Another interesting thing is the model code can add **sub-tree** nodes with their own internal sorting.  The whole
+sub-tree has one z-depth in the outer tree, and any nodes added to the raster list while this sub-tree is active only
+get added to the sub-tree.  This includes depth values that would otherwise be sorted in front of, or behind objects in
+the outer tree.  Frequently used for landing gear, so you don't get any part of the landing gear poking through the main
+ship model / wing - but, unlike with using a batch, items in the sub-tree remain z sorted.
 
 Any surface with a normal that faces away from the viewer can be skipped by the renderer, so it never gets added to the
 raster list.  In addition, whole objects can be culled if necessary, e.g. missiles under a ship's wing are tied to the
 wing normal - when the under wing normal faces away from the viewer the missiles are not drawn.
 
-Note: Even if you had the time to sort every raster item, back to front, this won't fully work.  You can still have
-raster items that don't have an ordering.  You can even have convex objects that don't have a canonical Z ordering (the
-typical example is this: place 3 matchsticks in a triangle, with each matchstick's tip in front of another matchstick's
-end - #1 is in front of #2, which is in front of #3, which is in front of #1 - i.e. the order is a cycle).
+**NOTE**: One thing to point out here is that even if you had the time to sort every raster item back to front every
+frame, this won't fully work.  You can still have raster items that don't have a 'correct' ordering.  Even simple
+convex objects may not have a canonical Z ordering.  The typical example is this: place 3 matchsticks in a triangle,
+with each matchstick's tip is in front of another matchstick's end - so that stick #1 is in 'front' of stick #2, #2
+is in front of #3, which if you follow that logic #3 is in front of #1.  Since this is a cycle, there's no way to order
+it and have it rendered correctly.
 
 <figure>
 <img src="matchsticks.png" alt="Painter's Problem">
-<figcaption>Painter's Problem: No matchstick depth ordering</figcaption>
+<figcaption>Painter's Problem: Painting one complete matchstick at time won't work</figcaption>
 </figure>
 
-The best you can do is come up with some compromises that work best for the engine.  Later 3D game engines used more
-expensive techniques like a depth buffer (every pixel is given a depth value) or BSP trees (break up polygons so that
-they **do** have a canonical sort order).
+So with tight time constraints the best you can do is come up with some compromises that work best for the engine. Later
+3D game engines used more expensive techniques like a depth buffer (every pixel is given a depth value) or BSP trees 
+break up polygons so that they **do** have a canonical sort order).
 
 
 ## Lighting
 
 Lighting in-game is directional and coloured from the main star.  Each object rendered can have its light source
 direction & colour setup independently.  This is so the light direction is correct for each model when the star is
-placed near or in the scene, e.g. the [orrery](https://en.wikipedia.org/wiki/Orrery) view or viewing a distant planet.
+placed near or in the scene, e.g. the [orrery](https://en.wikipedia.org/wiki/Orrery) view or viewing multiple distant
+planets.
 
 In the intro and ship view screen the light source is fixed and comes from the top-right of the screen, i.e. above the
-subject and to the side, much like in film.
+subject and to the side, much like a standard lighting setup used in cinema.
 
 In most places where a colour is specified, two special bits of the colour are used to indicate how lighting should be
 applied.
@@ -194,11 +197,11 @@ The 12-bit colour format expected by the HW is as follows:
     
 But in FE2 when a colour is specified, one bit from each colour has a special meaning:
     
-- Bit 8 - If set emit colour directly / don't add normal colour
+- Bit 8 - If set emit colour directly / don't add in a normal colour
 - Bit 4 - Add the scene base colour (sometimes diffuse, sometimes just object instance colour)
-- Bit 0 - This bit is not used, typically the model OpCode borrows this bit
-    
-So the colour per bit layout is as follows instead:
+- Bit 0 - This bit is not used, typically the model OpCode borrows this bit for its own purposes
+
+The colour per bit layout is as follows:
     
       | Red | !Shade | Green | Add Global Colour | Blue | Unused |
       | ba9 | 8      | 765   | 4                 | 321  | 0      |
@@ -227,14 +230,15 @@ Offsets / translations are done with separate 3D vectors, and rotated as needed.
 
 When projecting vertices:
 
-- First the vertex is unpacked
+- First, the vertex data is read from memory & unpacked
 - Second, it is rotated to view space using the current 3x3 rotation matrix
 - Third, it is scaled with the current object scale (by bit shifting)
 - Forth, it is offset by the current view space object vector
-- Finally, it is 3d projected onto the screen (using bit shifts and a depth lookup table (the perspective depth division)) 
+- Finally, it is 3d projected onto the screen - using bit shifts and a depth lookup table (the perspective depth 
+  division)
 
-It should be noted this is done lazily on a per-vertex basis, as the vertex is requested by the model code.  This is
-because A) not all vertices are rendered, since the model code contains conditionals and B) vertices can be dynamically
+This is done lazily on a per-vertex basis only when the vertex is requested by the model code.  This is because A) not
+all vertices are rendered, since the model code contains conditionals (e.g. LoD) and B) vertices can be dynamically
 positioned by model code.
 
 
@@ -246,7 +250,7 @@ each with 16 colours.  The palette is adjusted by a vertical blank interrupt (fo
 loop, at a constant 50 times per second.
 
 The colour space is 12-bit for a total of 4096 colours, but only 16 of these can be used at any one time.  A clever
-scheme is used to get the most of out of these 16 colours.  A virtual palette with space for up to 62 colours is created.
+scheme is used to get the most out of these 16 colours.  A virtual palette with space for up to 62 colours is created.
 As new colours are requested by the renderer, they are recorded in the virtual palette.  Items added to the draw list
 reference these virtual colour indexes.  Later these will be resolved to real HW palette entries.  An array of 4096
 slots is used to keep track of which virtual colours are used so far in a frame.  At each point in the array, allocated
@@ -255,7 +259,8 @@ colours marked with their virtual index and unassigned colours are set to with 0
 2 fixed colours are always assigned:
 
 - Palette index 14 is always set to the background colour.  In space this is #005 (the famous blue space!).  On a planet
-  this is set to the colour of the sky.  It's fixed because changing the background colour would be a bit too jarring.
+  this is set to the colour of the sky.  It's fixed because changing the background colour between frames would be a bit
+  too jarring.
 - Palette index 15 is always set to gray (#aaa).  Used for bitmap text.
 
 So this leaves us with 14 (16 total - 2 fixed) entries to decide on.  If there are 14 or less virtual colours, then we
@@ -263,10 +268,10 @@ are done - the virtual colours can be assigned to the palette directly.
 
 If we've more than 14 colours, well, now some magic needs to happen!  The virtual colours need to be merged to fit into
 the 14 available palette entries.  This is done by recursively splitting / partitioning the assigned virtual colours
-into 14 buckets (kinda like quicksort or an oct-tree scheme).
+into 14 buckets (kinda like quicksort).
 
 <figure>
-<img src="palette.png" alt="Models">
+<img src="palette.png" alt="Palette">
 <figcaption>Palette Partition Example</figcaption>
 </figure>
 
@@ -289,7 +294,7 @@ colour merging / palette compression at all.   This is the version I've implemen
 
 The 68K processor could only do 16-bit multiplies and divides, and each took many cycles to complete
 (MULS - Multiply Signed: took 70 cycles, DIVS - Divide Signed - took a whooping 158 cycles, compare this to add /
-subtract which took around 6 cycles). Hardware supported floating point is very rare as it required an upgraded or
+subtract which took around 6 cycles). Hardware supported floating point was very rare as it required an upgraded or
 expensive Amiga.  Not much software supported HW floating point and for real time 3D it often wasn't faster than a
 fixed point scheme anyway (as much of the precision is unneeded / can be worked around).  Anyway, end result,
 the Frontier engine implemented its own fixed point & floating point code using integer instructions.
@@ -314,7 +319,7 @@ Two software floating point number sizes are supported:
 
 Note that's a lot of bits for the exponent allowing for some very large numbers (that's not 15 bit shifts, its **32K bit
 shifts**!).  This is mainly due to it being easier this way since it is implemented with 16-bit integer math primitives.
-Compare the exponent size to IEEE floating point 754, which used only 11 bits for the exponent in 64-bit floating point!
+Compare the exponent size to IEEE floating point 754, which uses only 11 bits for the exponent in 64-bit floating point!
 
 
 ## Planet Rendering
@@ -336,7 +341,7 @@ There are three types of surface features:
 
 - Surface polygons - Land masses on earth-likes, or colour bands on jupiter-likes
 - Surface circles - Polar ice caps
-- Shading in the form of 1 - 3 great arcs (these typically cut across the other surface features)
+- Shading in the form of 1 - 3 arcs (these typically cut across the other surface features)
 
 The surface polygons are mapped to the surface of the planet by treating them as arcs across the surface.  Procedural
 sub-division of the surface polygon line segments are used to add surface detail as you get closer to the planet.
@@ -345,14 +350,15 @@ A set of atmospheric colours can be specified, these are rendered when looking a
 
 Which brings us to the view dependant rendering paths:
 
-- When the planet covers most of the screen the background colour is changed to the surface colour to avoid overdraw.
+- When the planet covers most of the screen the background colour is changed to the sky or ground colour to avoid
+  overdraw.
 - When the planet is at the edge of the screen, or you were viewing along the surface, the outline is rendered with a
   single Bézier curve.  Any atmospheric bands are rendered with additional Bézier curves.
-- When the planet outline is elliptical, it is rendered with two Bézier curves.
+- When the planet outline covers enough of the screen to be elliptical, it is rendered with two Bézier curves.
 
 When it comes to rasterising the planet, a custom multi-colour span renderer is used.  The renderer generates an
-outline of the planet, then adds surface details, and finally great arcs for shading are applied on top. This generates
-a set of colour flips / colour changes per span line within an overall outline, which were sent to the rasteriser.
+outline of the planet, then adds surface details, and finally arcs for shading are applied on top. This generates
+a set of colour flips / colour changes per span line within an overall outline, which are sent to the rasteriser.
 
 <figure>
 <img src="rings.png" alt="Star with Rings">
@@ -385,23 +391,22 @@ Each model in the game has the same basic model structure:
 - Base colour
 - List of vertices
 - List of normals
-- Model OpCodes to be executed by a render VM per frame
+- Model OpCodes to be executed per frame
 
 
 ### Example Model
 
-Frontier renders the 3D world using its own bytecode (well actually 16-bit wordcode, because it was written with 16-bit
-buses in mind). This code specifies the primitives to display, level of detail calculations, animations, variation and
-more.
+Frontier renders the 3D world using its own OpCodes / bytecode (well actually 16-bit wordcode, because it was written
+with 16-bit buses in mind). This code specifies the primitives to display, level of detail calculations, animations,
+variation and more.
 
-The original source code was written directly in assembly.  The model code was likely directly typed in as data
-blocks in the assembly files.  Most instructions and data aligns to 4, 8, 12 or 16 bits which is perfect for just
-typing in the hex values (which is 4 bits per character, i.e. 0x7002 0x0102 - draws a red (0x700) line (opcode 0x2) from
-vertex 1 (0x01) to vertex 2 (0x02)).
+The original source code was written directly in assembly.  The model code was likely directly typed in as data blocks
+in the assembly files.  Most instructions and data align to 4, 8, 12 or 16 bits which is perfect for just typing in the
+hex values (which is 4 bits per character, i.e. 0x7002 0x0102 - draws a red (0x700) line (opcode 0x2) from vertex 1
+(0x01) to vertex 2 (0x02)).
 
 To easily read the model code without documenting every line, I added code to convert it to an intermediate text format.
-This syntax is completely made up by me on the spot and not part of the original game.  There's a certain amount of 
-guesswork with reverse engineering, so any of this could have errors.
+This syntax is completely made up by me on the spot and not part of the original game.
 
 Here's an example model, you'll learn about the details in the following sections.
 
@@ -459,12 +464,12 @@ The different vertex types are:
 |Hex#| Vertex Type |Params|Description|
 |----|-------------|------|-----------|
 | 00, 01, 02|Regular|X, Y, Z|Regular vertex with X, Y, Z directly specified|
-| 03, 04|Screenspace Average|Vertex Index 1, Vertex Index 2|Take screenspace average of two other vertices|
+| 03, 04|Screen-space Average|Vertex Index 1, Vertex Index 2|Take screen-space average of two other vertices|
 | 05, 06|Negative|Vertex Index|Negative of another vertex|
 | 07, 08|Random|Vertex Index, Scale|Add random vector of given size to vertex|
 | 09, 0A|Regular|X, Y, Z|Regular vertex with X,Y,Z directly specified|
 | 0B, 0C|Average|Vertex Index 1, Vertex Index 2|Average of two vertices|
-| 0D, 0E|Screenspace Average|Vertex Index 1, Vertex Index 2|Take screenspace average of two other vertices, but don't project sibling vertex|
+| 0D, 0E|Screen-space Average|Vertex Index 1, Vertex Index 2|Take screen-space average of two other vertices, but don't project sibling vertex|
 | 0F, 10|AddSub|Vertex Index 1, Vertex Index 2, Vertex Index 3|Add two vertices, subtract a 3rd|
 | 11, 12|Add|Vertex Index 1, Vertex Index 2|Add two vertices|
 | 13, 14|Lerp|Vertex Index 1, Vertex Index 2, Register|Lerp of two vertices, as specified by model code register|
@@ -478,6 +483,13 @@ The parent model can choose what (0-4) vertices to export to sub-models, this is
 A vertex index in model code is stored as 8-bits, with only positive vertices from the current model, and a bit for 
 flipping the x-axis, this resulted in a total of 63 possible vertices per model / sub-model.
 
+Vertices are projected on demand, if a vertex is not referenced by the model (or is skipped over due to LOD tests /
+animations) it is not transformed / projected.  The Lerp vertex type essentially requires that vertices be projected on
+demand, as it examines the VM scratch registers while the model opcodes are running.  This process is **recursive**, so
+if vertex A references vertex B, which references C, C has to be transformed first, then B, then finally A.  As an
+optimization sometimes a vertex and its pair (the neg X-axis version of the vertex) will be transformed at the same
+time.
+
 
 ### Normal Encoding
 
@@ -488,7 +500,7 @@ Normals are also encoded in 32-bits:
 - 1 byte for Y
 - 1 byte for Z
 
-A normal index in model code is stored as 8-bits, and one of these bits (LSB) flips the x-axis. 0 is typically specifies
+A normal index in model code is stored as 8-bits, and one of these bits (LSB) flips the x-axis. 0 typically specifies
 no normal.  This results in a total of 126 possible normals specified per model / sub-model.
 
 When normals are referenced by index, to get the real index divide by 2 and subtract 1.  So 2 would be the first normal
@@ -588,12 +600,12 @@ The list of available operations is as follows:
 ### Complex Polygon Renderer
 
 When a complex polygon is specified, there's a specialized set of sub-codes for drawing each edge / curve.  These can
-have any number of points, be concave and contain curved edges.  The Frontier logo in the beginning of the intro and the
-vectorized 3D text are rendered with these sub-codes.
+have any number of points, be concave and contain curved edges.  The Frontier planet logo at the beginning of the intro
+and the vectorized 3D text are rendered with these sub-codes.
 
 | #| OpCode | Description |
 |--|--------|-------------|
-|00| Done | Finished |
+|00| Done | Finished complex polygon! |
 |01| Bezier | Draw a curve given 4 vertices |
 |02| Line | Draw a line given 2 vertices |
 |03| LineCont | Draw a line from last vertex to the given vertex |
@@ -604,7 +616,7 @@ vectorized 3D text are rendered with these sub-codes.
 The renderer just transforms the vertices, and adds lines / Béziers to the draw list.  When the curves get rasterised
 into lines later they are not perspective corrected, only the end points and the control points are projected.  During 
 rasterisation the curves are subdivided into lines in screenspace.  This usually looks fine, it's only when a polygon is
-at an extreme angle to the view plane (changing Z depth over its surface) that you notice the warping.
+at an extreme angle to the view plane (changing Z depth over its surface) that you notice warping.
 
 
 <span id="pc-differences"></span>
@@ -680,16 +692,16 @@ I started with the PC version, mainly as way to learn the ins and outs of x86 DO
 the free version of [IDA](https://hex-rays.com/) to disassemble and annotate the assembly code.
 
 It's important to say there's nothing too special about reverse engineering some code, it's like programming on someone
-else's project, but you just stop after the part where you try to understand the existing code :)  We are all guilty of
-skipping the understanding part at some point, but when reverse engineering that's literally the entire job, so we are
-forced to do it, its good practice.  Doing this for assembly is like a mix of a crossword puzzle and archaeology,
-dusting off little bits of code at a time, and trying to fit them into the whole.
+else's project, but you get to stop after the part where you try to understand the existing code :)  We are all guilty
+of skipping the understanding part at some point, but when reverse engineering that's literally the entire job, so we
+are forced to do it, its good practice I think.  Doing this for assembly is like a mix of a crossword puzzle and
+a kind of primitive archaeology, dusting off little bits of code at a time, and trying to fit them into the whole.
 
 At a basic level a program is just a bunch of transforms on input into output.  And generally we know something about
 the input and output, so we can start reverse engineering from the code that touches the input or output.  To find the
 code being executed, you can disassemble the original executable in some cases, but often it is better to dump the
-memory of the process once the process has started executing.  This is because code can be loaded into memory many
-different ways, and it's not always possible for reverse engineering tools to infer what the final layout will be.
+memory of the process once the process has started executing.  This is because code can be loaded into memory many ways,
+and it's not always possible for reverse engineering tools to infer what the final layout will be.
 Generally when you dump the code you can also dump the stack and maybe even a program counter trace.  This can be used
 to determine which sections of memory to disassemble.  From here you want to figure out common functions, common data
 structures and global state.  Figuring out any of these can allow you to cross-reference new parts of the code, and
@@ -704,12 +716,11 @@ each register / stack.
 So, first I looked for the VGA interrupt triggers used to control the graphics, and worked backward to find the low
 level raster routines and raster list traversal.  Running in the [DOSBox debugger](https://zwomp.com/index.php/2020/05/01/understanding-the-dosbox-debug-screen/)
 I was able to verify which code was executed at which point.  Initially I concentrated on the startup sequence (which
-installs the interrupts) and the interrupts themselves.  Then on how they were used in first scenes of the intro, while
-revealing some of the mainloop.
+installs the interrupts) and the interrupts themselves.  And then on how the first scenes of the intro were rendered.
 
 At this point I started coding my own versions of the draw algorithms into C, with a test harness using
-[DearIMGUI](https://github.com/ocornut/imgui).  For many functions it was easy to see what was happening, and I made
-many guesses based off the inputs to each draw function.
+[DearIMGUI](https://github.com/ocornut/imgui).  For some draw functions it was easy to see what was happening, and
+patterns emerged that made decoding the bigger more complex functions easier.
 
 <figure>
 <img src="dosbox-debugger.png" alt="DOSBox Debugger">
@@ -719,22 +730,22 @@ many guesses based off the inputs to each draw function.
 The trickiest code to figure out at this stage was for rendering complex polygons w/ Bézier curves.  After examining the
 code a bit, it became clear it was a span rasterizer - with a setup stage, list of vertices & edges, and then a final draw
 function for filling the spans.  When drawing certain edges, the span rasterizer would subdivide the specified edge into
-further edges, this was clearly for rendering curves - there was several paths for rendering based on low long the edge
-was; the longer the edge the more subdivisions generated.  The subdivision code generate a list of values that were used
-as a series of additions in the loop to generate successive edges, so I guessed the curves were drawn adding a series of
-derivatives.  Searching around I found Bézier curves could be rendered this way and filled in the missing pieces.  The
-main issue from here was just verifying I was doing calculation the same as FE2.
+further edges, this was clearly for rendering curves - there were several paths for rendering based on edge length; the
+longer the edge the more subdivisions generated.  The subdivision code generate a list of values that were used
+as a series of additions in the loop to generate successive edges, so I guessed the curves were drawn by adding a series
+of derivatives.  Searching around online, I confirmed Bézier curves can be rendered this way and filled in the missing
+bits.  The main issue from here was just verifying I was doing calculation the same as FE2.
 
-Using Béziers for rendering vector fonts is not surprising - but it turns out they are used for many purposes:
-rendering curved surfaces of ships, the galaxy background, planets, stars, planet rings, the bridge in the intro, etc -
-the engine really makes heavy use of them.  The efficiency they are rendered with is impressive, and gives the game its
-own unique look.
+Using Béziers for rendering vector fonts is perhaps not surprising - but it turns out they are used for many purposes:
+rendering curved surfaces of ships, the galaxy background, planets, stars, planet rings, the bridge in the intro, and so
+on - the engine really makes heavy use of them.  The efficiency the Béziers are rendered with is impressive, and gives
+the game its own unique look.
 
 Anyway, after getting comfortable with x86 assembly and the patterns that were used in the game, things started to get a
 lot easier.  The biggest time sink was time spent in the debugger, trying to keep track of registers, globals, and
 stack.  So I tried to avoid that as much as possible.  There's a balance though, you want to look at the code to
-understand it as much you can, and use the debugger to verify where you are unsure.  Much like for programming in
-general.
+understand it as much you can, and use the debugger to verify when you are unsure or don't have an easier way to check.
+Much like for programming in general.
 
 My approach was to first understand the raster list and be able to render everything sent to it, so I would dump raster
 lists from the main game and try to render them with my own the raster code.  Largely ignoring the details of FE2 raster
@@ -771,9 +782,9 @@ to verify existing work, and to find new jumping off points in the code when I s
 ## Amiga Blitter
 
 The Amiga has a co-processor called the [Blitter](http://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0119.html),
-capable of drawing lines and filling spans (i.e. polygons), but FE2 only used it to clear the screen, not for filling
-polygons.  The Blitter was best suited to working in parallel with the CPU and doing a few large operations, to make use
-of all the available memory bandwidth.
+capable of drawing lines and filling spans (i.e. drawing polygons), but FE2 only used it to clear the screen.  The
+Blitter was best suited to working in parallel with the CPU and doing memory intensive operations, to make use of all
+the available memory bandwidth.
 
 But it was a bit tricky to use the Blitter for rendering polygons, it required a multi-step process for each polygon:
 
@@ -781,17 +792,32 @@ But it was a bit tricky to use the Blitter for rendering polygons, it required a
 2. Draw polygon outline (edges or curves!) to a temp buffer (CPU or Blitter depending...)
 3. Composite temp buffer & fill spans to the screen buffer (Blitter)
 
-Each new operation in this process would have to be fed either by via an interrupt or, more likely, from a
-[Copper](http://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0047.html) list.  For small polygons this
-is a lot of setup process, and may not have been worth it.
+Each Blitter operation in this process would have to be fed either by via an interrupt or, more likely, from a
+[Copper](http://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node0047.html) list.  In this case the Copper
+instructions for each graphics primitive must be written by CPU and then read back & processed by the Blitter. For small
+polygons this is a lot of overhead, and may not have been worth it.
 
-Also, even if your Amiga has an upgraded CPU, the Blitter still runs at the same speed.
+With the wide variety of graphics primitives rendered, at any point during the render if you have to switch back to
+using the CPU to render, then you need multiple Copper lists and to manage separate draw lists of stuff for CPU to
+render / stuff Blitter to render.
+
+Also, even if your Amiga has an upgraded CPU the Blitter still runs at the same speed (the game was developed on an
+Amiga 2000 with a 68030 accelerator card).
 
 Anyway, in the end for FE2, the CPU was used as the rasteriser.  No doubt this was also partly due to having to write
-CPU rasteriser code for the AtariST anyway and the marginal, if any, performance return on using the Blitter.
+CPU rasteriser code for the AtariST anyway and the marginal, if any, performance return on using the Blitter in the
+given circumstances.
 
 For a discussion on this issue, see:
 [StackExchange - Why Amiga Blitter was not faster than AtariST for 3D](https://retrocomputing.stackexchange.com/questions/7626/why-were-3D-games-on-the-amiga-not-faster-than-on-similar-16-bit-systems-like-th)
+
+This is not to say the Blitter couldn't be a better option, it's all just engineering trade-offs.  It's totally possible
+you could set things up so that the Blitter is the better option, but that would likely be a very different looking
+game.
+
+It's worth noting the span renderers are kind of setup in a way that could be used to feed the Blitter, so perhaps that
+was tried and abandoned.  Seems likely it was used in a previous incarnation of the renderer or at least in some
+experiments.
 
 
 ## Music & Sound
@@ -802,14 +828,14 @@ about 12 total samples / instruments used by all tracks in the game.
 
 When sound effects are required by the game, they are slotted into free audio channels - or temporarily
 override an audio channel used by the music if no free audio channel is found.  It's surprising how well this works.
-Most of the time I'm hard-pressed to spot the difference.
+Most of the time I'm hard-pressed to hear the skipped audio channels in the music track.
 
 All music and sounds can be played by the C remake, you will need to modify the code to hear them though.
 
-On the PC, the sound hardware available was varied.  FE2 supported several different options, from built-in PC Speaker
-tones to thw SoundBlaster card.  Music was played directly as MIDI output if the hardware was available.  It may sound
-good on real Roland HW, but it's a bit chirpy and clipped when listening via DOSBox.  I like the Amiga version's sound &
-music the best, but that's just me.
+On the PC, the sound hardware available was varied.  FE2 supported several audio options, from built-in PC Speaker
+tones to the SoundBlaster card.  Music was played directly as MIDI output if the hardware was available.  It may sound
+good on a real Roland HW, but it's a bit chirpy and clipped when listening via DOSBox.  I like the Amiga version's sound
+& music the best, but maybe that's just me.
 
 
 ## Module System
@@ -820,8 +846,22 @@ and has hooks for setup & unload, 2D rendering, 3D rendering, input, and game lo
 structure for game state and a jump table for game functions, each module can use this to interact with the main game,
 to query and modify game state, play sounds, render 3D and 2D graphics, etc.  The PC version makes use of this to fit
 into 640K, by only loading parts of the code that are needed e.g. unloading the intro during the main game.  It may
-have been useful during development as well, as a kind of hot-loading system, since compiling the whole game probably
-took a while given the sheer amount of assembly!  But this is pure speculation...
+have been useful during development as well, since compiling the whole game probably took a while given the sheer amount
+of assembly!
+
+
+# Conclusion
+
+I hope this has given you a feel for the inner workings of the renderer.  What's really mind-blowing is that this is
+just the rendering part.  The whole galaxy, game and simulation parts are separate, and likely even more complex.
+
+This post is just a summary of some parts of the renderer - a full description of the code, background and possible
+considerations that went into it would be immense.
+
+Is there anything you would do differently?  What do you think of the colour matching v.s. dithering?  Do any modern 
+techniques apply: e.g. vertex ordering for backface culling, subpixel precision?
+
+
 
 
 <span id="further-reading"></span>
@@ -848,3 +888,18 @@ Original copyright holders:
 - [Frontier: Elite II © David Braben 1993 & 1994](https://en.wikipedia.org/wiki/Frontier:_Elite_II)
 - [Frontier: First Encounters © David Braben 1995](https://en.wikipedia.org/wiki/Frontier:_First_Encounters)
 - [Frontier Developments](https://www.frontier.co.uk/)
+
+
+<div id="disqus_thread"></div>
+<script>
+var disqus_config = function () {
+  this.page.url = 'https://watsonmw.com/fintro/';
+  this.page.identifier = 'fintro';
+};
+(function() {
+  var d = document, s = d.createElement('script');
+  s.src = 'https://watsonmw-com.disqus.com/embed.js';
+  s.setAttribute('data-timestamp', +new Date());
+  (d.head || d.body).appendChild(s);
+})();
+</script>
