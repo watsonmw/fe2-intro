@@ -20,10 +20,10 @@
 // This doesn't *require* -fno-strict-aliasing since gcc is still being conservative about the 'optimization', but the
 // -fno-strict-aliasing option is used for the Amiga compile anyway, since gcc 68k 6.5 makes things slightly worse with
 // strict aliasing optimizations turn on.  Be careful, seemly small changes such as converting an inline function to a
-// macro or inlining parts of mlib.c could cause this to no longer be the case, and require setting of -fno-strict-aliasing.
+// macro or inlining parts of mlib.c could cause this to no longer be the case, and require setting of
+// -fno-strict-aliasing.
 //
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 typedef char i8;
@@ -87,7 +87,7 @@ MMemBumpAllocator* MMemBumpAllocInit(u8* mem, size_t size);
 void MMemBumpDumpInfo(MMemBumpAllocator* ba);
 
 // Set the allocator, it should provide functions for malloc(), free() and realloc().
-// The ones from clib will be used by default.
+// The ones from common will be used by default.
 void MMemAllocSet(MAllocator* allocator);
 
 #ifndef M_CLIB_DISABLE
@@ -133,7 +133,7 @@ void _MFree(MDEBUG_SOURCE_DEFINE void* p, size_t size);
 // 32 flip: ((t & 0xff) << 24) + ((t >> 24) & 0xff) + ((t >> 16 & 0xff) << 8) + (((t >> 8) & 0xff) << 16);
 #ifdef __GNUC__
 #define MSTRUCTPACKED __attribute__((packed))
-#if defined(__i386__) || defined(__x86_64) || defined(__EMSCRIPTEN__)
+#if defined(__i386__) || defined(__x86_64) || defined(__EMSCRIPTEN__) || defined(WASM_DIRECT)
 #define MLITTLEENDIAN 1
 #define MBIGENDIAN16(x) __builtin_bswap16(x)
 #define MBIGENDIAN32(x) __builtin_bswap32(x)
@@ -231,26 +231,28 @@ MINTERNAL void MMemFree(MMemIO* memIO) {
     MFree(memIO->mem, memIO->capacity);
 }
 
+// Add space for bytes, but don't advance used space
+void MMemGrowBytes(MMemIO* memIO, u32 capacity);
+
 // Add bytes, allocating new memory if necessary
-void MMemAddBytes(MMemIO* memIO, u32 size);
+// Returns point to start of newly added space for given number of bytes
+u8* MMemAddBytes(MMemIO* memIO, u32 size);
 
 // Add bytes, allocating new memory if necessary, zero out bytes added
-void MMemAddBytesZero(MMemIO* memIO, u32 size);
+// Returns point to start of newly added space for given number of bytes
+u8* MMemAddBytesZero(MMemIO* memIO, u32 size);
 
 // --- Writing ---
 // Write data at current pos and advance.
 // These are often slower than writing directly as they do endian byte swaps and allow writing at byte offsets.
 // For speed call MMemAddBytes() and write data directly to *pos, making sure the offsets are aligned.
 void MMemWriteU16LE(MMemIO* memIO, u16 val);
-
 void MMemWriteU16BE(MMemIO* memIO, u16 val);
 
 void MMemWriteU32LE(MMemIO* memIO, u32 val);
-
 void MMemWriteU32BE(MMemIO* memIO, u32 val);
 
 void MMemWriteU8CopyN(MMemIO* writer, u8* src, u32 size);
-
 void MMemWriteI8CopyN(MMemIO* writer, i8* src, u32 size);
 
 // --- Reading ---
@@ -261,6 +263,7 @@ i32 MMemReadU8(MMemIO* reader, u8* val);
 i32 MMemReadI16(MMemIO* reader, i16* val);
 i32 MMemReadI16BE(MMemIO* reader, i16* val);
 i32 MMemReadI16LE(MMemIO* reader, i16* val);
+
 i32 MMemReadU16(MMemIO* reader, u16* val);
 i32 MMemReadU16BE(MMemIO* reader, u16* val);
 i32 MMemReadU16LE(MMemIO* reader, u16* val);
@@ -268,12 +271,12 @@ i32 MMemReadU16LE(MMemIO* reader, u16* val);
 i32 MMemReadI32(MMemIO* reader, i32* val);
 i32 MMemReadI32BE(MMemIO* reader, i32* val);
 i32 MMemReadI32LE(MMemIO* reader, i32* val);
+
 i32 MMemReadU32(MMemIO* reader, u32* val);
 i32 MMemReadU32BE(MMemIO* reader, u32* val);
 i32 MMemReadU32LE(MMemIO* reader, u32* val);
 
 i32 MMemReadU8CopyN(MMemIO* reader, u8* dst, u32 size);
-
 i32 MMemReadI8CopyN(MMemIO* reader, i8* dst, u32 size);
 
 // Read a string
@@ -428,21 +431,13 @@ typedef struct {
     u32 size;
 } MReadFileRet;
 
-#define MFileReadFully(filePath) (MFileReadFullyWithOffset(filePath, 0, 0))
+#define MFileReadFully(filePath) (MFileReadWithOffset(filePath, 0, 0))
 
-#define MFileReadFullyWithSize(filePath, maxSize) (MFileReadFullyWithOffset(filePath, maxSize, 0))
+#define MFileReadWithSize(filePath, readSize) (MFileReadWithOffset(filePath, 0, readSize))
 
-MReadFileRet MFileReadFullyWithOffset(const char* filePath, u32 maxSize, u32 offset);
+MReadFileRet MFileReadWithOffset(const char* filePath, u32 offset, u32 readSize);
 
 i32 MFileWriteDataFully(const char* filePath, u8* data, u32 size);
-
-typedef struct {
-    u64 size;
-    u32 exists;
-    u64 lastModifiedTime;
-} MFileInfo;
-
-MFileInfo MGetFileInfo(const char* filePath);
 
 typedef struct {
     void* handle;
@@ -481,46 +476,6 @@ MINTERNAL u32 MStrLen(const char* str) {
 
 i32 MStringAppend(MMemIO* memIo, const char* str);
 i32 MStringAppendf(MMemIO* memIo, const char* format, ...);
-
-/////////////////////////////////////////////////////////
-// Simple ini file reading / Writing
-// ini scopes not supported
-
-typedef struct {
-    char* key;
-    u32 keySize;
-
-    char* val;
-    u32 valSize;
-} MIniPair;
-
-MARRAY_TYPEDEF(MIniPair, MIniPairs)
-
-typedef struct {
-    u8* data;
-    u32 dataSize;
-    MIniPairs values;
-    u8 owned; // set to 1 if data should be automatically MFree()'d when MIniFree() is called
-} MIni;
-
-i32 MIniLoadFile(MIni* ini, const char* filePath);
-
-i32 MIniParse(MIni* ini);
-
-i32 _MIniFree(MDEBUG_SOURCE_DEFINE MIni* ini);
-#define MIniFree(ini) _MIniFree(MDEBUG_SOURCE_MACRO ini);
-
-i32 MIniReadI32(MIni* ini, const char* var, i32* valOut);
-
-typedef struct {
-    void* fileHandle;
-} MIniSave;
-
-i32 MIniSaveMWriteI32(MIniSave* ini, const char* key, i32 value);
-
-i32 MIniSaveFile(MIniSave* ini, const char* filePath);
-
-void MIniSaveFree(MIniSave* ini);
 
 #ifdef __cplusplus
 } // extern "C"

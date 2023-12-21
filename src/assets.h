@@ -71,7 +71,7 @@ void Assets_FreeAmigaFiles(AssetsDataAmiga* assets);
 MReadFileRet Assets_LoadModelOverrides(const char* filePath, ModelsArray* modelsArray);
 
 #ifdef __GNUC__
-#if defined(__i386__) || defined(__x86_64) || defined(__EMSCRIPTEN__)
+#if defined(__i386__) || defined(__x86_64) || defined(__EMSCRIPTEN__) || defined(WASM_DIRECT)
 #define ARRAY_REWRITE_BE16(data, sizeBytes) Assets_EndianFlip16(data, sizeBytes)
 #define ARRAY_REWRITE_BE32(data, sizeBytes) Assets_EndianFlip32(data, sizeBytes)
 #define ARRAY_REWRITE_LE16(data, sizeBytes) while(FALSE) {}

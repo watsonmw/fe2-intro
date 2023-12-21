@@ -8,8 +8,14 @@
 
 #include "mlib.h"
 
-#ifdef USE_SDL
+#ifdef M_USE_SDL
 #include <SDL2/SDL.h>
+#endif
+
+// Should we use buffered audio playback)
+#if defined(M_USE_SDL) || defined(WASM_DIRECT)
+#define AUDIO_BUFFERED_PLAYBACK 1
+#define AUDIO_PLAYBACK_FEQ 44100
 #endif
 
 #ifdef __cplusplus
@@ -130,7 +136,7 @@ typedef struct sAudioEngineSound {
     i16 volumeDecayDelay;
 } AudioEngineSound;
 
-#ifdef USE_SDL
+#ifdef AUDIO_BUFFERED_PLAYBACK
 typedef struct sSampleConvert {
     u8* samplePtr;
     u16 sampleLen;
@@ -178,7 +184,7 @@ typedef struct sAudio {
     u32 samplesDataSize;
 
     u8 masterVolume; // 0-128
-#ifdef USE_SDL
+#ifdef M_USE_SDL
     SDL_AudioDeviceID sdlAudioID;
 #endif
 
@@ -221,7 +227,7 @@ typedef struct sAudio {
     // Last value written in previous tick for each channel
     i32 lastValue[AUDIO_NUM_CHANNELS];
 
-#ifdef USE_SDL
+#ifdef AUDIO_BUFFERED_PLAYBACK
     ChannelRegisters channelRegisters[AUDIO_NUM_CHANNELS];
 
     // Sample conversion cache
@@ -230,7 +236,12 @@ typedef struct sAudio {
     u32 sampleCacheCount;
     u32 sampleConvertClock;
 
+#ifdef AUDIO_BUFFERED_PLAYBACK_WASM
+    float* audioOutputBufferLeft;
+    float* audioOutputBufferRight;
+#else
     i16* audioOutputBuffer;
+#endif
     u32 audioOutputBufferSize;
     u32 audioOutputContentSize;
     u32 audioBytesWriten;
@@ -268,9 +279,10 @@ MINLINE void Audio_ModStart(AudioContext* audio, int modIndex) {
 
 void Audio_ModStop(AudioContext* audio);
 
-#ifdef USE_SDL
+#ifdef AUDIO_BUFFERED_PLAYBACK
 void Audio_Pause(AudioContext* audio);
 void Audio_Resume(AudioContext* audio);
+void Audio_RenderFrames(AudioContext* audio, u32 numFrames);
 #endif
 
 MINLINE b32 Audio_ModDone(AudioContext* audio) {

@@ -1265,12 +1265,12 @@ MINTERNAL void SpanRenderer_Print(SpanRenderer* spans, Surface* surface) {
             continue;
         }
 
-        printf("%x : %x : ", (int)row, nSpansRow);
+        MLogf("%x : %x : ", (int)row, nSpansRow);
         for (u16 i = 0; i < nSpansRow; i += 1) {
             int x1 = spanLine->span[i];
-            printf("%x ", x1);
+            MLogf("%x ", x1);
         }
-        printf("\n");
+        MLogf("\n");
     }
 
     MLog("done");
@@ -1278,7 +1278,6 @@ MINTERNAL void SpanRenderer_Print(SpanRenderer* spans, Surface* surface) {
 
 MINTERNAL void SpanRenderer_Draw(SpanRenderer *spans, Surface *surface, u8 colour) {
     // SpanPrint(spans, surface);
-
     u8* pixelsLine = surface->pixels + (spans->spanStart * SURFACE_WIDTH);
     SpanLine* spanLine = spans->spans + spans->spanStart;
     i16 rowsLeft =  spans->spanEnd - spans->spanStart;
@@ -1462,9 +1461,9 @@ MINTERNAL void BodySpans_Print(BodySpanRenderer* spans) {
         rowBeginColour = *rowBeginColours;
 
         if (bodySpan->num) {
-            printf("%x : %x ", spansY, bodySpan->num);
+            MLogf("%x : %x ", spansY, bodySpan->num);
             for (int i = 0; i < bodySpan->num; ++i) {
-                printf(", %x %x", bodySpan->s[i].colour, bodySpan->s[i].x);
+                MLogf(", %x %x", bodySpan->s[i].colour, bodySpan->s[i].x);
             }
             MLogf(" : %x", rowBeginColour);
         } else {
@@ -8914,46 +8913,4 @@ void Render_RenderAndDrawScene(SceneSetup* sceneSetup, b32 resetPalette) {
     Palette_CalcDynamicColourUpdates(&sceneSetup->raster->paletteContext);
     Surface_Clear(sceneSetup->raster->surface, BACKGROUND_COLOUR_INDEX);
     Raster_Draw(sceneSetup->raster);
-}
-
-void testClipping(void) {
-    Vec2i16 p1;
-    p1.x = 240;
-    p1.y = 67;
-
-    Vec2i16 p2;
-    p2.x = -4443;
-    p2.y = 1898;
-
-    b32 shown = ClipLinePoints(&p1, &p2, 320 - 1, 0xa8 - 1);
-    if (!shown || p1.x < 0 || p2.x < 0 || p1.x >= 320 || p2.x >= 320) {
-        MLog("Error");
-    }
-
-    p1.x = 4;
-    p1.y = -54;
-    p2.x = -37;
-    p2.y = 27;
-
-    shown = ClipLinePoints(&p1, &p2, 320 - 1, 0xa8 - 1);
-    if (shown) {
-        MLog("Error");
-    }
-
-    VertexData v1;
-    v1.vVec[0] = -9674271;
-    v1.vVec[1] = -177148;
-    v1.vVec[2] = 4588555;
-
-    VertexData v2;
-    v2.vVec[0] = -10413839;
-    v2.vVec[1] = -177148;
-    v2.vVec[2] = -7369901;
-
-//    Vec2i16 pos = ClipLineZ(&v1, &v2, 640, 336);
-}
-
-void Render_RunTests() {
-    testClipping();
-    FMath_Test();
 }

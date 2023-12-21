@@ -8,11 +8,11 @@ include_directories(src)
 # SDL based fintro
 add_executable(
         fintro
-        src/main-sdl.c
+        src/platform/sdl/main-sdl.c
+        src/platform/sdl/mlib-sdl.c
         src/render.h
         src/render.c
         src/renderinternal.h
-        src/mlib.c
         src/mlib.h
         src/fintro.h
         src/fintro.c
@@ -30,11 +30,11 @@ add_executable(
 # use 'amiga/build-ami-gcc.sh' (I build on Debian with bebbo's gcc).
 add_executable(
         fintro-amiga
-        src/main-amiga.c
+        src/platform/amiga/main-amiga.c
+        src/platform/mlib-log-stdlib.c
         src/render.h
         src/render.c
         src/renderinternal.h
-        src/mlib.c
         src/mlib.h
         src/fintro.h
         src/fintro.c
@@ -45,6 +45,24 @@ add_executable(
         src/fmath.h
         src/fmath.c
 )
+
+# Native WASM target
+add_executable(
+        fintro-wasm
+        src/platform/wasm/mlib-wasm.c
+        src/render.h
+        src/render.c
+        src/renderinternal.h
+        src/mlib.h
+        src/fintro.h
+        src/fintro.c
+        src/audio.h
+        src/audio.c
+        src/assets.h
+        src/assets.c
+        src/fmath.h
+        src/fmath.c
+        src/platform/wasm/sprintf.c)
 
 # Define DEBUG c/c++ macro when compiling in debug mode
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG -fno-strict-aliasing")
@@ -57,12 +75,16 @@ IF(MINGW)
     target_compile_options(fintro PRIVATE -mconsole)
 ENDIF()
 
-target_compile_definitions(fintro PRIVATE -DUSE_SDL -DFINTRO_SCREEN_RES=3 -DM_CLIB_USE_ALIGNED)
+target_compile_definitions(fintro PRIVATE -DM_USE_SDL -DM_USE_STDLIB -DFINTRO_SCREEN_RES=3 -DM_CLIB_USE_ALIGNED)
+target_compile_definitions(fintro-wasm PRIVATE -DFINTRO_SCREEN_RES=3 -DWASM_DIRECT)
 target_compile_options(fintro PRIVATE -ggdb)
 
 # Point to your actual AmigaOS NDK
-target_compile_definitions(fintro-amiga PRIVATE -DAMIGA -DFINTRO_SCREEN_RES=2)
+target_compile_definitions(fintro-amiga PRIVATE -DAMIGA -DM_USE_STDLIB -DFINTRO_SCREEN_RES=2)
 target_include_directories(fintro-amiga PRIVATE C:/Amiga/m68k-amigaos/ndk-include C:/Amiga/m68k-amigaos/include)
+
+# Native WASM target
+target_include_directories(fintro-wasm PRIVATE src/platform/wasm)
 
 IF(APPLE)
     find_library(SDL2_LIBRARY SDL2 REQUIRED)
@@ -92,13 +114,13 @@ if(EMSCRIPTEN)
     string(APPEND CMAKE_C_FLAGS " -O3")
 
     configure_file(
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/fe2-intro.html
+        src/platform/enscripten/fe2-intro.html
         ${CMAKE_CURRENT_BINARY_DIR}/fe2-intro.html
     )
 
     configure_file(
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/manifest.json
-            ${CMAKE_CURRENT_BINARY_DIR}/manifest.json
+        src/platform/wasm/manifest.json
+        ${CMAKE_CURRENT_BINARY_DIR}/manifest.json
     )
 
     # Allow the directory /data to be fetched by the web browser.

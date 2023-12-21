@@ -189,15 +189,10 @@ static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
 int CompileFileAndWriteOut(const char* fileToCompile, const char* fileOutputPath, MMemIO* memOutput,
                            ModelsArray* modelsArray, ModelEndianEnum endian, b32 dumpModelsToConsole) {
 
-    MReadFileRet r = MFileReadFully(fileToCompile);
-    if (r.data == NULL) {
-        MLogf("Unable to load file: %s", fileToCompile);
-        return -1;
-    }
-
     MLogf("Compiling: %s", fileToCompile);
 
-    int result = CompileAndWriteModels(fileToCompile, fileOutputPath, memOutput, modelsArray, endian,
+    int result = CompileAndWriteModels(fileToCompile, fileOutputPath,
+                                       memOutput, modelsArray, endian,
                                        dumpModelsToConsole);
 
     return result;
@@ -260,10 +255,10 @@ void PauseIntro(b32 pause) {
     if (pause) {
         Audio_ModStop(&sLoopContext.audio);
     } else {
-        u64 delta = Intro_GetTimeForFrameOffset(&sLoopContext.intro, sFrameOffset);
+        u64 deltaIn100thsOfaSecond = Intro_GetTimeForFrameOffset(&sLoopContext.intro, sFrameOffset);
         u64 currentClock = SDL_GetPerformanceCounter();
-        sStartTime = currentClock - (((delta + 1ul) * (u64)sClockTickInterval) / 100ul);
-        Audio_ModStartAt(&sLoopContext.audio, sModToPlay, (delta + 1) / 2);
+        sStartTime = currentClock - (((deltaIn100thsOfaSecond + 1ul) * (u64)sClockTickInterval) / 100ul);
+        Audio_ModStartAt(&sLoopContext.audio, sModToPlay, (deltaIn100thsOfaSecond + 1) / 2);
     }
     sPause = pause;
 }
@@ -446,12 +441,6 @@ void MainLoopIteration() {
 
         if (Audio_ModDone(&sLoopContext.audio)) {
             Audio_ModStart(&sLoopContext.audio, Audio_ModEnum_SILENCE);
-        }
-
-        if (sFrameOffset >= sLoopContext.numIntroFrames) {
-            sFrameOffset = 0;
-            sStartTime = sCurrentClock;
-            Audio_ModStart(&sLoopContext.audio, sModToPlay);
         }
 
         if (!sPause || sRender) {

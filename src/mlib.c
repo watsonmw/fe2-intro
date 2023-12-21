@@ -1,16 +1,3 @@
-#include <assert.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#ifdef USE_SDL
-#include <SDL2/SDL.h>
-#endif
-
-#ifdef __GNUC__
-#include <sys/stat.h>
-#endif
-
 #include "mlib.h"
 
 // Define to log allocations
@@ -161,7 +148,7 @@ MINLINE i32 MMemDebug_ArrayGrowIfNeeded(void** arr, MArrayInfo* p, u32 itemSize,
 
         void* mem = sAllocator->reallocFunc(sAllocator, *arr, itemSize *capacity, itemSize * newCapacity);
         if (mem == NULL)  {
-            MLogf("MArray realloc failed for %x", *arr);
+            MLogf("MMemDebug_ArrayGrowIfNeeded realloc failed for %x", *arr);
             return 0;
         }
         *arr = mem;
@@ -350,7 +337,9 @@ void* _MMalloc(MDEBUG_SOURCE_DEFINE size_t size) {
 
     if (!sMemDebugContext.sMemDebugInitialized) {
         MMemDebugInit();
+#ifndef M_CLIB_DISABLE
         atexit(MMemDebugDeinit);
+#endif
     }
 
     MMemAllocInfo* memAlloc = NULL;
@@ -386,7 +375,14 @@ void* _MMalloc(MDEBUG_SOURCE_DEFINE size_t size) {
 #endif
     return memAlloc->mem;
 #else
+#ifdef M_LOG_ALLOCATIONS
+    MLogf("malloc %d", size);
+    void* mem = sAllocator->mallocFunc(sAllocator, size);
+    MLogf("-> 0x%p", mem);
+    return mem;
+#else
     return sAllocator->mallocFunc(sAllocator, size);
+#endif
 #endif
 }
 
@@ -414,7 +410,7 @@ void _MFree(MDEBUG_SOURCE_DEFINE void* p, size_t size) {
             memAlloc->start = 0;
             memAlloc->mem = 0;
 #ifdef M_LOG_ALLOCATIONS
-            MLogf("free %s:%d 0x%p %d   allocated @ %s:%d" , file, line, p, memAlloc->size,
+            MLogf("free %s:%d 0x%p %d   allocated @ %s:%d", file, line, p, memAlloc->size,
                   memAlloc->file, memAlloc->line);
 #endif
             *(MMemDebugArrayAddPtr(sMemDebugContext.freeSlots)) = i;
@@ -424,6 +420,9 @@ void _MFree(MDEBUG_SOURCE_DEFINE void* p, size_t size) {
 
     MLogf("MFree %s:%d called on invalid ptr: 0x%p", file, line, p);
 #else
+#ifdef M_LOG_ALLOCATIONS
+    MLogf("free 0x%p", p);
+#endif
     sAllocator->freeFunc(sAllocator, p, size);
 #endif
 }
@@ -486,33 +485,15 @@ void* _MRealloc(MDEBUG_SOURCE_DEFINE void* p, size_t oldSize, size_t newSize) {
 #endif
     return memAllocFound->mem;
 #else
+#ifdef M_LOG_ALLOCATIONS
+    MLogf("realloc 0x%p %d", p, newSize);
+    void* mem = sAllocator->reallocFunc(sAllocator, p, oldSize, newSize);
+    MLogf("-> 0x%p (resized)", mem);
+    return mem;
+#else
     return sAllocator->reallocFunc(sAllocator, p, oldSize, newSize);
 #endif
-}
-
-/////////////////////////////////////////////////////////
-// Logging
-
-void MLogf(const char *format, ...) {
-    va_list vargs;
-    va_start(vargs, format);
-    vprintf(format, vargs);
-    printf("\n");
-    fflush(stdout);
-    va_end(vargs);
-}
-
-void MLogfNoNewLine(const char *format, ...) {
-    va_list vargs;
-    va_start(vargs, format);
-    vprintf(format, vargs);
-    fflush(stdout);
-    va_end(vargs);
-}
-
-void MLog(const char *str) {
-    printf("%s\n", str);
-    fflush(stdout);
+#endif
 }
 
 static const char* sHexChars = "0123456789abcdef";
@@ -552,7 +533,7 @@ i32 M_ArrayGrow(MDEBUG_SOURCE_DEFINE void** arr, MArrayInfo* p, u32 itemSize, u3
 
     void* mem = _MRealloc(MDEBUG_SOURCE_PASS *arr, itemSize * capacity, itemSize * newCapacity);
     if (mem == NULL)  {
-        MLogf("MArray realloc failed for %x", *arr);
+        MLogf("M_ArrayGrow realloc failed for %x", *arr);
         return 0;
     }
     *arr = mem;
@@ -607,25 +588,36 @@ void MMemReadInit(MMemIO* memIO, u8* mem, u32 size) {
     memIO->size = size;
 }
 
-void MMemAddBytes(MMemIO* memIO, u32 size) {
+void MMemGrowBytes(MMemIO* memIO, u32 capacity) {
+    i32 newSize = memIO->size + capacity;
+    if (newSize > memIO->capacity) {
+        M_MemResize(memIO, newSize);
+    }
+}
+
+u8* MMemAddBytes(MMemIO* memIO, u32 size) {
     i32 newSize = memIO->size + size;
     if (newSize > memIO->capacity) {
         M_MemResize(memIO, newSize);
     }
 
+    u8* start = memIO->pos;
     memIO->pos += size;
     memIO->size = newSize;
+    return start;
 }
 
-void MMemAddBytesZero(MMemIO* memIO, u32 size) {
+u8* MMemAddBytesZero(MMemIO* memIO, u32 size) {
     u32 newSize = memIO->size + size;
     if (newSize > memIO->capacity) {
         M_MemResize(memIO, newSize);
     }
 
+    u8* start = memIO->pos;
     memset(memIO->pos, 0, size);
     memIO->pos += size;
     memIO->size = newSize;
+    return start;
 }
 
 void MMemWriteU16BE(MMemIO* memIO, u16 val) {
@@ -1069,347 +1061,4 @@ i32 MStringAppend(MMemIO* memIo, const char* str) {
     memIo->pos += len;
 
     return len;
-}
-
-// -1 is returned in some cases when the size of the buffer is too small,
-// Windows only does this when the encoding is incorrect, but GCC will do it
-// when the buffer is too small to contain the output.
-#define VSNPRINTF_MINUS_1_RETRY 1
-
-i32 MStringAppendf(MMemIO* memIo, const char* format, ...) {
-    i32 writableLen = memIo->capacity - memIo->size;
-    i32 size = 0;
-    va_list vargs1;
-
-    va_start(vargs1, format);
-    va_list vargs2;
-    va_copy(vargs2, vargs1);
-    if (writableLen <= 1) {
-        size = vsnprintf(NULL, 0, format, vargs1);
-        if (size > 0) {
-            i32 newSize = memIo->size + size + 1;
-            M_MemResize(memIo, newSize);
-            writableLen = memIo->capacity - memIo->size;
-            size = vsnprintf((char*)memIo->pos, writableLen, format, vargs2);
-        }
-    } else {
-        size = vsnprintf((char*)memIo->pos, writableLen, format, vargs1);
-        if (size >= writableLen) {
-            i32 newSize = memIo->size + size + 1;
-            M_MemResize(memIo, newSize);
-            writableLen = memIo->capacity - memIo->size;
-            size = vsnprintf((char*) memIo->pos, writableLen, format, vargs2);
-        }
-#if VSNPRINTF_MINUS_1_RETRY == 1
-        else if (size < 0) {
-            size = vsnprintf(NULL, 0, format, vargs1);
-            if (size > 0) {
-                i32 newSize = memIo->size + size + 1;
-                M_MemResize(memIo, newSize);
-                writableLen = memIo->capacity - memIo->size;
-                size = vsnprintf((char*)memIo->pos, writableLen, format, vargs2);
-            }
-        }
-#endif
-    }
-
-    if (size < 0) {
-        MLogf("Encoding error for sprintf format: %s", format);
-    } else {
-        memIo->size += size;
-        memIo->pos += size;
-    }
-
-    va_end(vargs1);
-    va_end(vargs2);
-
-    return size;
-}
-
-i32 MIniLoadFile(MIni* ini, const char* fileName) {
-    MReadFileRet ret = MFileReadFully(fileName);
-    if (ret.size) {
-        ini->data = ret.data;
-        ini->dataSize = ret.size;
-        ini->owned = 1;
-        return MIniParse(ini);
-    }
-    return 0;
-}
-
-enum MIniParseState {
-    MIniParseState_INIT,
-    MIniParseState_READ_KEY,
-    MIniParseState_READ_EQUALS,
-    MIniParseState_READ_EQUALS_AFTER,
-    MIniParseState_IGNORE_LINE,
-    MIniParseState_READ_VALUE
-};
-
-i32 MIniParse(MIni* ini) {
-    MArrayInit(ini->values);
-
-    MIniPair* pair;
-
-    enum MIniParseState state = MIniParseState_INIT;
-
-    char* startKey = 0;
-    char* endKey = 0;
-    char* startValue = 0;
-    char* pos = (char*)ini->data;
-
-    for (int i = 0; i < ini->dataSize; i++) {
-        char c = *pos;
-        switch (state) {
-            case MIniParseState_INIT:
-                if (!M_IsWhitespace(c)) {
-                    startKey = pos;
-                    state = MIniParseState_READ_KEY;
-                }
-                break;
-            case MIniParseState_READ_KEY:
-                if (M_IsSpaceTab(c)) {
-                    endKey = pos;
-                    state = MIniParseState_READ_EQUALS;
-                } else if (M_IsNewLine(c)) {
-                    state = MIniParseState_INIT;
-                } else if (c == '=') {
-                    endKey = pos;
-                    state = MIniParseState_READ_EQUALS_AFTER;
-                }
-                break;
-            case MIniParseState_READ_EQUALS:
-                if (c == '=') {
-                    state = MIniParseState_READ_EQUALS_AFTER;
-                } else if (!M_IsSpaceTab(c)) {
-                    state = MIniParseState_IGNORE_LINE;
-                }
-                break;
-            case MIniParseState_IGNORE_LINE:
-                if (M_IsNewLine(c)) {
-                    state = MIniParseState_INIT;
-                }
-                break;
-            case MIniParseState_READ_EQUALS_AFTER:
-                if (M_IsNewLine(c)) {
-                    state = MIniParseState_INIT;
-                } else if (!M_IsSpaceTab(c)) {
-                    startValue = pos;
-                    state = MIniParseState_READ_VALUE;
-                }
-                break;
-            case MIniParseState_READ_VALUE:
-                if (M_IsWhitespace(c)) {
-                    pair = MArrayAddPtr(ini->values);
-                    pair->key = startKey;
-                    pair->keySize = endKey - startKey;
-                    pair->val = startValue;
-                    pair->valSize = pos - startValue;
-                    state = MIniParseState_INIT;
-                }
-                break;
-        }
-        pos++;
-    }
-
-    return 1;
-}
-
-i32 _MIniFree(MDEBUG_SOURCE_DEFINE MIni* ini) {
-    MArrayFree(ini->values);
-
-    if (ini->owned) {
-        _MFree(MDEBUG_SOURCE_PASS ini->data, ini->dataSize); ini->data = 0;
-        ini->owned = 0;
-    }
-
-    return -1;
-}
-
-i32 MIniReadI32(MIni* ini, const char* key, i32* valOut) {
-    u32 inSize = MStrLen(key);
-
-    for (int i = 0; i < MArraySize(ini->values); i++) {
-        MIniPair* pair = MArrayGetPtr(ini->values, i);
-
-        if (inSize == pair->keySize) {
-            int notEqual = 0;
-            for (int j = 0; j < pair->keySize; j++) {
-                if (pair->key[j] != key[j]) {
-                    notEqual = 1;
-                    break;
-                }
-            }
-
-            if (!notEqual) {
-                return MParseI32(pair->val, pair->val + pair->valSize, valOut);
-            }
-        }
-    }
-
-    return -1;
-}
-
-i32 MIniSaveFile(MIniSave* ini, const char* filePath) {
-    ini->fileHandle = 0;
-
-#ifdef USE_SDL
-    SDL_RWops *file = SDL_RWFromFile(filePath, "w");
-    if (file == NULL) {
-        return -1;
-    }
-
-    ini->fileHandle = file;
-#endif
-
-    return 0;
-}
-
-i32 MIniSaveMWriteI32(MIniSave* ini, const char* key, i32 value) {
-#ifdef USE_SDL
-    SDL_RWops *file = (SDL_RWops*)ini->fileHandle;
-
-    const int bufferSize = 1024;
-    char buffer[bufferSize];
-
-    int n = snprintf(buffer, bufferSize, "%s = %d\n", key, value);
-    SDL_RWwrite(file, buffer, n, 1);
-#endif
-
-    return 0;
-}
-
-void MIniSaveFree(MIniSave* ini) {
-    if (ini->fileHandle) {
-#ifdef USE_SDL
-        SDL_RWclose((SDL_RWops*)ini->fileHandle);
-#endif
-    }
-    ini->fileHandle = 0;
-}
-
-/////////////////////////////////////////////////////////
-// Files
-
-MReadFileRet MFileReadFullyWithOffset(const char* filePath, u32 maxSize, u32 offset) {
-    MReadFileRet ret;
-    ret.size = 0;
-    ret.data = NULL;
-
-#ifdef USE_SDL
-    SDL_RWops *file = SDL_RWFromFile(filePath, "rb");
-    if (file == NULL) {
-        return ret;
-    }
-
-    u32 size = maxSize;
-    if (!maxSize) {
-        size = SDL_RWsize(file);
-    }
-
-    if (size > 30 * 1024 * 1024) {
-        return ret;
-    }
-
-    ret.data = (u8*)MMalloc(size);
-
-    if (offset) {
-        SDL_RWseek(file, offset, RW_SEEK_SET);
-    }
-
-    size_t bytesRead = SDL_RWread(file, ret.data, 1, size);
-    ret.size = bytesRead;
-
-    SDL_RWclose(file);
-#else
-    FILE *file = fopen(filePath, "rb");
-    if (file == NULL) {
-        return ret;
-    }
-
-    u32 size = maxSize;
-    if (!maxSize) {
-        fseek(file, 0L, SEEK_END);
-        size = ftell(file);
-        fseek(file, 0L, SEEK_SET);
-    }
-
-    if (size > 30 * 1024 * 1024) {
-        return ret;
-    }
-
-    ret.data = (u8*)MMalloc(size);
-
-    if (offset) {
-        fseek(file, offset, SEEK_SET);
-    }
-
-    size_t bytesRead = fread(ret.data, 1, size, file);
-
-    ret.size = bytesRead;
-
-    fclose(file);
-#endif
-
-    return ret;
-}
-
-MFileInfo MGetFileInfo(const char* filePath) {
-    MFileInfo fileInfo;
-    memset(&fileInfo, 0, sizeof(fileInfo));
-#ifdef AMIGA
-#else
-#if defined(__APPLE__) || defined(__EMSCRIPTEN__)
-    struct stat status;
-    if (stat(filePath, &status) == -1) {
-#else
-    struct _stat64 status;
-    if (_stat64(filePath, &status) == -1) {
-#endif
-        return fileInfo;
-    }
-    fileInfo.exists = TRUE;
-    fileInfo.lastModifiedTime = status.st_mtime;
-    fileInfo.size = status.st_size;
-#endif
-    return fileInfo;
-}
-
-i32 MFileWriteDataFully(const char* filePath, u8* data, u32 size) {
-#ifdef USE_SDL
-    SDL_RWops *file = SDL_RWFromFile(filePath, "wb");
-    if (file == NULL) {
-        return 0;
-    }
-
-    SDL_RWwrite(file, data, size, 1);
-    SDL_RWclose(file);
-#endif
-    return 0;
-}
-
-MFile MFileWriteOpen(const char* filePath) {
-    MFile fileData;
-    fileData.handle = fopen(filePath, "wb");
-    if (fileData.handle == NULL) {
-        fileData.open = 0;
-        return fileData;
-    }
-    fileData.open = 1;
-    return fileData;
-}
-
-i32 MFileWriteData(MFile* file, u8* data, u32 size) {
-    if (!file->open) {
-        return -1;
-    }
-
-    return fwrite(data, 1, size, (FILE*)file->handle);
-}
-
-void MFileClose(MFile* file) {
-    if (file->open) {
-        fclose((FILE*)file->handle);
-        file->open = 0;
-    }
 }

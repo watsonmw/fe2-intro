@@ -40,11 +40,16 @@ void Intro_Free(Intro* intro, SceneSetup* sceneSetup);
 void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, i32 frameOffset);
 void Intro_Post3dRender(Intro* intro, SceneSetup* sceneSetup, i32 frameOffset);
 
+// Return total number of frames in the intro
 u32 Intro_GetNumFrames(Intro* intro);
 ScenePos Intro_GetScenePos(Intro* intro, u32 frameOffset);
 u32 Intro_GetSceneFrameOffset(Intro* intro, u32 scene);
 u32 Intro_GetFrameOffset(Intro* intro, ScenePos* scenePos);
+
+// Get the frame offset for the given time offset (in 1/100s of a second)
 u32 Intro_GetFrameOffsetAtTime(Intro* intro, u64 time);
+
+// Get the time offset (in 1/100s of a second) for the given frame offset
 u64 Intro_GetTimeForFrameOffset(Intro* intro, u32 frameOffset);
 
 #ifdef __cplusplus

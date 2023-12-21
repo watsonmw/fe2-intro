@@ -4496,6 +4496,8 @@ i32 CompileAndWriteModels(const char* modelsFile, const char* outputFile, MMemIO
     MLogf("Saving %s...", outputFile);
     WriteModels(outputFile, outModels, outModelMem);
 
+    MFree(file.data, file.size);
+
     return 0;
 }
 
