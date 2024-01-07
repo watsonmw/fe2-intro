@@ -22,9 +22,9 @@ typedef struct sMallocNode {
     void* ptr;
 } MallocNode;
 
-static u8* sMallocMemBase = 0;
-static u8* sMallocMemEnd = 0;
-static u8* sMallocMemFree = 0;
+static u8* sMallocMemBase;
+static u8* sMallocMemEnd;
+static u8* sMallocMemFree;
 static MallocNode* sMallocListHead;
 
 // Add new space to end of heap
@@ -32,14 +32,16 @@ void* Malloc_GetHeapPtrForSize(size_t size) {
     if (sMallocMemBase == 0) {
         sMallocMemBase = (u8*)&__heap_base;
         sMallocMemFree = sMallocMemBase;
-        sMallocMemEnd = sMallocMemBase + __builtin_wasm_memory_size(0) * WASM_BLOCK_SIZE;
+        sMallocMemEnd = (u8*)(__builtin_wasm_memory_size(0) * WASM_BLOCK_SIZE);
     }
     u8* mem = sMallocMemFree;
     u8* newEnd = mem + size;
     if (newEnd > sMallocMemEnd) {
         // TODO: attempt to grow heap space here
+        MLog("Out of memory!!!  Increase initial WASM memory.");
         return NULL;
     }
+    MLogf("Added more mem %p [%d]", mem, size);
     sMallocMemFree = newEnd;
     return mem;
 }
@@ -60,17 +62,25 @@ MINLINE void* Malloc_AlignPointer(void* ptr) {
     return (void*)((((size_t)ptr) + MALLOC_ALIGN - 1) & ~(size_t)(MALLOC_ALIGN - 1));
 }
 
+// Split node in two:
+//  - Given node is resized to the given size
+//  - A new node is inserted after to fill the gap
+// If there's not enough room to split the node, just return.
 void Malloc_SplitNode(MallocNode* cnt, size_t size) {
-    size_t nextSize = cnt->size - size - sizeof(MallocNode);
-    if (nextSize > MALLOC_ALIGN) {
-        MallocNode *new = (MallocNode*)(cnt->ptr + size);
-        new->next = cnt->next;
-        new->size = nextSize;
-        new->free = 1;
-        new->ptr = Malloc_AlignPointer(cnt->ptr + size + sizeof(MallocNode));
-        cnt->next = new;
-        cnt->size = size;
+    size_t newSize = size + sizeof(MallocNode);
+    void* nextPtr = Malloc_AlignPointer(cnt->ptr + newSize);
+    size_t wouldBeSize = nextPtr - cnt->ptr;
+    if (wouldBeSize >= cnt->size) {
+        MLogf("Not enough space for %p [%d]", cnt->ptr, size);
+        return;
     }
+    MallocNode *new = (MallocNode*)(cnt->ptr + size);
+    new->next = cnt->next;
+    new->size = wouldBeSize - size;
+    new->free = 1;
+    new->ptr = cnt->ptr + newSize;
+    cnt->next = new;
+    cnt->size = size;
 }
 
 void free(void *ptr) {
@@ -78,11 +88,16 @@ void free(void *ptr) {
     while (cnt != NULL) {
         if (cnt->ptr == ptr) {
             cnt->free = 1;
+            MLogf("free(): %p [%d]", ptr, cnt->size);
             return;
         }
 
+        if ((u8*) cnt->next > sMallocMemEnd) {
+            MLog("oops");
+        }
         cnt = cnt->next;
     }
+    MLogf("Invalid free(): %p", ptr);
 }
 
 void* malloc(size_t size) {
@@ -98,6 +113,8 @@ void* malloc(size_t size) {
                     Malloc_SplitNode(cnt, size);
                 }
 
+                MLogf("malloc() split %p", cnt->ptr);
+
                 cnt->free = 0;
                 return cnt->ptr;
             }
@@ -109,28 +126,29 @@ void* malloc(size_t size) {
 
     size_t newSize = Malloc_GetPageSizeForSize(totalSize, pageSize);
     void* ptr = Malloc_GetHeapPtrForSize(newSize);
-
-    if (ptr != (void*)-1) {
-        cnt = (MallocNode*)ptr;
-        cnt->next = NULL;
-        cnt->free = 0;
-        cnt->size = newSize - sizeof(MallocNode);
-        cnt->ptr = Malloc_AlignPointer(ptr + sizeof(MallocNode));
-
-        if (pageSize > totalSize) {
-            Malloc_SplitNode(cnt, size);
-        }
-
-        if (sMallocListHead == NULL) {
-            sMallocListHead = cnt;
-        } else {
-            prev->next = cnt;
-        }
-
-        return cnt->ptr;
+    if (ptr == NULL) {
+        return NULL;
     }
 
-    return NULL;
+    cnt = (MallocNode*)ptr;
+    cnt->next = NULL;
+    cnt->free = 0;
+    cnt->size = newSize - sizeof(MallocNode);
+    cnt->ptr = Malloc_AlignPointer(ptr + sizeof(MallocNode));
+
+    if (pageSize > totalSize) {
+        Malloc_SplitNode(cnt, size);
+    }
+
+    if (sMallocListHead == NULL) {
+        sMallocListHead = cnt;
+    } else if (prev != NULL) {
+        prev->next = cnt;
+    }
+
+    MLogf("malloc() added new %p", cnt->ptr);
+
+    return cnt->ptr;
 }
 
 void* realloc(void *ptr, size_t size) {
@@ -252,9 +270,9 @@ i32 MStringAppendf(MMemIO* memIo, const char* format, ...) {
 ////////////////////////////////////////
 // MLogging
 
-// This buffer must be able long enough to hold any message printed during malloc / realloc / free, as we can't
-// resize the buffer while in the middle of printing a log message, right now these log messages are short, but if they
-// get longer either this buffer has to be increased or these function made reentrant.
+// This buffer must be long enough to hold any message printed during malloc() / realloc() / free(). This is because we
+// can't resize the buffer while in the middle of printing a log message.  Right now these log messages are short, but
+// if they get longer either this buffer has to be increased or these function made reentrant.
 static u8 sMemLoggingBuffer[1024];
 static MMemIO sMemIo = {sMemLoggingBuffer, sMemLoggingBuffer, 0, sizeof(sMemLoggingBuffer)};
 
