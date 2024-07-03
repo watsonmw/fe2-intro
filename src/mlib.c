@@ -1,5 +1,9 @@
 #include "mlib.h"
 
+#ifndef M_CLIB_DISABLE
+#include <stdlib.h>
+#endif
+
 // Define to log allocations
 // #define M_LOG_ALLOCATIONS
 
@@ -7,21 +11,6 @@ static MAllocator* sAllocator;
 
 #ifndef M_CLIB_DISABLE
 
-#ifdef M_CLIB_USE_ALIGNED
-#define M_ALLOC_ALIGNMENT 64
-
-void* default_malloc(void* alloc, size_t size) {
-    return _aligned_malloc(size, M_ALLOC_ALIGNMENT);
-}
-
-void* default_realloc(void* alloc, void* mem, size_t oldSize, size_t newSize) {
-    return _aligned_realloc(mem, newSize, M_ALLOC_ALIGNMENT);
-}
-
-void default_free(void* alloc, void* mem, size_t size) {
-    _aligned_free(mem);
-}
-#else
 void* default_malloc(void* alloc, size_t size) {
     return malloc(size);
 }
@@ -33,7 +22,6 @@ void* default_realloc(void* alloc, void* mem, size_t oldSize, size_t newSize) {
 void default_free(void* alloc, void* mem, size_t size) {
     free(mem);
 }
-#endif
 
 static MAllocator sClibMAllocator = {
     default_malloc,
@@ -47,10 +35,14 @@ void MMemUseClibAllocator() {
 
 #endif
 
+
+
 void* MBumpMalloc(void* _ba, size_t size) {
     MMemBumpAllocator* ba = _ba;
 
     u8* pos = ba->end;
+
+    size = MSizeAlign(size, ba->align);
     ba->end += size;
 
     size_t memUsed = ba->end - ba->mem;
@@ -65,7 +57,9 @@ void* MBumpRealloc(void* _ba, void* mem, size_t oldSize, size_t newSize) {
     MMemBumpAllocator* ba = _ba;
 
     u8* pos = ba->end;
-    memcpy(pos, mem, oldSize);
+    newSize = MSizeAlign(newSize, ba->align);
+
+    memmove(pos, mem, oldSize);
     ba->end += newSize;
 
     size_t memUsed = ba->end - ba->mem;
@@ -80,17 +74,20 @@ void MBumpFree(void* _ba, void* mem, size_t size) {
     // nop
 }
 
-MMemBumpAllocator* MMemBumpAllocInit(u8* mem, size_t size) {
+MMemBumpAllocator* MMemBumpAllocInit(u8* mem, size_t size, size_t alignBytes) {
     MMemBumpAllocator ba;
     ba.mem = mem;
     ba.end = mem;
     ba.size = size;
+    ba.align = alignBytes;
     ba.alloc.mallocFunc = MBumpMalloc;
     ba.alloc.reallocFunc = MBumpRealloc;
     ba.alloc.freeFunc = MBumpFree;
 
     MMemBumpAllocator* b = (MMemBumpAllocator*)MBumpMalloc(&ba, sizeof(MMemBumpAllocator));
     *b = ba;
+
+    b->end = MPtrAlign(b->end, ba.align);
     return b;
 }
 
@@ -134,8 +131,8 @@ typedef struct sMMemDebugContext {
 
 static MMemDebugContext sMemDebugContext;
 
-MINLINE i32 MMemDebug_ArrayGrowIfNeeded(void** arr, MArrayInfo* p, u32 itemSize, u32 numAdd) {
-    u32 minNeeded = p->size + numAdd;
+MINLINE i32 MMemDebug_ArrayGrow1(void** arr, MArrayInfo* p, u32 itemSize) {
+    u32 minNeeded = p->size + 1;
     if (p->capacity >= minNeeded) {
         return 1;
     } else {
@@ -166,7 +163,7 @@ MINLINE i32 MMemDebug_ArrayGrowIfNeeded(void** arr, MArrayInfo* p, u32 itemSize,
     }
 }
 
-#define MMemDebugArrayAddPtr(a) (MMemDebug_ArrayGrowIfNeeded(M_ArrayUnpack(a), 1) ? (((a).arr + (a).p.size++)) : 0)
+#define MMemDebugArrayAddPtr(a) (MMemDebug_ArrayGrow1(M_ArrayUnpack(a)) ? (((a).arr + (a).p.size++)) : 0)
 
 void MMemDebugInit() {
     if (!sMemDebugContext.sMemDebugInitialized) {
@@ -275,14 +272,20 @@ b32 MMemDebugCheckMemAlloc(MMemAllocInfo* memAlloc) {
 
     u32 beforeBytes = MMemDebugSentinelCheck(memAlloc->mem - SENTINEL_BEFORE, SENTINEL_BEFORE);
     u32 afterBytes = MMemDebugSentinelCheck(memAlloc->mem + memAlloc->size, SENTINEL_AFTER);
+
+    if (beforeBytes || afterBytes) {
+        MLogf("MMemDebugCheck: %s:%d : 0x%p [%d]", memAlloc->file, memAlloc->line, memAlloc->mem,
+              memAlloc->size);
+    }
+
     if (beforeBytes) {
-        MLogf("MMemDebugCheck: %s:%d : %d bytes overwritten before:", memAlloc->file, memAlloc->line, beforeBytes);
+        MLogf("    %d bytes overwritten before:", beforeBytes);
         MMemDebugSentinelCheckMLog(memAlloc->mem - SENTINEL_BEFORE, SENTINEL_BEFORE, FALSE);
         MMemDebugSentinelSet(memAlloc->mem - SENTINEL_BEFORE, SENTINEL_BEFORE);
     }
 
     if (afterBytes) {
-        MLogf("MMemDebugCheck: %s:%d : %d bytes overwritten after:", memAlloc->file, memAlloc->line, afterBytes);
+        MLogf("    %d bytes overwritten after:", afterBytes);
         MMemDebugSentinelCheckMLog(memAlloc->mem + memAlloc->size, SENTINEL_AFTER, TRUE);
         MLogBytes(memAlloc->mem + SENTINEL_BEFORE, 20);
         MMemDebugSentinelSet(memAlloc->mem + memAlloc->size, SENTINEL_AFTER);
@@ -313,6 +316,19 @@ b32 MMemDebugCheckAll() {
     b32 memOk = TRUE;
     for (u32 i = 0; i < MArraySize(sMemDebugContext.allocSlots); ++i) {
         MMemAllocInfo* memAlloc = MArrayGetPtr(sMemDebugContext.allocSlots, i);
+        if (!MMemDebugCheckMemAlloc(memAlloc)) {
+            memOk = FALSE;
+        }
+    }
+
+    return memOk;
+}
+
+b32 MMemDebugListAll() {
+    b32 memOk = TRUE;
+    for (u32 i = 0; i < MArraySize(sMemDebugContext.allocSlots); ++i) {
+        MMemAllocInfo* memAlloc = MArrayGetPtr(sMemDebugContext.allocSlots, i);
+        MLogf("%s:%d %p %d", memAlloc->file, memAlloc->line, memAlloc->mem, memAlloc->size);
         if (!MMemDebugCheckMemAlloc(memAlloc)) {
             memOk = FALSE;
         }
@@ -356,7 +372,7 @@ void* _MMalloc(MDEBUG_SOURCE_DEFINE size_t size) {
     size_t allocSize = start + size + SENTINEL_AFTER;
     memAlloc->size = size;
     memAlloc->start = (u8*)sAllocator->mallocFunc(sAllocator, allocSize);
-    memAlloc->mem = (u8*) memAlloc->start + SENTINEL_BEFORE;
+    memAlloc->mem = (u8*)memAlloc->start + SENTINEL_BEFORE;
     memAlloc->file = file;
     memAlloc->line = line;
 
@@ -410,7 +426,7 @@ void _MFree(MDEBUG_SOURCE_DEFINE void* p, size_t size) {
             memAlloc->start = 0;
             memAlloc->mem = 0;
 #ifdef M_LOG_ALLOCATIONS
-            MLogf("free %s:%d 0x%p %d   allocated @ %s:%d", file, line, p, memAlloc->size,
+            MLogf("free %s:%d 0x%p %d   [ allocated @ %s:%d ]", file, line, p, memAlloc->size,
                   memAlloc->file, memAlloc->line);
 #endif
             *(MMemDebugArrayAddPtr(sMemDebugContext.freeSlots)) = i;
@@ -436,7 +452,7 @@ void* _MRealloc(MDEBUG_SOURCE_DEFINE void* p, size_t oldSize, size_t newSize) {
 
 #ifdef M_MEM_DEBUG
 #ifdef M_LOG_ALLOCATIONS
-    MLogf("realloc %s:%d %d", file, line, newSize);
+    MLogf("realloc %s:%d 0x%p %d %d", file, line, p, oldSize, newSize);
 #endif
     if (p == NULL) {
         return _MMalloc(MDEBUG_SOURCE_PASS newSize);
@@ -627,7 +643,7 @@ void MMemWriteU16BE(MMemIO* memIO, u16 val) {
     }
 
     u8 a[] = {val >> 8, val & 0xff };
-    memcpy(memIO->pos, a, 2);
+    memmove(memIO->pos, a, 2);
     memIO->pos += 2;
     memIO->size = newSize;
 }
@@ -639,7 +655,7 @@ void MMemWriteU16LE(MMemIO* memIO, u16 val) {
     }
 
     u8 a[] = {val & 0xff, val >> 8 };
-    memcpy(memIO->pos, a, 2);
+    memmove(memIO->pos, a, 2);
     memIO->pos += 2;
     memIO->size = newSize;
 }
@@ -651,7 +667,7 @@ void MMemWriteU32BE(MMemIO* memIO, u32 val) {
     }
 
     u8 a[] = {val >> 24, (val >> 16) & 0xff, (val >> 8) & 0xff, (val & 0xff) };
-    memcpy(memIO->pos, a, 4);
+    memmove(memIO->pos, a, 4);
     memIO->pos += 4;
     memIO->size = newSize;
 }
@@ -663,7 +679,7 @@ void MMemWriteU32LE(MMemIO* memIO, u32 val) {
     }
 
     u8 a[] = { (val & 0xff), (val >> 8) & 0xff, (val >> 16) & 0xff, (val >> 24) };
-    memcpy(memIO->pos, a, 4);
+    memmove(memIO->pos, a, 4);
     memIO->pos += 4;
     memIO->size = newSize;
 }
@@ -678,7 +694,7 @@ void MMemWriteU8CopyN(MMemIO*restrict memIO, u8*restrict src, u32 size) {
         M_MemResize(memIO, newSize);
     }
 
-    memcpy(memIO->pos, src, size);
+    memmove(memIO->pos, src, size);
 
     memIO->pos += size;
     memIO->size = newSize;
@@ -694,7 +710,7 @@ void MMemWriteI8CopyN(MMemIO*restrict memIO, i8*restrict src, u32 size) {
         M_MemResize(memIO, newSize);
     }
 
-    memcpy(memIO->pos, src, size);
+    memmove(memIO->pos, src, size);
 
     memIO->pos += size;
     memIO->size = newSize;
@@ -725,7 +741,7 @@ i32 MMemReadI16(MMemIO*restrict memIO, i16*restrict val) {
         return -1;
     }
 
-    memcpy(val, memIO->pos, 2);
+    memmove(val, memIO->pos, 2);
     memIO->pos += 2;
     return 0;
 }
@@ -737,10 +753,10 @@ i32 MMemReadI16BE(MMemIO*restrict memIO, i16*restrict val) {
 
 #ifdef MLITTLEENDIAN
     i16 v;
-    memcpy(&v, memIO->pos, 2);
+    memmove(&v, memIO->pos, 2);
     *(val) = MBIGENDIAN16(v);
 #else
-    memcpy(val, memIO->pos, 2);
+    memmove(val, memIO->pos, 2);
 #endif
     memIO->pos += 2;
     return 0;
@@ -753,10 +769,10 @@ i32 MMemReadI16LE(MMemIO*restrict memIO, i16*restrict val) {
 
 #ifdef MBIGENDIAN
     i16 v;
-    memcpy(&v, memIO->pos, 2);
+    memmove(&v, memIO->pos, 2);
     *(val) = MLITTLEENDIAN16(v);
 #else
-    memcpy(val, memIO->pos, 2);
+    memmove(val, memIO->pos, 2);
 #endif
     memIO->pos += 2;
     return 0;
@@ -767,7 +783,7 @@ i32 MMemReadU16(MMemIO*restrict memIO, u16*restrict val) {
         return -1;
     }
 
-    memcpy(val, memIO->pos, 2);
+    memmove(val, memIO->pos, 2);
     memIO->pos += 2;
     return 0;
 }
@@ -779,10 +795,10 @@ i32 MMemReadU16BE(MMemIO*restrict memIO, u16*restrict val) {
 
 #ifdef MLITTLEENDIAN
     u16 v;
-    memcpy(&v, memIO->pos, 2);
+    memmove(&v, memIO->pos, 2);
     *(val) = MBIGENDIAN16(v);
 #else
-    memcpy(val, memIO->pos, 2);
+    memmove(val, memIO->pos, 2);
 #endif
     memIO->pos += 2;
     return 0;
@@ -795,10 +811,10 @@ i32 MMemReadU16LE(MMemIO*restrict memIO, u16*restrict val) {
 
 #ifdef MBIGENDIAN
     u16 v;
-    memcpy(&v, memIO->pos, 2);
+    memmove(&v, memIO->pos, 2);
     *(val) = MLITTLEENDIAN16(v);
 #else
-    memcpy(val, memIO->pos, 2);
+    memmove(val, memIO->pos, 2);
 #endif
     memIO->pos += 2;
     return 0;
@@ -809,7 +825,7 @@ i32 MMemReadI32(MMemIO*restrict memIO, i32*restrict val) {
         return -1;
     }
 
-    memcpy(val, memIO->pos, 4);
+    memmove(val, memIO->pos, 4);
     memIO->pos += 4;
     return 0;
 }
@@ -821,10 +837,10 @@ i32 MMemReadI32LE(MMemIO*restrict memIO, i32*restrict val) {
 
 #ifdef MBIGENDIAN
     i32 v;
-    memcpy(&v, memIO->pos, 4);
+    memmove(&v, memIO->pos, 4);
     *(val) = MLITTLEENDIAN32(v);
 #else
-    memcpy(val, memIO->pos, 4);
+    memmove(val, memIO->pos, 4);
 #endif
     memIO->pos += 4;
     return 0;
@@ -837,10 +853,10 @@ i32 MMemReadI32BE(MMemIO*restrict memIO, i32*restrict val) {
 
 #ifdef MLITTLEENDIAN
     i32 v;
-    memcpy(&v, memIO->pos, 4);
+    memmove(&v, memIO->pos, 4);
     *(val) = MBIGENDIAN32(v);
 #else
-    memcpy(val, memIO->pos, 4);
+    memmove(val, memIO->pos, 4);
 #endif
     memIO->pos += 4;
     return 0;
@@ -851,7 +867,7 @@ i32 MMemReadU32(MMemIO*restrict memIO, u32*restrict val) {
         return -1;
     }
 
-    memcpy(val, memIO->pos, 4);
+    memmove(val, memIO->pos, 4);
     memIO->pos += 4;
     return 0;
 }
@@ -863,10 +879,10 @@ i32 MMemReadU32LE(MMemIO*restrict memIO, u32*restrict val) {
 
 #ifdef MBIGENDIAN
     i32 v;
-    memcpy(&v, memIO->pos, 4);
+    memmove(&v, memIO->pos, 4);
     *(val) = MLITTLEENDIAN32(v);
 #else
-    memcpy(val, memIO->pos, 4);
+    memmove(val, memIO->pos, 4);
 #endif
     memIO->pos += 4;
     return 0;
@@ -879,10 +895,10 @@ i32 MMemReadU32BE(MMemIO*restrict memIO, u32*restrict val) {
 
 #ifdef MLITTLEENDIAN
     i32 v;
-    memcpy(&v, memIO->pos, 4);
+    memmove(&v, memIO->pos, 4);
     *(val) = MBIGENDIAN32(v);
 #else
-    memcpy(val, memIO->pos, 4);
+    memmove(val, memIO->pos, 4);
 #endif
     memIO->pos += 4;
     return 0;

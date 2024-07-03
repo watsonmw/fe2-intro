@@ -3,12 +3,8 @@
 #include "fintro.h"
 #include "mlib.h"
 #include "render.h"
+#include "platform/basicalloc.h"
 
-// TODO: Audio support,
-// get next audio buffer
-// need to
-// - resample - look at SDL audio library
-// - maintain sample buffer (this will stretch malloc, might need a better malloc)
 typedef struct LoopContext {
     MReadFileRet gameExeFile;
     MReadFileRet overridesFile;
@@ -45,11 +41,11 @@ typedef struct sWASM_Surface {
 
 typedef struct sWASM_AudioBuffer {
     u32 size;
-    i16* buffer_left;
-    i16* buffer_right;
+    float* buffer_left;
+    float* buffer_right;
 } WASM_AudioBuffer;
 
-static u16 sModToPlay = Audio_ModEnum_FRONTIER_THEME_INTRO;
+static u16 sModToPlay = Audio_ModEnum_FRONTIER_THEME;
 
 static b32 sDebugMode = FALSE;
 static b32 sRender = TRUE;
@@ -63,6 +59,8 @@ static WASM_AudioBuffer sAudioBuffer;
 static RGB sFIntroPalette[256];
 
 void StartIntro(u32 currentTimestampMs) {
+    MMemDebugCheckAll();
+
     Audio_Init(&sLoopContext.audio,
                sLoopContext.assetsDataAmiga.mainExeData,
                sLoopContext.assetsDataAmiga.mainExeSize);
@@ -70,6 +68,8 @@ void StartIntro(u32 currentTimestampMs) {
     sLoopContext.prevClock = currentTimestampMs;
     sStartTime = sLoopContext.prevClock;
     Audio_ModStart(&sLoopContext.audio, sModToPlay);
+
+    MMemDebugCheckAll();
 }
 
 static void UpdateSurfaceTexture(Surface* surface, RGB* palette, u8* pixels, int pitch) {
@@ -99,12 +99,9 @@ static void RenderIntroAtTime(Intro* intro, SceneSetup* sceneSetup, int frameOff
 
 __attribute__((export_name("set_paused")))
 void set_paused(b32 pause, u32 currentTimestampMs) {
-    if (pause) {
-        Audio_ModStop(&sLoopContext.audio);
-    } else {
+    if (!pause) {
         u64 deltaIn100thsOfaSecond = Intro_GetTimeForFrameOffset(&sLoopContext.intro, sFrameOffset);
         sStartTime = currentTimestampMs - ((deltaIn100thsOfaSecond + 1ul) * 10ul);
-        Audio_ModStartAt(&sLoopContext.audio, sModToPlay, (deltaIn100thsOfaSecond + 1) / 2);
     }
     sPause = pause;
 }
@@ -114,8 +111,37 @@ void set_debug_mode(b32 bDebugMode) {
     sDebugMode = bDebugMode;
 }
 
+extern i32 __heap_base;
+#define WASM_BLOCK_SIZE 0x10000
+
+static size_t HeapMemoryGrow(u8* mem, size_t oldSize, size_t newSize) {
+    MLogf("HeapMemoryGrow (was %d bytes, requested %d bytes)", oldSize, newSize);
+    if (newSize > oldSize) {
+        size_t addBlocks = ((newSize - oldSize) + (WASM_BLOCK_SIZE - 1)) / WASM_BLOCK_SIZE;
+        size_t addBytes = WASM_BLOCK_SIZE * addBlocks;
+        MLogf("Growing memory by %d blocks (%d bytes)", addBlocks, addBytes);
+        __builtin_wasm_memory_grow(0, (long) addBlocks);
+        size_t size = __builtin_wasm_memory_size(0);
+        MLogf("Total memory blocks allocated %d", size);
+        return addBytes;
+    } else {
+        return 0;
+    }
+}
+
+static MBasicAlloc* sBasicAlloc = NULL;
+
+void Audio_ClearCache(AudioContext *pContext);
+
 __attribute__((export_name("setup")))
 int setup(void) {
+    u8* wasm_heap_start = (u8*)&__heap_base;
+    size_t wasm_heap_size = __builtin_wasm_memory_size(0) * WASM_BLOCK_SIZE - (wasm_heap_start - ((u8*)0));
+
+    sBasicAlloc = MBasicAlloc_Init(wasm_heap_start, wasm_heap_size);
+    sBasicAlloc->memoryGrowFunc = HeapMemoryGrow;
+    MMemAllocSet(&sBasicAlloc->funcs);
+
     // Load intro file data
     sLoopContext.gameExeFile = MFileReadFully("game");
     if (sLoopContext.gameExeFile.size == 0) {
@@ -246,6 +272,11 @@ void render(u32 currentTimestampMs) {
             sStartTime = currentTimestampMs;
             sFrameOffset = 0;
             Audio_ModStart(&sLoopContext.audio, sModToPlay);
+
+            MLog("restarting intro");
+            MMemDebugListAll();
+            Audio_ClearCache(&sLoopContext.audio);
+            MBasicAlloc_PrintStats(sBasicAlloc);
         }
 
         if (Audio_ModDone(&sLoopContext.audio)) {
@@ -269,12 +300,14 @@ void render(u32 currentTimestampMs) {
 }
 
 __attribute__((export_name("audio_render")))
-WASM_AudioBuffer* audio_render(int bytesRequested) {
+//WASM_AudioBuffer* audio_render(int bytesRequested) {
+WASM_AudioBuffer* audio_render(int ticks) {
     AudioContext* audio = &sLoopContext.audio;
-    u32 numSamples = bytesRequested / 4;
-    Audio_RenderFrames(audio, numSamples);
+//    u32 numSamples = bytesRequested / 4;
+//    Audio_RenderFrames(audio, numSamples);
+    Audio_RenderFrames(audio, ticks);
     sAudioBuffer.buffer_left = audio->audioOutputBufferLeft;
     sAudioBuffer.buffer_right = audio->audioOutputBufferRight;
-    sAudioBuffer.size = audio->audioOutputBufferSize;
+    sAudioBuffer.size = audio->audioOutputBufferSize / sizeof(*sAudioBuffer.buffer_left);
     return &sAudioBuffer;
 }

@@ -70,24 +70,12 @@ void Assets_FreeAmigaFiles(AssetsDataAmiga* assets);
 
 MReadFileRet Assets_LoadModelOverrides(const char* filePath, ModelsArray* modelsArray);
 
-#ifdef __GNUC__
-#if defined(__i386__) || defined(__x86_64) || defined(__EMSCRIPTEN__) || defined(WASM_DIRECT)
+#if MLITTLEENDIAN
 #define ARRAY_REWRITE_BE16(data, sizeBytes) Assets_EndianFlip16(data, sizeBytes)
 #define ARRAY_REWRITE_BE32(data, sizeBytes) Assets_EndianFlip32(data, sizeBytes)
 #define ARRAY_REWRITE_LE16(data, sizeBytes) while(FALSE) {}
 #define ARRAY_REWRITE_LE32(data, sizeBytes) while(FALSE) {}
 #else
-#define ARRAY_REWRITE_BE16(data, sizeBytes) while(FALSE) {}
-#define ARRAY_REWRITE_BE32(data, sizeBytes) while(FALSE) {}
-#define ARRAY_REWRITE_LE16(data, sizeBytes) Assets_EndianFlip16(data, sizeBytes)
-#define ARRAY_REWRITE_LE32(data, sizeBytes) Assets_EndianFlip32(data, sizeBytes)
-#endif
-#elif defined(_MSC_VER)
-#define ARRAY_REWRITE_BE16(data, sizeBytes) Assets_EndianFlip16(data, sizeBytes)
-#define ARRAY_REWRITE_BE32(data, sizeBytes) Assets_EndianFlip32(data, sizeBytes)
-#define ARRAY_REWRITE_LE16(data, sizeBytes) while(FALSE) {}
-#define ARRAY_REWRITE_LE32(data, sizeBytes) while(FALSE) {}
-#elif defined(__VBCC__)
 #define ARRAY_REWRITE_BE16(data, sizeBytes) while(FALSE) {}
 #define ARRAY_REWRITE_BE32(data, sizeBytes) while(FALSE) {}
 #define ARRAY_REWRITE_LE16(data, sizeBytes) Assets_EndianFlip16(data, sizeBytes)

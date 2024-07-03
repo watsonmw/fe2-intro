@@ -268,7 +268,7 @@ are done - the virtual colours can be assigned to the palette directly.
 
 If we've more than 14 colours, well, now some magic needs to happen!  The virtual colours need to be merged to fit into
 the 14 available palette entries.  This is done by recursively splitting / partitioning the assigned virtual colours
-into 14 buckets (kinda like quicksort).
+into 14 sBuddyFreeBucketHeads (kinda like quicksort).
 
 <figure>
 <img src="palette.png" alt="Palette">

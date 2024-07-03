@@ -10,7 +10,7 @@
 // - ini reading
 //
 // You might want check out STB libs and GCC heap debug options before using this, this is just my personal version that
-// integrates custom heap debugging/tracking into the array functionality.
+// integrates custom heap debugging/tracking with a custom stb style array.
 //
 // The following relies on C undefined behaviour (UB), but has been tested to work on GCC 6.5 (68k) and GCC 12 (x86):
 //
@@ -78,16 +78,16 @@ typedef struct sMAllocator {
 typedef struct sMMemBumpAllocator {
     MAllocator alloc;
     size_t size;
+    u32 align;  // alignment in bytes
     u8* mem;
     u8* end;
 } MMemBumpAllocator;
 
 // Bump allocator to aid debugging
-MMemBumpAllocator* MMemBumpAllocInit(u8* mem, size_t size);
+MMemBumpAllocator* MMemBumpAllocInit(u8* mem, size_t size, size_t alignBytes);
 void MMemBumpDumpInfo(MMemBumpAllocator* ba);
 
-// Set the allocator, it should provide functions for malloc(), free() and realloc().
-// The ones from common will be used by default.
+// Set the default allocator, if not set stdlib will be used
 void MMemAllocSet(MAllocator* allocator);
 
 #ifndef M_CLIB_DISABLE
@@ -104,10 +104,18 @@ void MMemUseClibAllocator();
 #define MDEBUG_SOURCE_PASS file, line,
 #define MDEBUG_SOURCE_MACRO __FILE__, __LINE__,
 
-void MMemDebugInit(void);
-void MMemDebugDeinit(void);
+void MMemDebugInit();
+void MMemDebugDeinit();
+
+// Check if ptr is a valid memory allocation, returns false if there's a problem
 b32 MMemDebugCheck(void* p);
-b32 MMemDebugCheckAll(void);
+
+// Check if all memory allocations are okay - checks for write overruns / underruns using sentinel values
+// Prints any errors.  Returns false if there's a problem, true if okay.
+b32 MMemDebugCheckAll();
+
+// Print all current memory allocations
+b32 MMemDebugListAll();
 #else
 // Memory debug mode is off
 #define MDEBUG_SOURCE_DEFINE
@@ -133,20 +141,20 @@ void _MFree(MDEBUG_SOURCE_DEFINE void* p, size_t size);
 // 32 flip: ((t & 0xff) << 24) + ((t >> 24) & 0xff) + ((t >> 16 & 0xff) << 8) + (((t >> 8) & 0xff) << 16);
 #ifdef __GNUC__
 #define MSTRUCTPACKED __attribute__((packed))
-#if defined(__i386__) || defined(__x86_64) || defined(__EMSCRIPTEN__) || defined(WASM_DIRECT)
-#define MLITTLEENDIAN 1
-#define MBIGENDIAN16(x) __builtin_bswap16(x)
-#define MBIGENDIAN32(x) __builtin_bswap32(x)
-#define MLITTLEENDIAN16(x) x
-#define MLITTLEENDIAN32(x) x
-#define MENDIANSWAP16(x) __builtin_bswap16(x)
-#define MENDIANSWAP32(x) __builtin_bswap32(x)
-#else
+#ifdef AMIGA
 #define MBIGENDIAN 1
 #define MBIGENDIAN16(x) x
 #define MBIGENDIAN32(x) x
 #define MLITTLEENDIAN16(x) __builtin_bswap16(x)
 #define MLITTLEENDIAN32(x) __builtin_bswap32(x)
+#define MENDIANSWAP16(x) __builtin_bswap16(x)
+#define MENDIANSWAP32(x) __builtin_bswap32(x)
+#else
+#define MLITTLEENDIAN 1
+#define MBIGENDIAN16(x) __builtin_bswap16(x)
+#define MBIGENDIAN32(x) __builtin_bswap32(x)
+#define MLITTLEENDIAN16(x) x
+#define MLITTLEENDIAN32(x) x
 #define MENDIANSWAP16(x) __builtin_bswap16(x)
 #define MENDIANSWAP32(x) __builtin_bswap32(x)
 #endif
@@ -179,17 +187,25 @@ void MLog(const char *str);
 void MLogBytes(const u8* mem, u32 len);
 
 // Log / trigger debugger
-#ifdef MASSERT
+#ifdef M_ASSERT
 #ifdef __GNUC__
 #if defined(__i386__) || defined(__x86_64)
-MINLINE void MBreakpoint(const char* str) {
-    MLog(str);
-    asm("int $3");
-}
+#define MBreakpoint(str) { MLog(str); asm("int $3"); }
+#define MBreakpointf(str, ...) { MLogf(str, __VA_ARGS__); asm("int $3"); }
+#define MAssert(cond, str) { if (!cond) { MLog(str); asm("int $3"); } }
+#define MAssertf(cond, str, ...)  { if (!cond) { MLogf(str, __VA_ARGS__); asm("int $3"); } }
+#else
+#define MBreakpoint(str) MLog(str)
+#define MBreakpointf(str, ...) MLogf(str, __VA_ARGS__)
+#define MAssert(cond, str) { if (!cond) { MLog(str); } }
+#define MAssertf(cond, str, ...)  { if (!cond) { MLogf(str, __VA_ARGS__); } }
 #endif
 #endif
 #else
 #define MBreakpoint(str)
+#define MBreakpointf(str, ...)
+#define MAssert(cond, str)
+#define MAssertf(cond, str, ...)
 #endif
 
 // Quote the given #define contents, this is useful to print out the contents of a macro / #define.
@@ -289,6 +305,14 @@ MINTERNAL b32 MMemReadDone(MMemIO* reader) {
     } else {
         return 0;
     }
+}
+
+MINLINE void* MPtrAlign(void* ptr, size_t alignBytes) {
+    return (void*)((uintptr_t)(ptr + alignBytes - 1) & ~(alignBytes - 1));
+}
+
+MINLINE size_t MSizeAlign(size_t size, size_t alignBytes) {
+    return (size + alignBytes - 1) & ~(alignBytes - 1);
 }
 
 /////////////////////////////////////////////////////////

@@ -340,11 +340,11 @@ static int AOS_processEvents(void) {
                         sPause = !sPause;
                         if (sModToPlay) {
                             if (sPause) {
-                                Audio_ModStop(&sAudio);
+                                Audio_ModStop(&sAudioContext);
                             } else {
                                 u64 delta = Intro_GetTimeForFrameOffset(&sIntro, sFrameOffset);
                                 sStartTime = sCurrentClock - (((delta + 1) * sClockTickInterval) / 100);
-                                Audio_ModStartAt(&sAudio, sModToPlay, (delta + 1) / 2);
+                                Audio_ModStartAt(&sAudioContext, sModToPlay, (delta + 1) / 2);
                             }
                         }
                     } else if (code == KC_F1) {
@@ -677,8 +677,8 @@ __stdargs int main(int argc, char** argv) {
     Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExeData, assetsRead);
 
     if (sModToPlay) {
-        Audio_Init(&sAudio, amigaExeData.data, amigaExeData.size);
-        Audio_ModStart(&sAudio, sModToPlay);
+        Audio_Init(&sAudioContext, amigaExeData.data, amigaExeData.size);
+        Audio_ModStart(&sAudioContext, sModToPlay);
     }
 
     Intro_InitAmiga(&sIntro, &introSceneSetup, &assetsDataAmiga);
@@ -783,14 +783,14 @@ __stdargs int main(int argc, char** argv) {
 
         if (sModToPlay) {
             // Stack the 50 Hz timer that plays the music
-            StartAudioTickTimer(&sAudio);
+            StartAudioTickTimer(&sAudioContext);
 
             // Fast-forward to specific point - used for debugging
             if (sFrameOffset) {
                 sCurrentClock = AOS_GetClockCount();
                 u64 delta = Intro_GetTimeForFrameOffset(&sIntro, sFrameOffset);
                 sStartTime = sCurrentClock - (((delta + 1) * sClockTickInterval) / 100);
-                Audio_ModStartAt(&sAudio, sModToPlay, (delta + 1) / 2);
+                Audio_ModStartAt(&sAudioContext, sModToPlay, (delta + 1) / 2);
             }
         }
 
@@ -831,13 +831,13 @@ __stdargs int main(int argc, char** argv) {
                     // Restart intro
                     sStartTime = sCurrentClock;
                     sFrameOffset = 0;
-                    Audio_ModStart(&sAudio, sModToPlay);
+                    Audio_ModStart(&sAudioContext, sModToPlay);
                 }
             }
 
             // Mod will loop if we don't switch to silence when it is done
-            if (sModToPlay && Audio_ModDone(&sAudio)) {
-                Audio_ModStart(&sAudio, Audio_ModEnum_SILENCE);
+            if (sModToPlay && Audio_ModDone(&sAudioContext)) {
+                Audio_ModStart(&sAudioContext, Audio_ModEnum_SILENCE);
             }
 
             if (!sPause || sRender) {
@@ -908,7 +908,7 @@ __stdargs int main(int argc, char** argv) {
     }
 
     if (sModToPlay) {
-        Audio_Exit(&sAudio);
+        Audio_Exit(&sAudioContext);
     }
 
     Raster_Free(&raster);

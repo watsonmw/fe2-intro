@@ -19,7 +19,7 @@
 #define AMIGA_CHIP_CLOCK_TICKS 3579545
 
 #ifdef AUDIO_BUFFERED_PLAYBACK
-#define SAMPLES_PER_TICK (AUDIO_PLAYBACK_FEQ / 50)
+#define SAMPLES_PER_TICK (AUDIO_PLAYBACK_FEQ / AUDIO_TICKS_PER_SECOND)
 #define VOLUME_SCALE 128
 #define AUDIO_BUFFER_SIZE 4096
 #endif
@@ -171,9 +171,11 @@ static const u16 sAudioSamplesVolumeOffsets[] = {
 
 static void Audio_ProgressTickInternal(AudioContext* audio);
 
-#ifdef M_USE_SDL
+#if defined(WASM_DIRECT) || defined(M_USE_SDL)
 static void Audio_RenderInternal(AudioContext* audio, u32 numSamples, u32 numTicks, b32 bWriteFrames);
+#endif
 
+#ifdef M_USE_SDL
 SDLCALL void Audio_Callback(void *userdata, Uint8 * stream, int bytesRequested) {
     AudioContext* audio = (AudioContext*)userdata;
     u32 sizeRemaining = audio->audioOutputContentSize - audio->audioBytesWriten;
@@ -217,7 +219,7 @@ SDLCALL void Audio_Callback(void *userdata, Uint8 * stream, int bytesRequested) 
 #endif
 
 
-void Audio_RenderFrames(AudioContext* audio, u32 numFrames) {
+void Audio_RenderFrames(AudioContext* audio, u32 ticks) {
     audio->audioBytesWriten = 0;
     if (audio->modStartTickOffset) {
         u32 skipFrames = (AUDIO_PLAYBACK_FEQ * audio->modStartTickOffset) / 50;
@@ -225,8 +227,18 @@ void Audio_RenderFrames(AudioContext* audio, u32 numFrames) {
         audio->modStartTickOffset = 0;
     }
 
-    u32 ticks = ((numFrames * 50) / AUDIO_PLAYBACK_FEQ) + 1;
-    Audio_RenderInternal(audio, numFrames, ticks, TRUE);
+//    u32 ticks = ((numFrames * 50) / AUDIO_PLAYBACK_FEQ) + 1;
+    Audio_RenderInternal(audio, ticks, ticks, TRUE);
+}
+
+void Audio_ClearCache(AudioContext* audio) {
+    for (int i = 0; i < AUDIO_SAMPLE_CACHE_SIZE; ++i) {
+        SampleConvert* s = audio->sampleCache + i;
+        if (s->sampleConverted != NULL) {
+            MFree(s->sampleConverted, s->sampleConvertedBufferSize);
+            memset(s, 0, sizeof(SampleConvert));
+        }
+    }
 }
 
 static void Audio_CopyAndFixSamples(AudioContext* audio) {
@@ -406,12 +418,7 @@ void Audio_Exit(AudioContext* audio) {
         MFree(audio->audioOutputBuffer, audio->audioOutputBufferSize); audio->audioOutputBuffer = NULL;
     }
 
-    for (int i = 0; i < AUDIO_SAMPLE_CACHE_SIZE; ++i) {
-        SampleConvert* s = audio->sampleCache + i;
-        if (s->sampleConverted != NULL) {
-            MFree(s->sampleConverted, s->sampleConvertedBufferSize); s->sampleConverted = NULL;
-        }
-    }
+    Audio_ClearCache(audio);
 #endif
 
 #ifdef AMIGA
@@ -1182,7 +1189,7 @@ u32 ConvertAudio8to16(i8* srcSampleBuf, u16 srcSampleSize, i16* outputSampleBuf,
     return convertedFrames;
 }
 
-u32 ConvertAudio8to16_Linear(i8* srcSampleBuf, u16 srcSampleSize, i16* outputSampleBuf, u32 convertedFrames) {
+u32 ConvertAudio8to16_Linear(i8* srcSampleBuf, u32 srcSampleSize, i16* outputSampleBuf, u32 convertedFrames) {
     // Just try linear interpolation
     i8* srcSample = srcSampleBuf;
     i16* dstSample = outputSampleBuf;
@@ -1210,10 +1217,11 @@ u32 ConvertAudio8to16_Linear(i8* srcSampleBuf, u16 srcSampleSize, i16* outputSam
         prev = cur;
     }
 
-//    if (dstSample != outputSampleBuf + convertedFrames) {
+    if (dstSample > outputSampleBuf + convertedFrames) {
 //        dstSample -= convertedFrames;
 //        asm("int $3");
-//    }
+        MLog("converted error");
+    }
 
     return convertedFrames;
 }
@@ -1297,6 +1305,7 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
         if (oldest == NULL) {
             // Unable to find
             MBreakpoint("unable to find space for sample in cache, consider making it larger / looking for logic bugs");
+            MLog("unable to find space for sample in cache, consider making it larger / looking for logic bugs");
             return NULL;
         } else {
             sampleConvert = oldest;
@@ -1373,11 +1382,13 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
     // period = ticks per second / samples per second
     // samples per second = ticks per second / period
     u32 amigaFramesPerSecond = (AMIGA_CHIP_CLOCK_TICKS / hw->period);
-    int convertedFrames = (hw->len * 2 * AUDIO_PLAYBACK_FEQ) / amigaFramesPerSecond;
-    int buffReqSize = convertedFrames * 2;
+    u32 srcSamples = hw->len * 2;
+    int convertedFrames = (srcSamples * AUDIO_PLAYBACK_FEQ) / amigaFramesPerSecond;
+    int buffReqSize = convertedFrames * sizeof(i16);
 
     i16* buffer = (i16*)MMalloc(buffReqSize);
-    int r = ConvertAudio8to16_Linear((i8*)hw->pos, hw->len*2, buffer, convertedFrames);
+    MMemDebugCheckAll();
+    int r = ConvertAudio8to16_Linear((i8*)hw->pos, srcSamples, buffer, convertedFrames);
     if (r != 0) {
         sampleConvert->sampleConverted = buffer;
         sampleConvert->sampleConvertedLen = convertedFrames;
@@ -1387,21 +1398,20 @@ SampleConvert* Audio_ConvertSample(AudioContext* audio, ChannelRegisters* hw) {
         sampleConvert->period = hw->period;
         sampleConvert->cacheClock = audio->sampleConvertClock++;
         sampleConvert->used++;
-//        if (sDebugLog) {
+        if (sDebugLog) {
             char fileNameBuffer[40];
 
             u32 sampleId = hw->pos - audio->data;
-//            if (writeOrig) {
-//                snprintf(fileNameBuffer, 40, "music/orig-%x-%x.raw", sampleId, hw->len);
-//
-//                MFileWriteDataFully(fileNameBuffer, (u8*) hw->pos, hw->len * 2);
-//            }
+            if (writeOrig) {
+                snprintf(fileNameBuffer, 40, "music/orig-%x-%x.raw", sampleId, hw->len);
+                MFileWriteDataFully(fileNameBuffer, (u8*) hw->pos, hw->len * 2);
+            }
 
             snprintf(fileNameBuffer, 40, "music/mod-new-%x-%x.raw", sampleId, hw->period);
 
             MFileWriteDataFully(fileNameBuffer, (u8*) sampleConvert->sampleConverted,
                                 sampleConvert->sampleConvertedBufferSize);
-//        }
+        }
     } else {
         sampleConvert->samplePtr = NULL;
         sampleConvert->sampleLen = 0;
@@ -1433,20 +1443,28 @@ void Audio_ReloadSampleIfChanged(AudioContext* audio, u16 channelId, ChannelRegi
     }
 }
 
-void Audio_RenderInternal(AudioContext* audio, u32 numSamples, u32 numTicks, b32 bWriteFrames) {
-    u32 overallSamples = (AUDIO_PLAYBACK_FEQ * numTicks) / 50;
-    // u32 outputSize = numSamples * 2 * 2;
-    u32 outputSize = overallSamples * 2 * 2;
-
+void Audio_RenderInternal(AudioContext* audio, u32 numFrames, u32 numTicks, b32 bWriteFrames) {
+//    MLogf("Audio_RenderInternal %d %d", numTicks, audio->modTick);
+    u32 overallSamples = (AUDIO_PLAYBACK_FEQ * numTicks) / AUDIO_TICKS_PER_SECOND;
+#ifdef WASM_DIRECT
+    u32 outputSize = overallSamples * sizeof(float);
+#else
+    u32 outputSize = overallSamples * 2 * sizeof(i16);
+#endif
     if (bWriteFrames) {
         if (audio->audioOutputBufferSize < outputSize) {
+#ifdef WASM_DIRECT
+            audio->audioOutputBufferLeft = (float*)MRealloc(audio->audioOutputBufferLeft, audio->audioOutputBufferSize, outputSize);
+            audio->audioOutputBufferRight = (float*)MRealloc(audio->audioOutputBufferRight, audio->audioOutputBufferSize, outputSize);
+#else
             audio->audioOutputBuffer = (i16*)MRealloc(audio->audioOutputBuffer, audio->audioOutputBufferSize, outputSize);
+#endif
             audio->audioOutputBufferSize = outputSize;
         }
         audio->audioOutputContentSize = outputSize;
     }
 
-#ifdef AUDIO_BUFFERED_PLAYBACK_WASM
+#ifdef WASM_DIRECT
     float* outLeft = audio->audioOutputBufferLeft;
     float* outRight = audio->audioOutputBufferRight;
 #else
@@ -1516,16 +1534,22 @@ void Audio_RenderInternal(AudioContext* audio, u32 numSamples, u32 numTicks, b32
             }
 
             if (bWriteFrames) {
-#ifdef AUDIO_BUFFERED_PLAYBACK_WASM
-                float leftValue = (channelOut[0] + channelOut[3]) / (float)(1 << 24);
-                float rightValue = (channelOut[1] + channelOut[2]) / (float)(1 << 24);
-                // Do some stereo mixing, so samples are not just heard in one ear.  Later Amiga models did this.
-                *(outLeft++) = (leftValue * 3 + rightValue) / 4;
-                *(outRight++) = (rightValue * 3 + leftValue) / 4;
+                // Write out the audio frames for left and right.  Also do some stereo mixing, so samples are not heard
+                // entirely in one ear - later Amiga models did this.
+#ifdef WASM_DIRECT
+                float scale = 1.0 / (1L <<(
+                     1 +  // two channels
+                     2 +  // left right mixing
+                     7 +  // volume (0-128)
+                     15   // 16 bit signed sample range;
+                ));
+                float leftValue = (channelOut[0] + channelOut[3]) * scale;
+                float rightValue = (channelOut[1] + channelOut[2]) * scale;
+                *(outLeft++) = (leftValue * 3 + rightValue);
+                *(outRight++) = (rightValue * 3 + leftValue);
 #else
                 i32 leftValue = (channelOut[0] + channelOut[3]) / VOLUME_SCALE;
                 i32 rightValue = (channelOut[1] + channelOut[2]) / VOLUME_SCALE;
-                // Do some stereo mixing, so samples are not just heard in one ear.  Later Amiga models did this.
                 *(out++) = (leftValue * 3 + rightValue) / 4;
                 *(out++) = (rightValue * 3 + leftValue) / 4;
 #endif
@@ -1538,13 +1562,14 @@ void Audio_RenderInternal(AudioContext* audio, u32 numSamples, u32 numTicks, b32
         audio->lastValue[3] = channelOut[3];
     }
 
-//    if (bWriteFrames && sDebugLog) {
-    if (bWriteFrames) {
+#ifndef WASM_DIRECT
+    if (bWriteFrames && sDebugLog) {
         static MFile sOutputRaw;
         if (!sOutputRaw.open) {
             sOutputRaw = MFileWriteOpen("music/output.raw");
         }
         MFileWriteData(&sOutputRaw, (u8*) audio->audioOutputBuffer, overallSamples * 4);
     }
+#endif
 }
 #endif

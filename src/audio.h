@@ -16,6 +16,7 @@
 #if defined(M_USE_SDL) || defined(WASM_DIRECT)
 #define AUDIO_BUFFERED_PLAYBACK 1
 #define AUDIO_PLAYBACK_FEQ 44100
+#define AUDIO_TICKS_PER_SECOND 50
 #endif
 
 #ifdef __cplusplus
@@ -174,7 +175,7 @@ typedef struct sChannelRegisters {
 #define AUDIO_SAMPLE_CACHE_SIZE 30
 #define AUDIO_NUM_CHANNELS 4
 
-typedef struct sAudio {
+typedef struct sAudioContext {
     // Main file data
     u8* data;
     u8 dataSize;
@@ -236,7 +237,7 @@ typedef struct sAudio {
     u32 sampleCacheCount;
     u32 sampleConvertClock;
 
-#ifdef AUDIO_BUFFERED_PLAYBACK_WASM
+#ifdef WASM_DIRECT
     float* audioOutputBufferLeft;
     float* audioOutputBufferRight;
 #else
@@ -283,6 +284,7 @@ void Audio_ModStop(AudioContext* audio);
 void Audio_Pause(AudioContext* audio);
 void Audio_Resume(AudioContext* audio);
 void Audio_RenderFrames(AudioContext* audio, u32 numFrames);
+void Audio_ClearCache(AudioContext* audio);
 #endif
 
 MINLINE b32 Audio_ModDone(AudioContext* audio) {

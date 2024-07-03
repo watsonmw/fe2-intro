@@ -9,6 +9,7 @@
 #include "render.h"
 #include "fintro.h"
 #include "modelcode.h"
+#include "platform/basicalloc.h"
 
 static b32 sRender = TRUE;
 static b32 sFullscreen = FALSE;
@@ -31,6 +32,8 @@ static MMemIO sModelOverrides;
 static ModelsArray sOrigModels;
 static const char* sFileToCompile = NULL;
 static const char* sFileToHotCompile = NULL;
+
+static MBasicAlloc* sBasicAllocator;
 
 #define INTRO_OVERRIDES_LE "data/model-overrides-le.dat"
 #define INTRO_OVERRIDES_BE "data/model-overrides-be.dat"
@@ -271,6 +274,7 @@ void StartIntro() {
     sLoopContext.prevClock = SDL_GetPerformanceCounter();
     sStartTime = sLoopContext.prevClock;
     Audio_ModStart(&sLoopContext.audio, sModToPlay);
+    Audio_SetVolume(&sLoopContext.audio, 0);
 }
 
 void MainLoopIteration() {
@@ -380,19 +384,19 @@ void MainLoopIteration() {
                     if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
                         sLoopContext.done = TRUE;
                     } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
-                        if (!sLoopContext.waitForInteraction) {
-                            PauseIntro(FALSE);
-                        }
-                        sLoopContext.windowHidden = FALSE;
+//                        if (!sLoopContext.waitForInteraction) {
+//                            PauseIntro(FALSE);
+//                        }
+//                        sLoopContext.windowHidden = FALSE;
                         if (sFileToHotCompile) {
                             HotReload(&sLoopContext.introScene, sLoopContext.sceneSetup);
                             sRender = TRUE;
                         }
                     } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
-                        if (!sLoopContext.waitForInteraction) {
-                            PauseIntro(TRUE);
-                        }
-                        sLoopContext.windowHidden = TRUE;
+//                        if (!sLoopContext.waitForInteraction) {
+//                            PauseIntro(TRUE);
+//                        }
+//                        sLoopContext.windowHidden = TRUE;
                     }
                     break;
                 }
@@ -435,6 +439,8 @@ void MainLoopIteration() {
         if (sFrameOffset >= sLoopContext.numIntroFrames) {
             // Restart intro
             sStartTime = sCurrentClock;
+            Audio_ClearCache(&sLoopContext.audio);
+            MBasicAlloc_PrintStats(sBasicAllocator);
             sFrameOffset = 0;
             Audio_ModStart(&sLoopContext.audio, sModToPlay);
         }
@@ -454,6 +460,8 @@ void MainLoopIteration() {
 
             Vec2i16 pos = { 2, 2 };
             Render_DrawBitmapText(&sLoopContext.introScene, frameRateString, pos, 0x7, TRUE);
+
+            MBasicAlloc_CheckAll(sBasicAllocator);
         }
     }
 
@@ -478,6 +486,11 @@ void MainLoopIteration() {
 }
 
 int main(int argc, char**argv) {
+    size_t mem_size = 16 * 1024 * 1024;
+    void* mem = malloc(mem_size);
+    sBasicAllocator = MBasicAlloc_Init(mem, mem_size);
+    MMemAllocSet(&sBasicAllocator->funcs);
+
     int result = ParseCommandLine(argc, argv);
     if (result) {
         return result;

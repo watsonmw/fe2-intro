@@ -58,61 +58,196 @@
 
         const canvas_ctx = canvas_element.getContext("2d");
 
-        let app = null;
+        // const PlayerWap = (function () {
+        //     function x() {
+        //
+        //     }
+        //     return {'x': x};
+        // });
+        // const p = PlayerWap();
 
-        const memory = new WebAssembly.Memory({
-            initial: 100,
-            maximum: 200,
-        });
-
-        const memory_buffer = new Uint8Array(memory.buffer);
-
-        const loaded_files = {};
-
-        function load_file(name) {
-            return new Promise((ok, nope) => {
-                if (loaded_files.hasOwnProperty(name)) {
-                    ok(loaded_files[name]);
-                } else {
-                    fetch(name).then(resp => {
-                        if (resp.ok) {
-                            resp.arrayBuffer().then(arr => {
-                                loaded_files[name] = arr;
-                                ok(arr)
-                            });
-                        } else {
-                            ok(null);
-                        }
-                    });
-                }
+        const PlayerApp = (function() {
+            let app = null;
+            const memory = new WebAssembly.Memory({
+                initial: 50,
+                maximum: 200,
             });
-        }
+            const memory_buffer = new Uint8Array(memory.buffer);
+            const load_tasks = [];
+            const loaded_files = {};
 
-        let started = false;
-        let paused = false;
-        let debug = false;
-        function current_timestamp_ms() {
-            return window.performance.now();
-        }
-        window.addEventListener("blur", (e) => {
-            paused = true;
-            app.instance.exports.set_paused(true, current_timestamp_ms());
-        });
-        window.addEventListener("focus", (e) => {
-            paused = false;
-            app.instance.exports.set_paused(false, current_timestamp_ms());
-        });
-        window.addEventListener("mousedown", (e) => {
-            if (!started) {
-                started = true;
-                app.instance.exports.start_intro_after_interaction(current_timestamp_ms());
+            function load_file(name) {
+                return new Promise((ok, nope) => {
+                    if (loaded_files.hasOwnProperty(name)) {
+                        ok(loaded_files[name]);
+                    } else {
+                        fetch(name).then(resp => {
+                            if (resp.ok) {
+                                resp.arrayBuffer().then(arr => {
+                                    loaded_files[name] = arr;
+                                    ok(arr)
+                                });
+                            } else {
+                                ok(null);
+                            }
+                        });
+                    }
+                });
             }
-        });
-        window.addEventListener("keydown", (e) => {
-            if (e.key === '`') {
-                debug = !debug;
-                app.instance.exports.set_debug_mode(debug);
+
+            const text_decoder = new TextDecoder();
+            function wasm_string(str_offset, str_size) {
+                if (!str_size || str_size <= 0) {
+                    return "";
+                }
+                return text_decoder.decode(new Uint8Array(memory.buffer, str_offset, str_size));
             }
+
+            function wasm_get_surface(surface_offset)
+            {
+                let offset = 0;
+                const SURFACE_WIDTH_OFFSET = offset++;
+                const SURFACE_HEIGHT_OFFSET = offset++;
+                const SURFACE_PIXELS_OFFSET = offset++;
+                const SURFACE_SIZE_TOTAL = offset;
+                const surface_memory = new Uint32Array(memory.buffer, surface_offset, SURFACE_SIZE_TOTAL);
+                return {
+                    width: surface_memory[SURFACE_WIDTH_OFFSET],
+                    height: surface_memory[SURFACE_HEIGHT_OFFSET],
+                    pixels: surface_memory[SURFACE_PIXELS_OFFSET],
+                };
+            }
+
+            function wasm_get_audio_buffer(buffer_offset)
+            {
+                let offset = 0;
+                const AUDIO_SIZE_OFFSET = offset++;
+                const AUDIO_LEFT_BUFFER = offset++;
+                const AUDIO_RIGHT_BUFFER = offset++;
+                const AUDIO_SIZE_TOTAL = offset;
+                const audio_buffer = new Uint32Array(memory.buffer, buffer_offset, AUDIO_SIZE_TOTAL);
+                return {
+                    size: audio_buffer[AUDIO_SIZE_OFFSET],
+                    buffer_left: audio_buffer[AUDIO_LEFT_BUFFER],
+                    buffer_right: audio_buffer[AUDIO_RIGHT_BUFFER]
+                };
+            }
+
+            let console_output_buffer = "";
+            function WASM_PrintLine(index, size) {
+                if (app) {
+                    // let memory = app.instance.exports.memory;
+                    console.log(console_output_buffer + wasm_string(index, size));
+                    console_output_buffer = "";
+                }
+            }
+
+            function WASM_Print(index, size) {
+                if (app) {
+                    console_output_buffer += wasm_string(index, size);
+                    let j = 0;
+                    while (true) {
+                        let i = console_output_buffer.indexOf("\n", j);
+                        if (i === -1) {
+                            break;
+                        }
+                        let line = console_output_buffer.substring(j, i);
+                        console.log(line, line.length);
+                        j = i + 1;
+                    }
+                    console_output_buffer = console_output_buffer.substring(j)
+                }
+            }
+
+            function WASM_FileGetSize(filePathBuf, filePathSize) {
+                let filePath = wasm_string(filePathBuf, filePathSize);
+                let r = loaded_files[filePath];
+                if (r == null) {
+                    return 0;
+                } else {
+                    console.log("WASM_FileGetSize", filePath, r.byteLength);
+                    return r.byteLength;
+                }
+            }
+
+            // size_t WASM_FileRead(const char* filePathBuf, u32 filePathSize, u8* dest, u32 offset, u32 readSize)
+            function WASM_FileRead(filePathBuf, filePathSize, dest, offset, readSize) {
+                let filePath = wasm_string(filePathBuf, filePathSize);
+                console.log("WASM_FileRead", filePath, dest, offset, readSize);
+                let file_array = loaded_files[filePath];
+                let arr = memory_buffer.subarray(dest + offset, dest + offset + readSize);
+                arr.set(new Uint8Array(file_array));
+                return readSize;
+            }
+
+            let started = false;
+            let paused = false;
+            let debug = false;
+            function current_timestamp_ms() {
+                return window.performance.now();
+            }
+
+            function startRenderLoop() {
+                const surface_offset = app.instance.exports.get_surface();
+                const surface = wasm_get_surface(surface_offset);
+
+                function renderFrame(timestamp) {
+                    app.instance.exports.render(timestamp);
+                    const image = new ImageData(
+                        new Uint8ClampedArray(memory.buffer, surface.pixels, surface.width * surface.height * 4),
+                        surface.width);
+                    canvas_element.width = surface.width;
+                    canvas_element.height = surface.height;
+                    canvas_ctx.putImageData(image, 0, 0);
+                }
+
+                function frameLoop(timestamp) {
+                    if (!paused) {
+                        renderFrame(timestamp);
+                    }
+                    window.requestAnimationFrame(frameLoop);
+                }
+
+                function firstFrame(timestamp) {
+                    renderFrame(timestamp);
+                    window.requestAnimationFrame(frameLoop);
+                }
+                window.requestAnimationFrame(firstFrame);
+            }
+
+            async function loadWasm(filename) {
+                let wasm_file = fetch(filename);
+                load_tasks.push(wasm_file);
+                for (const task of load_tasks) {
+                    await task;
+                }
+
+                app = await WebAssembly.instantiateStreaming(wasm_file, {
+                    env: {
+                        memory: memory,
+                        sin: Math.sin,
+                        acos: Math.acos,
+                        WASM_Print: WASM_Print,
+                        WASM_PrintLine: WASM_PrintLine,
+                        WASM_FileGetSize: WASM_FileGetSize,
+                        WASM_FileRead: WASM_FileRead,
+                    }
+                });
+                console.log(app.instance.exports);
+                app.instance.exports.setup();
+            }
+
+            function fetchFiles(filenames) {
+                for (const filename of filenames) {
+                    load_tasks.push(load_file(filename));
+                }
+            }
+
+            return {
+                'fetchFiles': fetchFiles,
+                'loadWasm': loadWasm,
+                'startRenderLoop': startRenderLoop
+            };
         });
 
         let resizeCanvas = (function() {
@@ -153,32 +288,35 @@
             let getRequestFullScreenFunc = function() {
                 return docEl.requestFullscreen || docEl.webkitRequestFullScreen || docEl.msRequestFullscreen;
             };
-            let getCancelFullScreenFunc = function() {
+            let getExitFullScreenFunc = function() {
                 return doc.exitFullscreen || doc.webkitExitFullscreen || doc.msExitFullscreen;
             };
             let isFullScreen = function() {
                 return doc.fullscreenElement || doc.webkitFullscreenElement || doc.msFullscreenElement;
             };
-            function show(e) {
+            let isFullScreenEnabled = function() {
+                return document.fullscreenEnabled || document.webkitFullscreenEnabled || document.msFullscreenEnabled;
+            };
+            let showElement = function(e) {
                 if (e.style.display === "none") {
                     e.style.display = "block";
                 }
-            }
-            function hide(e) {
+            };
+            let hideElement = function(e) {
                 if (e.style.display !== "none") {
                     e.style.display = "none";
                 }
-            }
+            };
             let overlay = document.getElementById("overlay-controls");
             let fullscreenButton = document.getElementById("fullscreen-button");
             let exitFullscreenButton = document.getElementById("exitFullscreenButton");
             document.addEventListener("fullscreenchange", function () {
                 if (isFullScreen()) {
-                    hide(fullscreenButton);
-                    show(exitFullscreenButton);
+                    hideElement(fullscreenButton);
+                    showElement(exitFullscreenButton);
                 } else {
-                    hide(exitFullscreenButton);
-                    show(fullscreenButton);
+                    hideElement(exitFullscreenButton);
+                    showElement(fullscreenButton);
                 }
                 window.setTimeout(function () {
                     resizeCanvas();
@@ -189,9 +327,9 @@
                 if (overlay.style.display === 'none') {
                     return;
                 }
-                if (document.fullscreenEnabled || document.webkitFullscreenEnabled || document.msFullscreenEnabled) {
-                    hide(exitFullscreenButton);
-                    show(fullscreenButton);
+                if (isFullScreenEnabled()) {
+                    hideElement(exitFullscreenButton);
+                    showElement(fullscreenButton);
                     let isHover = function(e) {
                         return !!(e.querySelector(":hover") || e.parentNode.querySelector(":hover") === e);
                     };
@@ -214,7 +352,7 @@
                     showControls(false);
                     let toggleFullScreen = function() {
                         if (isFullScreen()) {
-                            getCancelFullScreenFunc().call(window.document);
+                            getExitFullScreenFunc().call(window.document);
                         } else {
                             getRequestFullScreenFunc().call(window.document.documentElement);
                         }
@@ -223,278 +361,164 @@
                     fullscreenButton.addEventListener("click", toggleFullScreen, false);
                     exitFullscreenButton.addEventListener("click", toggleFullScreen, false);
                 } else {
-                    hide(exitFullscreenButton);
-                    hide(fullscreenButton);
+                    hideElement(exitFullscreenButton);
+                    hideElement(fullscreenButton);
                 }
             };
             return {
                 setup: setup
             }
         })();
+
+        let AudioPlayer = (function() {
+            const sample_rate = 44100; // Hz
+            let audio_context = null;
+            let next_start_play_time = null;
+            let audio_pause = true;
+            let buffers = [null, null, null];
+            let buffers_len = [null, null, null];
+            let sources = [null, null, null];
+
+            function get_audio_buffers(ticks) {
+                const buffer_offset = app.instance.exports.audio_render(ticks);
+                const audio_buffer = wasm_get_audio_buffer(buffer_offset);
+                const audio_buffer_left_f32 = new Float32Array(memory.buffer, audio_buffer.buffer_left, audio_buffer.size);
+                const audio_buffer_right_f32 = new Float32Array(memory.buffer, audio_buffer.buffer_right, audio_buffer.size);
+                return [
+                    audio_buffer_left_f32,
+                    audio_buffer_right_f32,
+                    audio_buffer.size
+                ];
+            }
+
+            function fill_audio_buffer(buffer_index, refill_buffers) {
+                // The rough idea here is that we buffer audio about a second ahead of schedule and rely on AudioContext's
+                // internal timekeeping to keep it gap-less. playTime is the time in seconds that our stream is currently
+                // buffered to.
+                let buffer = buffers[buffer_index];
+                if (buffer == null || refill_buffers) {
+                    const frames = get_audio_buffers(1);
+                    const frame_len = frames[2];
+                    buffers_len[buffer_index] = frame_len
+
+                    if (buffer == null) {
+                        buffer = audio_context.createBuffer(2, frame_len, sample_rate);
+                        buffers[buffer_index] = buffer;
+                    }
+
+                    buffer.copyToChannel(frames[0], 0);
+                    buffer.copyToChannel(frames[1], 1);
+                }
+
+                // Play the buffer at some time in the future.
+                const bsn = audio_context.createBufferSource();
+                bsn.buffer = buffer;
+                bsn.connect(audio_context.destination);
+                // When a buffer is done playing, try to queue up
+                // some more audio.
+                bsn.onended = function() {
+                    if (!audio_pause) {
+                        fill_audio_buffer(buffer_index, true);
+                    }
+                };
+                sources[buffer_index] = bsn
+                bsn.start(next_start_play_time);
+                // Advance our expected time.
+                // (samples) / (samples per second) = seconds
+                next_start_play_time += buffers_len[buffer_index] / sample_rate;
+            }
+
+            function fill_audio_buffers(refill_buffers) {
+                fill_audio_buffer(0, refill_buffers);
+                fill_audio_buffer(1, refill_buffers);
+                fill_audio_buffer(2, refill_buffers);
+            }
+
+            function start_audio() {
+                if (!audio_context) {
+                    audio_context = new AudioContext();
+                    next_start_play_time = audio_context.currentTime;
+                    audio_pause = false;
+                    fill_audio_buffers(true);
+                }
+            }
+
+            function pause_audio() {
+                audio_pause = true;
+                for (let i = 0; i < 3; i++) {
+                    let bsn = sources[i];
+                    if (bsn) {
+                        bsn.stop();
+                    }
+                    sources[0] = null;
+                }
+            }
+
+            function resume_audio() {
+                if (audio_pause) {
+                    audio_pause = false;
+                    if (audio_context) {
+                        next_start_play_time = audio_context.currentTime;
+                        fill_audio_buffers(false);
+                    }
+                }
+            }
+
+            return {
+                start: start_audio,
+                pause: pause_audio,
+                resume: resume_audio
+            }
+        })();
+
         OverlayControls.setup();
 
-        const text_decoder = new TextDecoder();
-        function wasm_string(str_offset, str_size) {
-            if (!str_size || str_size <= 0) {
-                return "";
-            }
-            return text_decoder.decode(new Uint8Array(memory.buffer, str_offset, str_size));
-        }
-
-        function wasm_get_surface(surface_offset)
-        {
-            let offset = 0;
-            const SURFACE_WIDTH_OFFSET = offset++;
-            const SURFACE_HEIGHT_OFFSET = offset++;
-            const SURFACE_PIXELS_OFFSET = offset++;
-            const SURFACE_SIZE_TOTAL = offset;
-            const surface_memory = new Uint32Array(memory.buffer, surface_offset, SURFACE_SIZE_TOTAL);
-            return {
-                width: surface_memory[SURFACE_WIDTH_OFFSET],
-                height: surface_memory[SURFACE_HEIGHT_OFFSET],
-                pixels: surface_memory[SURFACE_PIXELS_OFFSET],
-            };
-        }
-
-        function wasm_get_audio_buffer(buffer_offset)
-        {
-            let offset = 0;
-            const AUDIO_SIZE_OFFSET = offset++;
-            const AUDIO_LEFT_BUFFER = offset++;
-            const AUDIO_RIGHT_BUFFER = offset++;
-            const AUDIO_SIZE_TOTAL = offset;
-            const audio_buffer = new Uint32Array(memory.buffer, buffer_offset, AUDIO_SIZE_TOTAL);
-            return {
-                size: audio_buffer[AUDIO_SIZE_OFFSET],
-                buffer_left: audio_buffer[AUDIO_LEFT_BUFFER],
-                buffer_right: audio_buffer[AUDIO_RIGHT_BUFFER]
-            };
-        }
-
-        let console_output_buffer = "";
-        function WASM_PrintLine(index, size) {
-            if (app) {
-                // let memory = app.instance.exports.memory;
-                console.log(console_output_buffer + wasm_string(index, size));
-                console_output_buffer = "";
-            }
-        }
-
-        function WASM_Print(index, size) {
-            if (app) {
-                console_output_buffer += wasm_string(index, size);
-                let j = 0;
-                while (true) {
-                    let i = console_output_buffer.indexOf("\n", j);
-                    if (i === -1) {
-                        break;
-                    }
-                    let line = console_output_buffer.substring(j, i);
-                    console.log(line, line.length);
-                    j = i + 1;
-                }
-                console_output_buffer = console_output_buffer.substring(j)
-            }
-        }
-
-        function WASM_FileGetSize(filePathBuf, filePathSize) {
-            let filePath = wasm_string(filePathBuf, filePathSize);
-            let r = loaded_files[filePath];
-            if (r == null) {
-                return 0;
-            } else {
-                console.log("WASM_FileGetSize", filePath, r.byteLength);
-                return r.byteLength;
-            }
-        }
-
-        // size_t WASM_FileRead(const char* filePathBuf, u32 filePathSize, u8* dest, u32 offset, u32 readSize)
-        function WASM_FileRead(filePathBuf, filePathSize, dest, offset, readSize) {
-            let filePath = wasm_string(filePathBuf, filePathSize);
-            console.log("WASM_FileRead", filePath, dest, offset, readSize);
-            let file_array = loaded_files[filePath];
-            let arr = memory_buffer.subarray(dest + offset, dest + offset + readSize);
-            arr.set(new Uint8Array(file_array));
-            return readSize;
-        }
-
-        console.log(memory);
+        const player = PlayerApp();
 
         // Load wasm exec and data files in parallel
-        let load_tasks = [];
-        load_tasks.push(load_file("game"));
-        load_tasks.push(load_file("model-overrides-le.dat"));
-        let wasm_file = fetch("fe2-intro.wasm");
-        load_tasks.push(wasm_file)
-
-        for (const task of load_tasks) {
-            await task;
-        }
-
-        app = await WebAssembly.instantiateStreaming(wasm_file, {
-            env: {
-                memory: memory,
-                sin: Math.sin,
-                acos: Math.acos,
-                WASM_Print: WASM_Print,
-                WASM_PrintLine: WASM_PrintLine,
-                WASM_FileGetSize: WASM_FileGetSize,
-                WASM_FileRead: WASM_FileRead,
-            }
-        });
-        console.log(app.instance.exports);
+        player.fetchFiles(["game", "model-overrides-le.dat"]);
+        await player.loadWasm("fe2-intro.wasm");
 
         let overlay = document.getElementById("loading-overlay");
         overlay.style.display = 'none';
 
-        app.instance.exports.setup();
-        const surface_offset = app.instance.exports.get_surface();
-        const surface = wasm_get_surface(surface_offset);
-
-        function render(timestamp) {
-            app.instance.exports.render(timestamp);
-            const image = new ImageData(
-                new Uint8ClampedArray(memory.buffer, surface.pixels, surface.width * surface.height * 4),
-                surface.width);
-            canvas_element.width = surface.width;
-            canvas_element.height = surface.height;
-            canvas_ctx.putImageData(image, 0, 0);
-        }
-
-        function loop(timestamp) {
-            if (!paused) {
-                render(timestamp);
+        window.addEventListener("blur", (e) => {
+            // paused = true;
+            // app.instance.exports.set_paused(true, current_timestamp_ms());
+            // AudioPlayer.pause();
+        });
+        window.addEventListener("focus", (e) => {
+            // paused = false;
+            // app.instance.exports.set_paused(false, current_timestamp_ms());
+            // AudioPlayer.resume();
+        });
+        window.addEventListener("mousedown", (e) => {
+            if (!started) {
+                started = true;
+                app.instance.exports.start_intro_after_interaction(current_timestamp_ms());
+                AudioPlayer.start();
             }
-            window.requestAnimationFrame(loop);
-        }
-
-        function first(timestamp) {
-            render(timestamp);
-            window.requestAnimationFrame(loop);
-        }
-        window.requestAnimationFrame(first);
-
-
-        function start_audio() {
-            let stopped = false;
-            let is_reading = false;
-
-            const audio_context = new AudioContext();
-            // this will get updated at every new fetch
-            let fetched_data = new Float32Array(0);
-            // keep it accessible so we can stop() it
-            let audio_node;
-
-            // let's begin
-            periodicFetch();
-
-            function concatFloat32Arrays(arr1, arr2) {
-                if (!arr1 || !arr1.length) {
-                    return arr2 && arr2.slice();
-                }
-                if (!arr2 || !arr2.length) {
-                    return arr1 && arr1.slice();
-                }
-                const out = new Float32Array(arr1.length + arr2.length);
-                out.set(arr1);
-                out.set(arr2, arr1.length);
-                return out;
+        });
+        window.addEventListener("keydown", (e) => {
+            switch (e.key) {
+                case '`':
+                    debug = !debug;
+                    app.instance.exports.set_debug_mode(debug);
+                    break;
+                case ' ':
+                    paused = !paused;
+                    app.instance.exports.set_paused(paused, current_timestamp_ms());
+                    if (paused) {
+                        AudioPlayer.pause();
+                    } else {
+                        AudioPlayer.resume();
+                    }
+                    break;
             }
+        });
 
-            // our fake fetcher, calls itself every 50ms
-            function periodicFetch() {
-                // data from server (here just some noise)
-
-
-                // we concatenate the data just fetched with what we have already buffered
-                fetched_data = concatFloat32Arrays(fetched_data, myNewF32Array);
-                if (!stopped) {
-                    // do it again
-                    setTimeout(periodicFetch, fetching_interval);
-                }
-                // if we are not actively reading and have fetched enough
-                if (!is_reading && fetched_data.length > min_sample_size) {
-                    readingLoop(); // start reading
-                }
-            }
-            function readingLoop() {
-                if (stopped || fetched_data.length < min_sample_size) {
-                    is_reading = false;
-                    return;
-                }
-                // let the world know we are actively reading
-                is_reading = true;
-                // create a new AudioBuffer
-                const aud_buf = audio_context.createBuffer(2, fetched_data.length, sample_rate);
-                // copy our fetched data to its first channel
-                aud_buf.copyToChannel(fetched_data, 0);
-
-                // clear the buffered data
-                fetched_data = new Float32Array(0);
-
-                // the actual player
-                audio_node = audio_context.createBufferSource();
-                audio_node.buffer = aud_buf;
-                audio_node.onended = readingLoop;
-                audio_node.start(0);
-            }
-        }
-
-        const min_sample_duration = 2; // sec
-        const sample_rate = 44100;     // Hz
-        const min_sample_size = min_sample_duration * sample_rate;
-        const fetching_interval = 100; // ms
-
-        function get_audio_buffers(size) {
-            const buffer_offset = app.instance.exports.audio_render(size);
-            const audio_buffer = wasm_get_audio_buffer(buffer_offset);
-            const audio_buffer_left_i16 = new Int16Array(memory.buffer, audio_buffer.buffer_left, audio_buffer.size);
-            const audio_buffer_right_i16 = new Int16Array(memory.buffer, audio_buffer.buffer_right, audio_buffer.size);
-            return [
-                    Float32Array.from(Float32Array.from(audio_buffer_left_i16.map(x => x / 0x8000))),
-                    Float32Array.from(Float32Array.from(audio_buffer_right_i16.map(x => x / 0x8000))),
-                    audio_buffer.size
-                ];
-        }
-
-        // TODO build option for two arrays
-
-        const ctx = new AudioContext();
-        let playTime = ctx.currentTime;
-        function pumpAudio() {
-            // The rough idea here is that we buffer audio roughly a
-            // second ahead of schedule and rely on AudioContext's
-            // internal timekeeping to keep it gapless. playTime is
-            // the time in seconds that our stream is currently
-            // buffered to.
-
-            // Buffer up audio for roughly a second in advance.
-            while (playTime - ctx.currentTime < 1) {
-                // 2 channel buffer size of 4096, at a 48KHz sampling rate.
-                const frames = get_audio_buffers(4096 * 4);
-                const frame_len = frames[2];
-
-                const buffer = ctx.createBuffer(2, frame_len, sample_rate);
-                buffer.copyToChannel(frames[0], 0);
-                buffer.copyToChannel(frames[1], 1);
-
-                // Play the buffer at some time in the future.
-                const bsn = ctx.createBufferSource();
-                bsn.buffer = buffer;
-                bsn.connect(ctx.destination);
-                // When a buffer is done playing, try to queue up
-                // some more audio.
-                bsn.onended = function() {
-                    pumpAudio();
-                };
-                bsn.start(playTime);
-                // Advance our expected time.
-                // (samples) / (samples per second) = seconds
-                playTime += frame_len / sample_rate;
-            }
-        }
-        pumpAudio();
-    }
+        player.startRenderLoop()
+   }
     init("fe2-intro");
 </script>
 </body>
