@@ -125,6 +125,7 @@ typedef struct sMMemDebugContext {
     b32 sMemDebugInitialized;
     u32 totalAllocations;
     u32 totalAllocatedBytes;
+    u32 curAllocations;
     u32 curAllocatedBytes;
     u32 maxAllocatedBytes;
 } MMemDebugContext;
@@ -178,8 +179,10 @@ void MMemDebugDeinit() {
         return;
     }
 
-    MLogf("Total allocations: %ld", sMemDebugContext.totalAllocations);
-    MLogf("Total allocated: %ld bytes", sMemDebugContext.totalAllocatedBytes);
+    MLogf("Current allocations: %ld (%ld bytes)",
+          sMemDebugContext.curAllocations, sMemDebugContext.curAllocatedBytes);
+    MLogf("Lifetime allocations: %ld (%ld bytes)",
+          sMemDebugContext.totalAllocations, sMemDebugContext.totalAllocatedBytes);
     MLogf("Max memory used: %ld bytes", sMemDebugContext.maxAllocatedBytes);
 
     MMemDebugCheckAll();
@@ -378,6 +381,7 @@ void* _MMalloc(MDEBUG_SOURCE_DEFINE size_t size) {
 
     sMemDebugContext.totalAllocations += 1;
     sMemDebugContext.totalAllocatedBytes += size;
+    sMemDebugContext.curAllocations += 1;
     sMemDebugContext.curAllocatedBytes += size;
     if (sMemDebugContext.curAllocatedBytes > sMemDebugContext.maxAllocatedBytes) {
         sMemDebugContext.maxAllocatedBytes = sMemDebugContext.curAllocatedBytes;
@@ -423,6 +427,7 @@ void _MFree(MDEBUG_SOURCE_DEFINE void* p, size_t size) {
             }
             sAllocator->freeFunc(sAllocator, memAlloc->start, SENTINEL_BEFORE + memAlloc->size + SENTINEL_AFTER);
             sMemDebugContext.curAllocatedBytes -= memAlloc->size;
+            sMemDebugContext.curAllocations -= 1;
             memAlloc->start = 0;
             memAlloc->mem = 0;
 #ifdef M_LOG_ALLOCATIONS
@@ -480,6 +485,7 @@ void* _MRealloc(MDEBUG_SOURCE_DEFINE void* p, size_t oldSize, size_t newSize) {
 
     sMemDebugContext.totalAllocations += 1;
     sMemDebugContext.totalAllocatedBytes += newSize;
+    sMemDebugContext.curAllocations += 1;
     sMemDebugContext.curAllocatedBytes += newSize - memAllocFound->size;
     if (sMemDebugContext.curAllocatedBytes > sMemDebugContext.maxAllocatedBytes) {
         sMemDebugContext.maxAllocatedBytes = sMemDebugContext.curAllocatedBytes;
