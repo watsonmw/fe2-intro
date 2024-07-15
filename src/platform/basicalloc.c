@@ -2,13 +2,6 @@
 
 #include "basicalloc.h"
 
-// Simple free list allocator
-// - Lots of debug checking
-// - Free list is always in memory order
-// - Node size is large, so don't allocate very many small objects
-// - Not thread safe
-// - Can request more address space (via memoryGrowFunc()) but memory must be contiguous
-
 // Allocate memory in blocks of this size (to prevent fragmentation)
 // You can set to MBASIC_ALLOC_ALIGN if you want the absolute minimum size at the expense of possible
 // extra fragmentation.

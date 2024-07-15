@@ -563,7 +563,7 @@ void* AmigaRealloc(void* alloc, void* mem, size_t oldSize, size_t newSize) {
     if (newSize > 0) {
         void* newMem = AllocMem(newSize, MEMF_ANY);
         if (oldSize) {
-            memcpy(newMem, mem, oldSize);
+            memmove(newMem, mem, oldSize);
             FreeMem(mem, oldSize);
             return newMem;
         }

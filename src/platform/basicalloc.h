@@ -2,6 +2,14 @@
 
 #include "mlib.h"
 
+// Public Domain malloc() / realloc() / free() implementation
+// Simple free list allocator
+// - Lots of debug checking
+// - Free list is always in memory order
+// - Node/Block size is large, so don't allocate very many small objects
+// - Not thread safe
+// - Can request more address space (via memoryGrowFunc()) but memory must be contiguous
+
 // Min alignment for allocations
 #define MBASIC_ALLOC_ALIGN 16
 

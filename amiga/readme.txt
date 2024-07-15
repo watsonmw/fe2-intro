@@ -78,7 +78,7 @@ A. For me too.  There's at least two issues:
        interrupt issue.
    Of course, it could be a bug on my side - but it's not for lack of looking -
    let me just say that!
-   A solution would be to turn off the OS while running, and use HW interrrupts
+   A solution would be to turn off the OS while running, and use HW interrupts
    for the sound.
 
 

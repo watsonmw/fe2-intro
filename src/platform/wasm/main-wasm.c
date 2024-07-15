@@ -59,8 +59,6 @@ static WASM_AudioBuffer sAudioBuffer;
 static RGB sFIntroPalette[256];
 
 void StartIntro(u32 currentTimestampMs) {
-    MMemDebugCheckAll();
-
     Audio_Init(&sLoopContext.audio,
                sLoopContext.assetsDataAmiga.mainExeData,
                sLoopContext.assetsDataAmiga.mainExeSize);
@@ -68,8 +66,6 @@ void StartIntro(u32 currentTimestampMs) {
     sLoopContext.prevClock = currentTimestampMs;
     sStartTime = sLoopContext.prevClock;
     Audio_ModStart(&sLoopContext.audio, sModToPlay);
-
-    MMemDebugCheckAll();
 }
 
 static void UpdateSurfaceTexture(Surface* surface, RGB* palette, u8* pixels, int pitch) {
@@ -274,7 +270,6 @@ void render(u32 currentTimestampMs) {
             Audio_ModStart(&sLoopContext.audio, sModToPlay);
 
             MLog("restarting intro");
-            MMemDebugListAll();
             Audio_ClearCache(&sLoopContext.audio);
             MBasicAlloc_PrintStats(sBasicAlloc);
         }
@@ -300,11 +295,8 @@ void render(u32 currentTimestampMs) {
 }
 
 __attribute__((export_name("audio_render")))
-//WASM_AudioBuffer* audio_render(int bytesRequested) {
 WASM_AudioBuffer* audio_render(int ticks) {
     AudioContext* audio = &sLoopContext.audio;
-//    u32 numSamples = bytesRequested / 4;
-//    Audio_RenderFrames(audio, numSamples);
     Audio_RenderFrames(audio, ticks);
     sAudioBuffer.buffer_left = audio->audioOutputBufferLeft;
     sAudioBuffer.buffer_right = audio->audioOutputBufferRight;

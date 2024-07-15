@@ -283,7 +283,7 @@ void Audio_ModStop(AudioContext* audio);
 #ifdef AUDIO_BUFFERED_PLAYBACK
 void Audio_Pause(AudioContext* audio);
 void Audio_Resume(AudioContext* audio);
-void Audio_RenderFrames(AudioContext* audio, u32 numFrames);
+void Audio_RenderFrames(AudioContext* audio, u32 ticks);
 void Audio_ClearCache(AudioContext* audio);
 #endif
 

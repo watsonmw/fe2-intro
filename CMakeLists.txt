@@ -5,7 +5,6 @@ set(CMAKE_C_STANDARD 11)
 
 include_directories(src)
 
-# /usr/local/Cellar/llvm/17.0.6/bin/lldb
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # SDL based fintro
@@ -13,8 +12,6 @@ add_executable(
         fintro
         src/platform/sdl/main-sdl.c
         src/platform/sdl/mlib-sdl.c
-        src/platform/basicalloc.c
-        src/platform/basicalloc.h
         src/render.h
         src/render.c
         src/renderinternal.h
@@ -31,8 +28,7 @@ add_executable(
         src/modelcode.c
 )
 
-# Amiga fintro, this exe project is just to get IDE source code inspections - to actually build
-# use 'amiga/build-ami-gcc.sh' (I build on Debian with bebbo's gcc).
+# Amiga target (Just to get IDE source code inspections - to actually build use 'amiga/build-ami-gcc.sh')
 add_executable(
         fintro-amiga
         src/platform/amiga/main-amiga.c
@@ -51,7 +47,7 @@ add_executable(
         src/fmath.c
 )
 
-# Native WASM target
+# Native WASM target (also just for IDE support, use scripts/build_wasm.sh to build)
 add_executable(
         fintro-wasm
         src/platform/basicalloc.c
@@ -74,8 +70,8 @@ add_executable(
 )
 
 # Define DEBUG c/c++ macro when compiling in debug mode
-set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG -fno-strict-aliasing")
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG -fno-strict-aliasing")
+set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG -DM_ASSERT -fno-strict-aliasing")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG -DM_ASSERT -fno-strict-aliasing")
 
 target_compile_definitions(fintro PRIVATE -DM_USE_SDL -DM_USE_STDLIB -DFINTRO_SCREEN_RES=3)
 target_compile_options(fintro PRIVATE -ggdb)
@@ -96,12 +92,12 @@ IF(APPLE)
 ENDIF()
 
 IF(MINGW)
-    target_compile_definitions(fintro PRIVATE -Dmain=SDL_main -DM_MEM_DEBUG -DM_LOG_ALLOCATIONS -DM_ASSERT)
+    target_compile_definitions(fintro PRIVATE -Dmain=SDL_main)
     target_compile_options(fintro PRIVATE -mconsole)
     target_link_libraries(fintro mingw32 SDL2main SDL2 opengl32 -static-libgcc)
 ENDIF()
 
-# Enscripten + SDL
+# Enscripten + SDL (Old wasm target)
 if(EMSCRIPTEN)
     string(APPEND CMAKE_C_FLAGS " -s DEMANGLE_SUPPORT=1")
     string(APPEND CMAKE_C_FLAGS " -s DISABLE_EXCEPTION_CATCHING=2")
