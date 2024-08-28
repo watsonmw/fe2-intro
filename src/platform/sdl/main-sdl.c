@@ -1,9 +1,4 @@
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
 #include <SDL2/SDL.h>
-#else
-#include <SDL2/SDL.h>
-#endif
 
 #include "audio.h"
 #include "render.h"
@@ -88,7 +83,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
                 }
                 const char* arg2 = argv[i];
                 i32 mod = 0;
-                if (!MParseI32(arg2, MStrEnd(arg2), &mod)) {
+                if (!MParseI32NoSign(arg2, MStrEnd(arg2), &mod)) {
                     if (mod >= 0 && mod < 11) {
                         sModToPlay = mod;
                     }
@@ -104,7 +99,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
                 }
                 const char* arg2 = argv[i];
                 i32 offset = 0;
-                if (!MParseI32(arg2, MStrEnd(arg2), &offset)) {
+                if (!MParseI32NoSign(arg2, MStrEnd(arg2), &offset)) {
                     if (offset >= 0) {
                         sFrameOffset = offset;
                     }
@@ -149,7 +144,7 @@ static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
     DebugModelParams params;
     memset(&params,  0, sizeof(DebugModelParams));
     params.maxSize = 0xfff;
-    params.onlyLabels = 1;
+    params.codeOffsets = 1;
 
     while (TRUE) {
         ModelData* modelData = MArrayGet(*modelsArray, modelIndex);
@@ -220,9 +215,6 @@ typedef struct LoopContext {
     // App done - exit
     b32 done;
 
-    // Have to wait for interaction before we can play sounds
-    b32 waitForInteraction;
-
     // Don't render if hidden
     b32 windowHidden;
     i32 windowWidth;
@@ -271,7 +263,7 @@ void StartIntro() {
     sLoopContext.prevClock = SDL_GetPerformanceCounter();
     sStartTime = sLoopContext.prevClock;
     Audio_ModStart(&sLoopContext.audio, sModToPlay);
-    Audio_SetVolume(&sLoopContext.audio, 128);
+    Audio_SetVolume(&sLoopContext.audio, AUDIO_VOLUME_MAX);
 }
 
 void MainLoopIteration() {
@@ -296,8 +288,10 @@ void MainLoopIteration() {
                     case SDLK_ESCAPE:
                         sLoopContext.done = TRUE;
                         break;
+                    case SDLK_F5:
+                        Audio_ModStart(&sLoopContext.audio, Audio_ModEnum_HALL_OF_THE_MOUNTAIN_KING);
+                        break;
                     case SDLK_RETURN:
-#ifndef __EMSCRIPTEN__
                         if (event.key.keysym.mod == KMOD_RALT || event.key.keysym.mod == KMOD_LALT) {
                             sFullscreen = !sFullscreen;
                             if (sFullscreen) {
@@ -306,7 +300,6 @@ void MainLoopIteration() {
                                 SDL_SetWindowFullscreen(sLoopContext.window, 0);
                             }
                         }
-#endif
                         break;
                     case SDLK_LEFT:
                         sRender = TRUE;
@@ -350,49 +343,25 @@ void MainLoopIteration() {
                 }
                 break;
             case SDL_KEYUP:
-#ifdef __EMSCRIPTEN__
-                switch (event.key.keysym.sym) {
-                    case SDLK_SPACE:
-                    case SDLK_KP_ENTER:
-                    case SDLK_RETURN:
-                        if (sLoopContext.waitForInteraction) {
-                            sLoopContext.waitForInteraction = FALSE;
-                            StartIntro();
-                        }
-                        break;
-                }
-#endif
                 break;
             case SDL_MOUSEBUTTONDOWN:
-#ifndef __EMSCRIPTEN__
                 sLoopContext.done = TRUE;
-#endif
                 break;
             case SDL_MOUSEBUTTONUP:
-#ifdef __EMSCRIPTEN__
-                if (sLoopContext.waitForInteraction) {
-                    sLoopContext.waitForInteraction = FALSE;
-                    StartIntro();
-                }
-#endif
                 break;
             case SDL_WINDOWEVENT:
                 if (event.window.windowID == SDL_GetWindowID(sLoopContext.window)) {
                     if (event.window.event == SDL_WINDOWEVENT_CLOSE) {
                         sLoopContext.done = TRUE;
                     } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
-                        if (!sLoopContext.waitForInteraction) {
-                            PauseIntro(FALSE);
-                        }
+                        PauseIntro(FALSE);
                         sLoopContext.windowHidden = FALSE;
                         if (sFileToHotCompile) {
                             HotReload(&sLoopContext.introScene, sLoopContext.sceneSetup);
                             sRender = TRUE;
                         }
                     } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
-                        if (!sLoopContext.waitForInteraction) {
-                            PauseIntro(TRUE);
-                        }
+                        PauseIntro(TRUE);
                         sLoopContext.windowHidden = TRUE;
                     }
                     break;
@@ -407,56 +376,43 @@ void MainLoopIteration() {
 
     sCurrentClock = SDL_GetPerformanceCounter();
 
-    if (sLoopContext.waitForInteraction) {
-        Surface_Clear(&sLoopContext.surface, 0);
+    u64 elapsed = ((u64)(sCurrentClock - sLoopContext.prevClock)) / (sClockTickInterval / 1000);
+    sLoopContext.prevClock = sCurrentClock;
+    sLoopContext.updateFpsTimer += elapsed;
+    if (sLoopContext.updateFpsTimer > 1000) {
+        sLoopContext.fps = sLoopContext.fpsFrames - 1;
+        sLoopContext.fpsFrames = 0;
+        sLoopContext.updateFpsTimer = sLoopContext.updateFpsTimer - 1000;
+    }
 
-        Vec2i16 pos1 = { 125, 60 };
-        Render_DrawBitmapText(&sLoopContext.introScene, "Frontier: Elite 2 Intro", pos1, 0xf, TRUE);
+    u64 deltaIn100thsOfaSecond = ((sCurrentClock - sStartTime) * 100) / sClockTickInterval;
+    if (!sPause) {
+        sFrameOffset = Intro_GetFrameOffsetAtTime(&sLoopContext.intro, deltaIn100thsOfaSecond);
+    }
 
-        Vec2i16 pos2 = { 138, 120 };
-        static i32 textColor = 0;
-        textColor = (textColor + 1) % 32;
-        i32 colour = (FMath_sine[textColor << 6] >> 13) + 4;
-        Render_DrawBitmapText(&sLoopContext.introScene, "Click To Start!", pos2, colour + 3, FALSE);
-    } else {
-        u64 elapsed = ((u64)(sCurrentClock - sLoopContext.prevClock)) / (sClockTickInterval / 1000);
-        sLoopContext.prevClock = sCurrentClock;
-        sLoopContext.updateFpsTimer += elapsed;
-        if (sLoopContext.updateFpsTimer > 1000) {
-            sLoopContext.fps = sLoopContext.fpsFrames - 1;
-            sLoopContext.fpsFrames = 0;
-            sLoopContext.updateFpsTimer = sLoopContext.updateFpsTimer - 1000;
-        }
+    if (sFrameOffset >= sLoopContext.numIntroFrames) {
+        // Restart intro
+        sStartTime = sCurrentClock;
+        Audio_ClearCache(&sLoopContext.audio);
+        sFrameOffset = 0;
+        Audio_ModStart(&sLoopContext.audio, sModToPlay);
+    }
 
-        u64 deltaIn100thsOfaSecond = ((sCurrentClock - sStartTime) * 100) / sClockTickInterval;
-        if (!sPause) {
-            sFrameOffset = Intro_GetFrameOffsetAtTime(&sLoopContext.intro, deltaIn100thsOfaSecond);
-        }
+    if (Audio_ModDone(&sLoopContext.audio)) {
+        Audio_ModStart(&sLoopContext.audio, Audio_ModEnum_SILENCE);
+    }
 
-        if (sFrameOffset >= sLoopContext.numIntroFrames) {
-            // Restart intro
-            sStartTime = sCurrentClock;
-            Audio_ClearCache(&sLoopContext.audio);
-            sFrameOffset = 0;
-            Audio_ModStart(&sLoopContext.audio, sModToPlay);
-        }
+    if (!sPause || sRender) {
+        RenderIntroAtTime(&sLoopContext.intro, &sLoopContext.introScene, sFrameOffset);
+        sRender = FALSE;
+    }
 
-        if (Audio_ModDone(&sLoopContext.audio)) {
-            Audio_ModStart(&sLoopContext.audio, Audio_ModEnum_SILENCE);
-        }
+    if (sDebugMode) {
+        char frameRateString[128];
+        snprintf(frameRateString, sizeof(frameRateString), "fps: %d frame: %d", sLoopContext.fps, sFrameOffset);
 
-        if (!sPause || sRender) {
-            RenderIntroAtTime(&sLoopContext.intro, &sLoopContext.introScene, sFrameOffset);
-            sRender = FALSE;
-        }
-
-        if (sDebugMode) {
-            char frameRateString[128];
-            snprintf(frameRateString, sizeof(frameRateString), "fps: %d frame: %d", sLoopContext.fps, sFrameOffset);
-
-            Vec2i16 pos = { 2, 2 };
-            Render_DrawBitmapText(&sLoopContext.introScene, frameRateString, pos, 0x7, TRUE);
-        }
+        Vec2i16 pos = { 2, 2 };
+        Render_DrawBitmapText(&sLoopContext.introScene, frameRateString, pos, 0x7, TRUE);
     }
 
     int pitch;
@@ -470,13 +426,6 @@ void MainLoopIteration() {
     SDL_RenderClear(sLoopContext.renderer);
     SDL_RenderCopy(sLoopContext.renderer, sLoopContext.texture, NULL, NULL);
     SDL_RenderPresent(sLoopContext.renderer);
-
-#ifdef __EMSCRIPTEN__
-    if (sLoopContext.done) {
-        emscripten_cancel_main_loop();
-        Audio_Exit(&sLoopContext.audio);
-    }
-#endif
 }
 
 int main(int argc, char**argv) {
@@ -573,16 +522,10 @@ int main(int argc, char**argv) {
     SDL_DisplayMode current;
     SDL_GetCurrentDisplayMode(0, &current);
 
-#ifdef __EMSCRIPTEN__
-    // Make a window the surface size, let the browser scale up the canvas
-    SDL_WindowFlags windowFlags = SDL_WINDOW_SHOWN;
-    int windowWidth = SURFACE_WIDTH;
-    int windowHeight = SURFACE_HEIGHT;
-#else
     SDL_WindowFlags windowFlags = SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE;
     int windowWidth = 1400;
     int windowHeight = 800;
-#endif
+
     sLoopContext.window = SDL_CreateWindow("Frontier Elite II - Intro",
             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, windowWidth, windowHeight, windowFlags);
     sLoopContext.renderer = SDL_CreateRenderer(sLoopContext.window, -1,
@@ -602,19 +545,12 @@ int main(int argc, char**argv) {
 
     sClockTickInterval = SDL_GetPerformanceFrequency();
 
-#ifndef __EMSCRIPTEN__
     SDL_ShowCursor(SDL_DISABLE);
     if (sFullscreen) {
         SDL_SetWindowFullscreen(sLoopContext.window, SDL_WINDOW_FULLSCREEN_DESKTOP);
     }
-#endif
 
     sLoopContext.done = FALSE;
-#ifdef __EMSCRIPTEN__
-    sLoopContext.waitForInteraction = TRUE;
-#else
-    sLoopContext.waitForInteraction = FALSE;
-#endif
     sLoopContext.fps = 0;
     sLoopContext.fpsFrames = 0;
     sLoopContext.numIntroFrames = Intro_GetNumFrames(&sLoopContext.intro);
@@ -622,17 +558,11 @@ int main(int argc, char**argv) {
     sLoopContext.sceneSetup = sceneSetup;
     sLoopContext.assetsDataAmiga = &assetsDataAmiga;
 
-    if (!sLoopContext.waitForInteraction) {
-        StartIntro();
-    }
+    StartIntro();
 
-#ifdef __EMSCRIPTEN__
-    emscripten_set_main_loop(MainLoopIteration, 0, TRUE);
-#else
     while (!sLoopContext.done) {
         MainLoopIteration();
     }
-#endif
 
     Audio_Exit(&sLoopContext.audio);
     Intro_Free(&sLoopContext.intro, sceneSetup);

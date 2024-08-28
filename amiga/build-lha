@@ -1,4 +1,0 @@
-delete build/fe2intro.lha
-delete build/fintro
-copy build/fintro-gcc build/fintro
-lha a build/fe2intro.lha build/fintro data/overrides.dat amiga/readme.txt

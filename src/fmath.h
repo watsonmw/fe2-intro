@@ -14,10 +14,12 @@
 extern "C" {
 #endif
 
-#define F16_MINUS_TWO_THIRDS -0x5556
+#define F16_FOUR_THIRDS 0xaaaa
 #define F16_TWO_THIRDS 0x5554
 
+// Matrices are by convention m[row][column]
 typedef i16 Matrix3x3i16[3][3];
+
 typedef i16 Vec3i16[3];
 typedef i32 Vec3i32[3];
 
@@ -81,36 +83,6 @@ MINLINE u32 FMath_SqrtFunc32(u32 num) {
     }
     return res;
 }
-
-/** Create int16_t (Q16.16) constant from separate integer and mantissa part.
- *
- * Only tested on 32-bit ARM Cortex-M0 / x86 Intel.
- *
- * This macro is needed when compiling with options like "--fpu=none",
- * which forbid all and every use of float and related types and
- * would thus make it impossible to have fix16_t constants.
- *
- * Just replace uses of F16() with F16C() like this:
- *   F16(123.1234) becomes F16C(123,1234)
- *
- * @warning Specification of any value outside the mentioned intervals
- *          WILL result in undefined behavior!
- *
- * @note Regardless of the specified minimum and maximum values for i and m below,
- *       the total value of the number represented by i and m MUST be in the interval
- *       ]-32768.00000:32767.99999[ else usage with this macro will yield undefined behavior.
- *
- * @param i Signed integer constant with a value in the interval ]-32768:32767[.
- * @param m Positive integer constant in the interval ]0:99999[ (fractional part/mantissa).
- */
-#define F16C(i, m) \
-( (fix16_t) \
-    ( \
-      (( #i[0] ) == '-') \
-        ? -FIXMATH_COMBINE_I_M((unsigned)( ( (i) * -1) ), m) \
-        : FIXMATH_COMBINE_I_M(i, m) \
-    ) \
-)
 
 /*
  * Check 'val' is within the range 0 -> maxValue
@@ -178,25 +150,35 @@ MINLINE void Matrix3x3i16Identity(Matrix3x3i16 d) {
     d[2][2] = 0x7fff;
 }
 
-MINLINE void MultVec3i32Matrix(const Matrix3x3i16 m, const Vec3i32 v, Vec3i32 d) {
+// d = v * m
+//   row vector on the left
+MINLINE void MatrixMult_Vec3i32(const Vec3i32 v, const Matrix3x3i16 m, Vec3i32 d) {
     d[0] = (m[0][0] * v[0] + m[1][0] * v[1] + m[2][0] * v[2]) >> 15;
     d[1] = (m[0][1] * v[0] + m[1][1] * v[1] + m[2][1] * v[2]) >> 15;
     d[2] = (m[0][2] * v[0] + m[1][2] * v[1] + m[2][2] * v[2]) >> 15;
 }
 
-MINLINE void MultVec3i16Matrix(const Matrix3x3i16 m, const Vec3i16 v, Vec3i16 d) {
-    d[0] = (m[0][0] * (i32) v[0] + m[0][1] * (i32) v[1] + m[0][2] * (i32) v[2]) >> 15;
-    d[1] = (m[1][0] * (i32) v[0] + m[1][1] * (i32) v[1] + m[1][2] * (i32) v[2]) >> 15;
-    d[2] = (m[2][0] * (i32) v[0] + m[2][1] * (i32) v[1] + m[2][2] * (i32) v[2]) >> 15;
-}
-
-MINLINE void MultVec3i16MatrixTranspose(const Matrix3x3i16 m, const Vec3i16 v, Vec3i16 d) {
+// d = v * m (row vector on right)
+//   row vector on the left
+MINLINE void MatrixMult_Vec3i16(const Vec3i16 v, const Matrix3x3i16 m, Vec3i16 d) {
     d[0] = (m[0][0] * (i32) v[0] + m[1][0] * (i32) v[1] + m[2][0] * (i32) v[2]) >> 15;
     d[1] = (m[0][1] * (i32) v[0] + m[1][1] * (i32) v[1] + m[2][1] * (i32) v[2]) >> 15;
     d[2] = (m[0][2] * (i32) v[0] + m[1][2] * (i32) v[1] + m[2][2] * (i32) v[2]) >> 15;
 }
 
-MINLINE void MultVec3i32Vec3i16Matrix(const Matrix3x3i16 m, const Vec3i32 v, Vec3i16 d) {
+// d = v * transpose(m)
+//   if m is a rotation, this inverts the rotation
+//   row vector on the left
+MINLINE void MatrixMult_Vec3i16_T(const Vec3i16 v, const Matrix3x3i16 m, Vec3i16 d) {
+    d[0] = (m[0][0] * (i32) v[0] + m[0][1] * (i32) v[1] + m[0][2] * (i32) v[2]) >> 15;
+    d[1] = (m[1][0] * (i32) v[0] + m[1][1] * (i32) v[1] + m[1][2] * (i32) v[2]) >> 15;
+    d[2] = (m[2][0] * (i32) v[0] + m[2][1] * (i32) v[1] + m[2][2] * (i32) v[2]) >> 15;
+}
+
+// d = v * transpose(m)
+//   if m is a rotation, this inverts the rotation
+//   row vector on the left
+MINLINE void MatrixMult_Vec3i32_T(const Vec3i32 v, const Matrix3x3i16 m, Vec3i16 d) {
     d[0] = (m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2]) >> 15;
     d[1] = (m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2]) >> 15;
     d[2] = (m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2]) >> 15;

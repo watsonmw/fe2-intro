@@ -1,5 +1,5 @@
 ; Scene: Courier Landing
-; Fix LERP to prevent bad view when vertex 8 / tmp[3] wraps to zero
+; Fix LERP to prevent bad view when vertex 8 / t3 wraps to zero
 model: 20
   scale1: 16,
   scale2: 0,
@@ -11,43 +11,42 @@ vertices: ; 10
   -7, -1, -4                  ;   2
   -7, -115, 25                ;   4
   15, 0, 0                    ;   6
-  lerp 0, 6, tmp[3]           ;   8
+  lerp 0, 6, t3               ;   8
   0, 0, 15                    ;  10
-  lerp 0, 10, tmp[4]          ;  12
-  lerp 2, 4, tmp[6]           ;  14
+  lerp 0, 10, t4              ;  12
+  lerp 2, 4, t6               ;  14
   add 8, 14                   ;  16
   add 12, 16                  ;  18
 
 normals: ; 0
 
 code:
-  tmp[2] = scene[0] << 5
-  tmp[3] = 32768 - 1
-  tmp[2] = tmp[2] & tmp[3]
-  tmp[6] = tmp[2] * 2
-  mident ; 8019
-  mcopy ; c01e
-  tmp[5] = tmp[6] >> 1
-  tmp[5] = 45056 - tmp[5]
-  mrotate flip:xyz axis:y angle:tmp[5]
-  tmp[3] = .4000 * cos(tmp[5])
-  tmp[3] = tmp[3] << 1
-  tmp[3] = 1 + tmp[3]; *** fix is here ***
-  tmp[3] = 32768 - tmp[3]
-  tmp[4] = .4000 * sine(tmp[5])
-  tmp[4] = tmp[4] << 1
-  tmp[4] = 32768 + tmp[4]
-  tmp[2] = 0 + tmp[2]
-  tmp[1] = 63 + 57344
-  tmp[6] = min(tmp[6], 49152)
-  tmp[6] = tmp[6] / 12
-  tmp[6] = tmp[6] << 3
-  tmp[6] = 32768 - tmp[6]
-  tmp[6] = tmp[6] >> 1
-  tmp[6] = tmp[6] + 32768
-  tmp[6] = .4000 * cos(tmp[6])
-  tmp[6] = 16384 + tmp[6]
-  tmp[6] = tmp[6] << 1
+  t2 = scene[0] << 5
+  t3 = 32768 - 1
+  t2 = t2 & t3
+  t6 = t2 * 2
+  mident
+  mcopy
+  t5 = t6 >> 1
+  t5 = 45056 - t5
+  mrotate flip:xyz axis:y angle:t5
+  t3 = .4000 * cos(t5)
+  t3 = t3 << 1
+  t3 = 1 + t3 ; *** fix is here ***
+  t3 = 32768 - t3
+  t4 = .4000 * sine(t5)
+  t4 = t4 << 1
+  t4 = 32768 + t4
+  t1 = 63 + 57344
+  t6 = min(t6, 49152)
+  t6 = t6 / 12
+  t6 = t6 << 3
+  t6 = 32768 - t6
+  t6 = t6 >> 1
+  t6 = t6 + 32768
+  t6 = .4000 * cos(t6)
+  t6 = 16384 + t6
+  t6 = t6 << 1
   model index:40 v:18 light
   done
 
@@ -65,9 +64,9 @@ vertices: ; 25
   0, 0, 0                     ;   0
   0, 61, 73                   ;   2
   3, -7, 26                   ;   4
-  lerp 2, 4, tmp[4]           ;   6
+  lerp 2, 4, t4               ;   6
   -12, 12, 0                  ;   8
-  lerp 4, 8, tmp[4]           ;  10
+  lerp 4, 8, t4               ;  10
   0, 0, 0                     ;  12
   0, 0, 0                     ;  14
   0, 0, 0                     ;  16
@@ -75,15 +74,15 @@ vertices: ; 25
   -1, 0, 15                   ;  20
   3, 1, 17                    ;  22
   3, -30, 48                  ;  24
-  lerp 22, 24, tmp[4]         ;  26
+  lerp 22, 24, t4             ;  26
   0, 19, 0                    ;  28
-  lerp 0, 28, tmp[5]          ;  30
+  lerp 0, 28, t5              ;  30
   add 30, 20                  ;  32
   0, 19, 0                    ;  34
-  lerp 0, 34, tmp[3]          ;  36
+  lerp 0, 34, t3              ;  36
   add 36, 26                  ;  38
   -30, 30, -18                ;  40
-  lerp 0, 40, tmp[3]          ;  42
+  lerp 0, 40, t3              ;  42
   add 42, 32                  ;  44
   rand 2, 0, 15               ;  46
   rand 2, 0, 15               ;  48
@@ -99,96 +98,96 @@ normals: ; 2
    24 (0, -91, 88)            ;   4
 
 code:
-  tmp[2] = scene[0] << 7
-  tmp[6] = tmp[2] + 0
+  t2 = scene[0] << 7
+  t6 = t2
   mident
   mcopy
   model index:104 v:0 light flip:xyz
-  tmp[2] = tmp[6] + 0
+  t2 = t6
   model index:54 v:0 light flip:xyz
-  tmp[5] = tmp[6] << 2
-  tmp[5] = .0800 * sine(tmp[5])
-  tmp[5] = tmp[5] + 2048
-  tmp[5] = 28672 - tmp[5]
+  t5 = t6 << 2
+  t5 = .0800 * sine(t5)
+  t5 = t5 + 2048
+  t5 = 28672 - t5
   mrotate flip:zy-x axis:y angle:49152
   mrotate axis:x angle:40960
-  mrotate axis:z angle:tmp[5]
-  tmp[2] = 64512 + 3
-  tmp[1] = 64512 + 0
-  tmp[3] = tmp[6] > 34816
-  if !tmp[3] loc:0005c
-  tmp[3] = tmp[6] << 1
-  tmp[3] = tmp[3] >> 2
-  tmp[3] = 16384 - tmp[3]
-  tmp[3] = .4000 * sine(tmp[3])
-  tmp[3] = 16384 - tmp[3]
-  tmp[3] = tmp[3] << 2
-0005c: tmp[5] = tmp[6] * 5
-  tmp[5] = .0400 * cos(tmp[5])
-  tmp[5] = tmp[5] + 1024
+  mrotate axis:z angle:t5
+  t2 = 64512 + 3
+  t1 = 64512
+  t3 = t6 > 34816
+  if !t3 loc:0005c
+  t3 = t6 << 1
+  t3 = t3 >> 2
+  t3 = 16384 - t3
+  t3 = .4000 * sine(t3)
+  t3 = 16384 - t3
+  t3 = t3 << 2
+0005c: t5 = t6 * 5
+  t5 = .0400 * cos(t5)
+  t5 = t5 + 1024
   model index:43 v:44 light
-  tmp[5] = tmp[6] * 3
-  tmp[5] = .1000 * sine(tmp[5])
-  tmp[5] = tmp[5] + 4096
-  tmp[5] = 28672 + tmp[5]
+  t5 = t6 * 3
+  t5 = .1000 * sine(t5)
+  t5 = t5 + 4096
+  t5 = 28672 + t5
   mrotate flip:zy-x axis:y angle:49152
   mrotate axis:x angle:40960
-  mrotate axis:z angle:tmp[5]
-  tmp[2] = 64512 + 3
-  tmp[1] = 64512 + 0
-  tmp[4] = tmp[6] > 32768 ; c4bd:60c6
-  if !tmp[4] loc:000b4 ; 01d3:00c4
-  tmp[4] = tmp[6] - 32768
-  tmp[4] = tmp[4] >> 3
-  tmp[4] = tmp[4] * 8
-  tmp[2] = tmp[4] + 4096
-  tmp[1] = 0 - 1
+  mrotate axis:z angle:t5
+  t2 = 64512 + 3
+  t1 = 64512
+  t4 = t6 > 32768 ; c4bd:60c6
+  if !t4 loc:000b4 ; 01d3:00c4
+  t4 = t6 - 32768
+  t4 = t4 >> 3
+  t4 = t4 * 8
+  t2 = t4 + 4096
+  t1 = 0 - 1
   model index:55 v:38 light flip:xyz
-  tmp[4] = 1 + 0
-000b4: if tmp[4] loc:000c8
-  tmp[3] = tmp[6] * 5
-  tmp[3] = .0400 * cos(tmp[3])
-  tmp[3] = tmp[3] + 1024
+  t4 = 1
+000b4: if t4 loc:000c8
+  t3 = t6 * 5
+  t3 = .0400 * cos(t3)
+  t3 = t3 + 1024
   model index:43 v:38 light
-000c8: tmp[4] = tmp[6] > 32768
-  if !tmp[4] loc:00118
-  tmp[4] = tmp[6] - 32768
-  tmp[7] = 1024 >> 2
-  tmp[4] = tmp[4] + tmp[7]
-  tmp[4] = tmp[4] >> 1
-  tmp[4] = .4000 * cos(tmp[4])
-  tmp[4] = 16384 - tmp[4]
-  tmp[4] = tmp[4] << 2
-  tmp[5] = tmp[4] >> 3
-  tmp[5] = 0 - tmp[5]
-  tmp[5] = tmp[5] >> 1
-  tmp[5] = tmp[5] - 32768
+000c8: t4 = t6 > 32768
+  if !t4 loc:00118
+  t4 = t6 - 32768
+  t7 = 1024 >> 2
+  t4 = t4 + t7
+  t4 = t4 >> 1
+  t4 = .4000 * cos(t4)
+  t4 = 16384 - t4
+  t4 = t4 << 2
+  t5 = t4 >> 3
+  t5 = 0 - t5
+  t5 = t5 >> 1
+  t5 = t5 - 32768
   mrotate flip:zy-x axis:y angle:49152
   mrotate axis:x angle:40960
-  mrotate axis:x angle:tmp[5]
-  tmp[2] = 31744 + 1
-  tmp[1] = 64512 + 0
+  mrotate axis:x angle:t5
+  t2 = 31744 + 1
+  t1 = 64512
   model index:38 v:10 light
-  tmp[4] = 1 + 0
-00118: if tmp[4] loc:00148
-  tmp[4] = tmp[6] >> 1
-  tmp[4] = .4000 * sine(tmp[4])
-  tmp[4] = tmp[4] << 2
-  tmp[5] = tmp[4] >> 1
-  tmp[5] = tmp[5] - 32768
+  t4 = 1
+00118: if t4 loc:00148
+  t4 = t6 >> 1
+  t4 = .4000 * sine(t4)
+  t4 = t4 << 2
+  t5 = t4 >> 1
+  t5 = t5 - 32768
   mrotate flip:zy-x axis:y angle:49152
   mrotate axis:x angle:40960
-  mrotate axis:x angle:tmp[5]
-  tmp[2] = 31744 + 1
-  tmp[1] = 64512 + 0
+  mrotate axis:x angle:t5
+  t2 = 31744 + 1
+  t1 = 64512
   model index:38 v:6 light
-00148: tmp[1] = tmp[6] < 32768
-  tmp[1] = tmp[1] > 24576
-  if !tmp[1] loc:00170
+00148: t1 = t6 < 32768
+  t1 = t1 > 24576
+  if !t1 loc:00170
   batch begin vertex:38
-  tmp[1] = tmp[6] >> 7
-  tmp[1] = tmp[1] & 1
-  if !tmp[1] loc:0016e
+  t1 = t6 >> 7
+  t1 = t1 & 1
+  if !t1 loc:0016e
   highlight vertex:38 radius:30 colour:#f22
   tri 58, 60, 38 colour:#f22
 0016e: batch end
@@ -215,7 +214,7 @@ code:
 
 
 ; Ground Base
-; Replace ground poly with with actual planet & atmosphere shading
+; Replace ground poly with actual planet & atmosphere shading
 model: 40
   scale1: 17,
   scale2: 0,
@@ -257,19 +256,19 @@ vertices: ; 51
   -24, 0, 24                  ;  62
   3, 0, 0                     ;  64
   11, 61, 22                  ;  66
-  lerp 64, 66, tmp[5]         ;  68
+  lerp 64, 66, t5             ;  68
   7, 61, -38                  ;  70
   15, 0, -22                  ;  72
   -3, 0, 7                    ;  74
-  lerp 72, 74, tmp[5]         ;  76
+  lerp 72, 74, t5             ;  76
   22, 0, -22                  ;  78
   3, 0, 7                     ;  80
-  lerp 78, 80, tmp[5]         ;  82
+  lerp 78, 80, t5             ;  82
   91, -1, 0                   ;  84
   45, -1, 79                  ;  86
   45, -1, -79                 ;  88
   3, 61, 0                    ;  90
-  lerp 64, 90, tmp[5]         ;  92
+  lerp 64, 90, t5             ;  92
   4, 7, 0                     ;  94
   3, 10, -3                   ;  96
   22, 9, 15                   ;  98
@@ -278,11 +277,11 @@ vertices: ; 51
 normals: ; 0
 
 code:
-  tmp[6] = tmp[2] + 0
-  tmp[3] = tmp[1] + 0
+  t6 = t2
+  t3 = t1
   model index:114 v:0 flip:xyz
 ztree push v:0
-  if !bit(tmp[3], 4) loc:82b44
+  if !bit(t3, 4) loc:82b44
   batch begin vertex:8
   complex colour:#008 loc:82b3e
   cbezier 10, 22, 22, 62
@@ -295,18 +294,18 @@ ztree push v:0
   cdone
 82b3e: model index:67 v:8 light flip:zy-x scale:4 colour:#444
 82b44: batch begin z:obj
-  if !bit(tmp[3], 2) loc:82b50
+  if !bit(t3, 2) loc:82b50
   model index:68 v:55 light flip:-zyx scale:2 colour:#060
-82b50: if !bit(tmp[3], 1) loc:82b58
+82b50: if !bit(t3, 1) loc:82b58
   model index:69 v:40 light flip:zy-x
-82b58: if !bit(tmp[3], 6) loc:82b72
+82b58: if !bit(t3, 6) loc:82b72
   batch end ; 0006
   model index:73 v:50 light flip:xyz
   model index:73 v:52 light flip:xyz
   model index:73 v:54 light flip:xyz
   model index:73 v:56 light flip:xyz
   model index:73 v:58 light flip:xyz
-82b72: if !bit(tmp[3], 3) loc:82b9c
+82b72: if !bit(t3, 3) loc:82b9c
   model index:74 v:11 light flip:-xyz
   model index:68 v:38 light flip:-zyx scale:1 colour:#060
   model index:68 v:27 light flip:-xyz
@@ -316,84 +315,84 @@ ztree push v:0
   model index:74 v:33 light flip:-zyx
   model index:75 v:35 light flip:-xy-z
   model index:68 v:37 light flip:xyz
-82b9c: if !bit(tmp[3], 5) loc:82bb4
+82b9c: if !bit(t3, 5) loc:82bb4
   model index:76 v:6 light flip:xyz
-  tmp[1] = 0 - 1
+  t1 = 0 - 1
   model index:78 v:4 light flip:xyz
-  tmp[1] = 10240 + 39
+  t1 = 10240 + 39
   model index:82 v:2 light flip:xyz
-82bb4: if !bit(tmp[3], 15) loc:82bbc
+82bb4: if !bit(t3, 15) loc:82bbc
   model index:88 v:0 light flip:xyz
 82bbc: model index:93 v:94 light flip:zyx scale:2 colour:#888
   model index:93 v:96 light flip:-zy-x scale:3 colour:#888
   model index:93 v:98 light flip:-xy-z scale:2 colour:#888
   model index:93 v:100 light flip:xyz scale:3 colour:#888
-  if !bit(tmp[3], 16) loc:82ce0
-  if bit(tmp[6], 16) loc:82c20
-  tmp[4] = min(tmp[6], 24576)
-  tmp[4] = tmp[4] / 6
-  tmp[4] = tmp[4] << 3
-  tmp[4] = 32768 - tmp[4]
-  tmp[5] = tmp[4] >> 1
-  tmp[5] = tmp[5] + 32768
-  tmp[5] = .4000 * cos(tmp[5])
-  tmp[5] = 16384 + tmp[5]
-  tmp[5] = tmp[5] << 1
-  tmp[1] = tmp[5] + 0
-  tmp[3] = tmp[5] << 2
-  mrotate flip:x-yz axis:y angle:tmp[3]
-  tmp[2] = tmp[5] & 64512
-  tmp[2] = tmp[2] + 1
-  tmp[4] = 59 << 1
-  tmp[5] = max(tmp[5], tmp[4])
+  if !bit(t3, 16) loc:82ce0
+  if bit(t6, 16) loc:82c20
+  t4 = min(t6, 24576)
+  t4 = t4 / 6
+  t4 = t4 << 3
+  t4 = 32768 - t4
+  t5 = t4 >> 1
+  t5 = t5 + 32768
+  t5 = .4000 * cos(t5)
+  t5 = 16384 + t5
+  t5 = t5 << 1
+  t1 = t5
+  t3 = t5 << 2
+  mrotate flip:x-yz axis:y angle:t3
+  t2 = t5 & 64512
+  t2 = t2 + 1
+  t4 = 59 << 1
+  t5 = max(t5, t4)
   model index:38 v:92 light
-82c20: if !bit(tmp[6], 16) loc:82ce0
-  tmp[4] = tmp[6] - 32768
-  tmp[3] = tmp[4] > 16384
-  if tmp[3] loc:82c88
-  tmp[5] = tmp[4] << 2
-  tmp[3] = tmp[6] >> 5
-  tmp[3] = tmp[3] & 2
-  if !tmp[3] loc:82c5c
+82c20: if !bit(t6, 16) loc:82ce0
+  t4 = t6 - 32768
+  t3 = t4 > 16384
+  if t3 loc:82c88
+  t5 = t4 << 2
+  t3 = t6 >> 5
+  t3 = t3 & 2
+  if !t3 loc:82c5c
   batch begin vertex:76
-  tmp[1] = 1024 >> 3
-  tmp[2] = tmp[4] << 9
-  tmp[2] = tmp[2] >> 8
+  t1 = 1024 >> 3
+  t2 = t4 << 9
+  t2 = t2 >> 8
   model index:94 v:76 flip:xz-y
 82c56: line 76, 70 colour:#f44
-  batch end ; 0006
-82c5c: tmp[3] = tmp[6] >> 5
-  tmp[3] = tmp[3] + 7
-  tmp[3] = tmp[3] & 1
-  if !tmp[3] loc:82c88
+  batch end
+82c5c: t3 = t6 >> 5
+  t3 = t3 + 7
+  t3 = t3 & 1
+  if !t3 loc:82c88
   batch begin vertex:82
-  tmp[1] = 1024 >> 3
-  tmp[2] = tmp[4] << 9
-  tmp[2] = tmp[2] >> 8
+  t1 = 1024 >> 3
+  t2 = t4 << 9
+  t2 = t2 >> 8
   model index:94 v:82 flip:xz-y
 82c82: line 82, 70 colour:#f44
-  batch end ; 0006
-82c88: tmp[4] = max(tmp[4], 8192)
-  tmp[4] = tmp[4] - 8192
-  tmp[4] = tmp[4] / 6
-  tmp[4] = tmp[4] << 3
-  tmp[5] = tmp[4] >> 1
-  tmp[5] = tmp[5] + 32768
-  tmp[5] = .4000 * cos(tmp[5])
-  tmp[5] = 16384 + tmp[5]
-  tmp[5] = tmp[5] << 1
-  tmp[3] = tmp[4] << 1
-  mrotate flip:x-yz axis:y angle:tmp[3]
-  tmp[3] = min(tmp[4], 16384)
-  mrotate axis:x angle:tmp[3]
-  tmp[2] = min(tmp[4], 32768)
-  tmp[2] = tmp[2] << 1
-  tmp[2] = tmp[2] & 64512
-  tmp[2] = tmp[2] + 1
-  tmp[1] = min(tmp[4], 8192)
-  tmp[1] = tmp[1] << 3
-  tmp[4] = 59 << 1
-  tmp[5] = max(tmp[5], tmp[4])
+  batch end
+82c88: t4 = max(t4, 8192)
+  t4 = t4 - 8192
+  t4 = t4 / 6
+  t4 = t4 << 3
+  t5 = t4 >> 1
+  t5 = t5 + 32768
+  t5 = .4000 * cos(t5)
+  t5 = 16384 + t5
+  t5 = t5 << 1
+  t3 = t4 << 1
+  mrotate flip:x-yz axis:y angle:t3
+  t3 = min(t4, 16384)
+  mrotate axis:x angle:t3
+  t2 = min(t4, 32768)
+  t2 = t2 << 1
+  t2 = t2 & 64512
+  t2 = t2 + 1
+  t1 = min(t4, 8192)
+  t1 = t1 << 3
+  t4 = 59 << 1
+  t5 = max(t5, t4)
   model index:38 v:68 light
 82ce0: ztree pop
   done
@@ -432,7 +431,7 @@ vertices: ; 38
   5, 0, -21                   ;  42
   5, 0, -93                   ;  44
   rand 44, 0, 21              ;  46
-  lerp 42, 46, tmp[1]         ;  48
+  lerp 42, 46, t1             ;  48
   5, -2, -4                   ;  50
   0, -3, 0                    ;  52
   0, 0, 0                     ;  54
@@ -462,23 +461,23 @@ normals: ; 11
 
 code:
   batch end
-  tmp[5] = tmp[2] + 0
-  tmp[3] = tmp[5] & 64512
-  if !tmp[3] loc:82f14
-  tmp[1] = tmp[3] + 0
-  tmp[1] = tmp[1] > 5120
-  if !tmp[1] loc:82f14
+  t5 = t2
+  t3 = t5 & 64512
+  if !t3 loc:82f14
+  t1 = t3
+  t1 = t1 > 5120
+  if !t1 loc:82f14
   teardrop radius:800 colour:#1ee 42, 48
   teardrop radius:800 colour:#1ee 43, 49
   82f14: if > z:937 loc:82f3c
   ztree push v:52
   if > normal:4 loc:82f2a
-  if !bit(tmp[5], 1) loc:82f2a
-  tmp[1] = 2 + 0
+  if !bit(t5, 1) loc:82f2a
+  t1 = 2
   model index:95 v:62 light flip:xyz
   82f2a: if > normal:5 loc:82f3a
-  if !bit(tmp[5], 2) loc:82f3a
-  tmp[1] = 2 + 0
+  if !bit(t5, 2) loc:82f3a
+  t1 = 2
   model index:95 v:63 light flip:xyz
   82f3a: ztree pop
   82f3c: batch begin z:obj
@@ -509,7 +508,7 @@ code:
   model index:44 v:26 light flip:zyx
   82f96: batch begin z:65534 vertex:52
   mquad 4, 14, 2, 24 colour:#666 normal:6
-  82fa2: if > z:439 end ; 000b:036e
+  82fa2: if > z:439 end
   mtri 38, 40, 36 colour:#1ee normal:6
   mtri 14, 24, 6 colour:#888 normal:22
   82fb2: batch begin z:11 vertex:12
@@ -542,15 +541,15 @@ vertices: ; 25
   -4, 3, -2                   ;  20
   14, 7, 21                   ;  22
   14, -7, 7                   ;  24
-  lerp 22, 24, tmp[4]         ;  26
+  lerp 22, 24, t4             ;  26
   0, 78, 0                    ;  28
-  lerp 0, 28, tmp[5]          ;  30
+  lerp 0, 28, t5              ;  30
   add 30, 20                  ;  32
   0, 78, 0                    ;  34
-  lerp 0, 34, tmp[3]          ;  36
+  lerp 0, 34, t3              ;  36
   add 36, 26                  ;  38
   -2, -2, 0                   ;  40
-  lerp 0, 40, tmp[3]          ;  42
+  lerp 0, 40, t3              ;  42
   add 42, 32                  ;  44
   rand 2, 0, 15               ;  46
   rand 2, 0, 15               ;  48
@@ -559,34 +558,90 @@ normals: ; 1
     2 (-83, 0, -95)           ;   2
 
 code:
-  tmp[6] = tmp[2] + 0
-  tmp[5] = tmp[6] << 1
-  tmp[5] = .0400 * sine(tmp[5])
-  tmp[5] = tmp[5] + 2048
-  tmp[5] = 61440 - tmp[5]
-  mrotate flip:xyz axis:z angle:tmp[5]
-  tmp[2] = 64512 + 3
-  tmp[1] = 64512 + 0
-  tmp[3] = .0400 * sine(tmp[6])
-  tmp[3] = tmp[3] + 16384
-  tmp[3] = tmp[3] << 1 ; 11366
-  tmp[5] = tmp[6] * 3 ; 4352
-  tmp[5] = .0400 * cos(tmp[5])
-  tmp[5] = tmp[5] + 1024
+  t6 = t2
+  t5 = t6 << 1
+  t5 = .0400 * sine(t5)
+  t5 = t5 + 2048
+  t5 = 61440 - t5
+  mrotate flip:xyz axis:z angle:t5
+  t2 = 64512 + 3
+  t1 = 64512
+  t3 = .0400 * sine(t6)
+  t3 = t3 + 16384
+  t3 = t3 << 1
+  t5 = t6 * 3
+  t5 = .0400 * cos(t5)
+  t5 = t5 + 1024
   model index:43 v:44 light
-  tmp[5] = tmp[6] * 1
-  tmp[5] = .0400 * sine(tmp[5])
-  tmp[5] = tmp[5] + 4096
-  tmp[5] = 61440 + tmp[5]
-  mrotate flip:xyz axis:z angle:tmp[5]
-  tmp[2] = 64512 + 3
-  tmp[1] = 64512 + 0
-  tmp[4] = tmp[6] + 0
-  tmp[3] = tmp[6] * 3
-  tmp[3] = .0400 * cos(tmp[3])
-  tmp[3] = tmp[3] + 1024
+  t5 = t6 * 1
+  t5 = .0400 * sine(t5)
+  t5 = t5 + 4096
+  t5 = 61440 + t5
+  mrotate flip:xyz axis:z angle:t5
+  t2 = 64512 + 3
+  t1 = 64512
+  t4 = t6
+  t3 = t6 * 3
+  t3 = .0400 * cos(t3)
+  t3 = t3 + 1024
   model index:43 v:38 light
   done
+
+model: 36
+  scale1: 13,
+  scale2: 0,
+  radius: 122,
+  colour: #000
+
+vertices: ; 4
+  0, 0, 0                     ;   0
+  0, 0, 122                   ;   2
+  0, 0, 48                    ;   4
+  lerp 2, 4, t3               ;   6
+
+normals: ; 0
+
+code:
+  t2 = scene[0] << 5
+  t6 = t2
+  mident
+  mcopy
+  t5 = t6
+  if bit(t5, 16) loc:81f94
+  t6 = t6 << 1
+  t2 = 0 - t6
+  t2 = t2 >> 2
+  t2 = .4000 * cos(t2)
+  t2 = 16384 - t2
+  t2 = t2 >> 2
+  t4 = t6 << 2
+  t4 = t4 - 16384
+  t4 = t2 * sine(t4)
+  t4 = 0 - t4
+  mrotate flip:-x-yz axis:y angle:t4
+  model index:104 v:0 light
+  t3 = min(t6, 16384)
+  t3 = .4000 * sine(t3)
+  t3 = t3 << 2
+  t2 = t6
+  t2 = max(t6, 3000)
+  model index:66 v:6 light
+81f94: if !bit(t5, 16) loc:81fd0
+  t6 = 0 - 1
+  t4 = t5 << 1
+  t4 = t4 >> 2
+  t4 = .4000 * cos(t4)
+  t4 = 16384 - t4
+  t4 = t4 << 3
+  mrotate flip:-x-yz axis:y angle:t4
+  model index:104 v:0 light
+  t3 = t5 << 1
+  t3 = min(t3, 8192)
+  t3 = t3 << 3
+  t3 = 0 - t3
+  t2 = t6
+  model index:66 v:4 light
+81fd0: done
 
 
 ; Courier & Eagle transforms in final Eagle kill
@@ -599,28 +654,28 @@ model: 66
 
 vertices: ; 25
   0, 0, 0                     ;   0
-  0, -18, 61                  ;   2
-  0, -6, 24                   ;   4
-  lerp 2, 4, tmp[5]           ;   6
+  0, -14, 40                  ;   2
+  0, 0, 0                     ;   4
+  lerp 2, 4, t5               ;   6
   78, 0, 4                    ;   8
-  lerp 0, 8, tmp[3]           ;  10
+  lerp 0, 8, t3               ;  10
   0, 58, -2                   ;  12
-  lerp 0, 12, tmp[4]          ;  14
-  add 10, 6                   ;  16
-  add 14, 16                  ;  18
+  lerp 0, 10, t4              ;  14
+  add 6, 10                   ;  16
+  add 16, 14                  ;  18
   0, 0, 0                     ;  20
   1, 3, 10                    ;  22
   1, -3, 3                    ;  24
-  lerp 22, 24, tmp[4]         ;  26
-  9, -6, 24                   ;  28
+  lerp 22, 24, t4             ;  26
+  5, -5, 20                   ;  28
   0, 0, -97                   ;  30
-  lerp 28, 30, tmp[5]         ;  32
+  lerp 28, 30, t5             ;  32
   0, 39, 0                    ;  34
-  lerp 0, 34, tmp[3]          ;  36
-  add 36, 26                  ;  38
+  lerp 0, 34, t3              ;  36
+  add 26, 36                  ;  38
   -12, -2, 0                  ;  40
-  lerp 0, 40, tmp[5]          ;  42
-  add 42, 38                  ;  44
+  lerp 0, 40, t5              ;  42
+  add 38, 42                  ;  44
   rand 2, 0, 15               ;  46
   rand 18, 0, 17              ;  48
 
@@ -628,65 +683,69 @@ normals: ; 1
     2 (0, 40, -120)           ;   2
 
 code:
-  tmp[6] = tmp[2] + 0
-  if bit(tmp[6], 16) loc:841e6
-  tmp[5] = tmp[6] << 1
-  tmp[5] = .2000 * sine(tmp[5])
-  tmp[5] = 0 - tmp[5]
-  mrotate flip:zy-x axis:y angle:16384
-  mrotate axis:x angle:29184
-  mrotate axis:z angle:tmp[5]
-  tmp[4] = tmp[6] << 1
-  tmp[3] = .1000 * cos(tmp[4])
-  tmp[4] = .1000 * sine(tmp[4])
-  mrotate axis:y angle:tmp[3]
-  mrotate axis:x angle:tmp[4]
-  tmp[3] = tmp[3] + 4096
-  tmp[4] = tmp[4] + 4096
-  tmp[5] = tmp[6] << 1
-  tmp[2] = 64512 + 3
-  tmp[1] = 64512 + 0
+  t6 = t2
+  t7 = t6 > 48000
+  if t7 loc:explosion
+  t5 = t6 << 1
+  t5 = .2000 * sine(t5)
+  t5 = 0 - t5
+  mrotate flip:zy-x axis:y angle:19900
+  mrotate axis:x angle:29412
+  mrotate axis:z angle:t5
+  t4 = t6 << 3
+  t3 = .0800 * cos(t4)
+  t4 = .0800 * sine(t4)
+  mrotate axis:y angle:t3
+  mrotate axis:x angle:t4
+  t3 = t3 + 4096
+  t4 = t4 + 4096
+  t5 = t6
+  t2 = 64512 + 3
+  t1 = 64512
   model index:43 v:18 light
-841e6: if !bit(tmp[6], 16) loc:84212
-  tmp[4] = tmp[6] - 32768
-  tmp[4] = tmp[4] >> 3
-  tmp[4] = tmp[4] * 15
-  tmp[2] = tmp[4] + 4096
-  tmp[4] = tmp[6] - 32768
-  tmp[5] = tmp[4] << 1
-  tmp[1] = 0 - 1
+  if !t7 loc:courier
+explosion:  t4 = t6 - 48000
+  t4 = t4 >> 3
+  t4 = t4 * 24
+  t2 = t4 + 4096
+  t4 = t6 - 48000
+  t5 = t4 << 1
+  t1 = 0 - 1
   mrotate flip:y-z-x axis:x angle:16384
   model index:55 v:32 light
-  tmp[4] = 1 + 0
-84212: tmp[5] = tmp[6] * 3
-  tmp[5] = .1000 * sine(tmp[5])
-  tmp[5] = tmp[5] + 4096
-  tmp[5] = scene[12] + tmp[5]
-  mrotate flip:xyz axis:z angle:tmp[5]
-  tmp[4] = tmp[6] + 0
-  tmp[3] = tmp[6] * 5
-  tmp[3] = .0400 * cos(tmp[3])
-  tmp[3] = tmp[3] + 1024
-  tmp[2] = 39936 + 1
-  tmp[1] = 0 - tmp[6]
-  tmp[1] = tmp[1] >> 2
-  tmp[5] = tmp[6] << 2
-  tmp[5] = tmp[1] * sine(tmp[5])
-  tmp[5] = tmp[5] + 16384
-  tmp[5] = tmp[5] << 1
-  tmp[1] = 64512 + 0
+  t4 = 1
+courier: t5 = t6 * 3
+  t5 = .1000 * sine(t5)
+  t5 = t5 + 4096
+  t5 = scene[12] + t5
+  mrotate flip:xyz axis:z angle:t5
+  t4 = t6
+  t3 = t6 * 5693
+  t3 = .0400 * cos(t3)
+  t3 = t3 + 1024
+  t2 = 39936 + 1
+  t1 = 0 - t6
+  t1 = t1 >> 2
+  t5 = t6 << 2
+  t5 = t1 * sine(t5)
+  t5 = t5 + 16384
+  t5 = t5 << 1
+  t1 = 64512
   model index:38 v:44 light
-  tmp[1] = tmp[6] < 33000
-  tmp[1] = tmp[1] > 16384
-  if !tmp[1] loc:8427a
+  t1 = t6 < 49000
+  t1 = t1 > 14000
+  if !t1 loc:finish
+  ; courier laser
   batch begin vertex:2
-  tmp[1] = tmp[6] >> 7
-  tmp[1] = tmp[1] & 2
-  if !tmp[1] loc:84278
+  t1 = t6 >> 7
+  t1 = t1 & 2
+  if !t1 loc:laser_end
+  if t7 loc:laser_after
   line 44, 48 colour:#f44
-84278: batch end
-8427a: done
-
+  if !t7 loc:laser_end
+laser_after:  line 44, 32 colour:#f44
+laser_end: batch end
+finish: done
 
 ; Ice-capped mountain
 ; Remove negative height offsets so it looks more like it is resting on the ground
@@ -892,7 +951,7 @@ code:
   quad 89, 81, 85, 105 colour:#160
   tri 106, 82, 86 colour:#160
   if > z:610 end
-  if !bit(tmp[1], 13) loc:851a6
+  if !bit(t1, 13) loc:851a6
   model index:81 v:97 flip:xyz
 851a6: if < z:427 loc:851b4
   line 3, 0 colour:#544
@@ -988,16 +1047,16 @@ vertices: ; 34
   26, 15, 0                   ;  22
   26, -15, 0                  ;  24
   0, -30, 0                   ;  26
-  lerp 0, 8, tmp[1]           ;  28
-  lerp 0, 10, tmp[1]          ;  30
-  lerp 0, 12, tmp[1]          ;  32
-  lerp 0, 14, tmp[1]          ;  34
-  lerp 0, 16, tmp[1]          ;  36
-  lerp 0, 18, tmp[1]          ;  38
-  lerp 0, 20, tmp[1]          ;  40
-  lerp 0, 22, tmp[1]          ;  42
-  lerp 0, 24, tmp[1]          ;  44
-  lerp 0, 26, tmp[1]          ;  46
+  lerp 0, 8, t1               ;  28
+  lerp 0, 10, t1              ;  30
+  lerp 0, 12, t1              ;  32
+  lerp 0, 14, t1              ;  34
+  lerp 0, 16, t1              ;  36
+  lerp 0, 18, t1              ;  38
+  lerp 0, 20, t1              ;  40
+  lerp 0, 22, t1              ;  42
+  lerp 0, 24, t1              ;  44
+  lerp 0, 26, t1              ;  46
   avg 0, 28                   ;  48
   avg 0, 30                   ;  50
   avg 0, 32                   ;  52
@@ -1012,11 +1071,11 @@ vertices: ; 34
 normals: ; 0
 
 code:
-  tmp[3] = scene[0] << 11
-  mrotate flip:xyz axis:z angle:tmp[3]
+  t3 = scene[0] << 11
+  mrotate flip:xyz axis:z angle:t3
   mcopy
-  tmp[3] = scene[0] + 0
-  colour normal:0 index:tmp[3] colours:[#f00, #f40, #f82, #f82, #f82, #f82, #f40, #f00]
+  t3 = scene[0]
+  colour normal:0 index:t3 colours:[#f00, #f40, #f82, #f82, #f82, #f82, #f40, #f00]
   complex colour:#110 loc:8619a
   cline 28, 42
   clinec 30
@@ -1030,7 +1089,7 @@ code:
   clinec 38
   clinec 44
   cdone
-8619a: colour normal:0 index:tmp[3] colours:[#fc4, #fe4, #fe6, #fea, #fea, #fe6, #fe4, #fc4]
+8619a: colour normal:0 index:t3 colours:[#fc4, #fe4, #fe6, #fea, #fea, #fe6, #fe4, #fc4]
   complex colour:#110 loc:861ca
   cline 48, 62
   clinec 50
@@ -1045,58 +1104,6 @@ code:
   clinec 64
   cdone
 861ca: done
-
-
-; Missile
-; Always show all the fins (this isn't any better really...)
-model: 95
-  scale1: 6,
-  scale2: 0,
-  radius: 112,
-  colour: #070
-
-vertices: ; 13
-  0, 0, 112                   ;   0
-  9, 9, 84                    ;   2
-  9, -9, 84                   ;   4
-  9, 9, 60                    ;   6
-  9, -9, 60                   ;   8
-  18, 18, 60                  ;  10
-  18, -18, 60                 ;  12
-  avg 2, 22                   ;  14
-  avg 4, 24                   ;  16
-  18, 18, -84                 ;  18
-  18, -18, -84                ;  20
-  9, 9, -84                   ;  22
-  9, -9, -84                  ;  24
-
-normals: ; 9
-    0 (0, 120, 40)            ;   2
-    0 (0, -120, 40)           ;   4
-    0 (120, 0, 40)            ;   6
-    2 (127, 0, 0)             ;   8
-    2 (0, 127, 0)             ;  10
-    4 (0, -127, 0)            ;  12
-   22 (0, 0, -127)            ;  14
-    0 (89, 89, 0)             ;  16
-    0 (89, -89, 0)            ;  18
-
-code:
-  batch begin z:obj
-  mquad 4, 22, 2, 24 colour:#666 normal:8
-  quad 3, 22, 2, 23 colour:#666 normal:10
-  quad 5, 24, 4, 25 colour:#666 normal:12
-  quad 24, 23, 22, 25 colour:#100 normal:14
-  if > z:1757 end
-  tri 2, 3, 0 colour:#666 normal:2
-  tri 4, 5, 0 colour:#666 normal:4
-  mtri 2, 4, 0 colour:#666 normal:6
-  mtri 18, 22, 14 colour:#b00 normal:0
-  mtri 20, 24, 16 colour:#b00 normal:0
-  if > z:1265 end
-  mtri 10, 6, 2 colour:#b00 normal:0
-  mtri 12, 8, 4 colour:#b00 normal:0
-  done
 
 
 ; Star Background
@@ -1187,9 +1194,9 @@ code:
   mtri 16, 18, 20 colour:#444 normal:16
   mquad 4, 8, 6, 10 colour:#444 normal: 18
   line 22, 20 colour:#888
-  ztree pop ; f015
-  tmp[3] = tmp[2] > 4096
-  if !tmp[3] end
+  ztree pop
+  t3 = t2 > 4096
+  if !t3 end
   model index:107 v:2 flip:xy-z
   done
 

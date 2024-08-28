@@ -31,7 +31,7 @@ typedef struct sAssetsDataPC {
     u32 introModuleSize;
 
     u8* mainStringData;
-    u8* vectorFontData;
+    u8* galmapModels;
     u8* bitmapFontData;
     u8* defaultPalette;
 } AssetsDataPC;
@@ -64,7 +64,6 @@ u8** Assets_LoadStringPointers16BE(u8* data, u32 stringsToRead);
 void Assets_EndianFlip16(u8* data, u32 sizeBytes);
 void Assets_EndianFlip32(u8* data, u32 sizeBytes);
 
-MReadFileRet Assets_LoadAmigaExeFromDataDir(AssetsReadEnum assetsRead);
 void Assets_LoadAmigaFiles(AssetsDataAmiga* assets, MReadFileRet* amigaExeData, AssetsReadEnum assetsReadEnum);
 void Assets_FreeAmigaFiles(AssetsDataAmiga* assets);
 

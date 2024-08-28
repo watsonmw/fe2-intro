@@ -205,8 +205,8 @@
                 const audio_buffer = new Uint32Array(memory.buffer, buffer_offset, AUDIO_SIZE_TOTAL);
                 return {
                     size: audio_buffer[AUDIO_SIZE_OFFSET],
-                    buffer_left: audio_buffer[AUDIO_LEFT_BUFFER],
-                    buffer_right: audio_buffer[AUDIO_RIGHT_BUFFER]
+                    bufferLeft: audio_buffer[AUDIO_LEFT_BUFFER],
+                    bufferRight: audio_buffer[AUDIO_RIGHT_BUFFER]
                 };
             }
 
@@ -250,8 +250,8 @@
 
             // size_t WASM_FileRead(const char* filePathBuf, u32 filePathSize, u8* dest, u32 offset, u32 readSize)
             function WASM_FileRead(filePathBuf, filePathSize, dest, offset, readSize) {
-                console.log("WASM_FileRead", filePath, dest, offset, readSize);
                 let filePath = wasm_string(filePathBuf, filePathSize);
+                console.log("WASM_FileRead", filePath, dest, offset, readSize);
                 let fileArray = loadedFiles[filePath];
                 let arr = memoryBuffer.subarray(dest + offset, dest + offset + readSize);
                 arr.set(new Uint8Array(fileArray));
@@ -261,8 +261,8 @@
             function renderAudioTicks(ticks) {
                 const bufferOffset = wasm_app.instance.exports.audio_render(ticks);
                 const audioBuffer = wasm_get_audio_buffer(bufferOffset);
-                const audioBufferLeftF32 = new Float32Array(memory.buffer, audioBuffer.buffer_left, audioBuffer.size);
-                const audioBufferRightF32 = new Float32Array(memory.buffer, audioBuffer.buffer_right, audioBuffer.size);
+                const audioBufferLeftF32 = new Float32Array(memory.buffer, audioBuffer.bufferLeft, audioBuffer.size);
+                const audioBufferRightF32 = new Float32Array(memory.buffer, audioBuffer.bufferRight, audioBuffer.size);
                 return [
                     audioBufferLeftF32,
                     audioBufferRightF32,

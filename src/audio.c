@@ -215,6 +215,8 @@ SDLCALL void Audio_Callback(void *userdata, Uint8 * stream, int bytesRequested) 
 }
 #endif
 
+#ifndef AMIGA
+
 void Audio_RenderFrames(AudioContext* audio, u32 ticks) {
     audio->audioBytesWriten = 0;
     if (audio->modStartTickOffset) {
@@ -234,6 +236,8 @@ void Audio_ClearCache(AudioContext* audio) {
         }
     }
 }
+
+#endif
 
 static void Audio_CopyAndFixSamples(AudioContext* audio) {
     audio->samplesDataSize = 0x20000;
@@ -426,6 +430,11 @@ void Audio_Exit(AudioContext* audio) {
 }
 
 u16* Audio_GetSampleEffect(AudioContext* audio, u16 sampleId) {
+    if (sampleId >= sizeof(sAudioSamplesVolumeOffsets) / sizeof(u16)) {
+        MLogf("Sample outside range %d", sampleId);
+        return 0;
+    }
+
     u32* sampleBase = (u32*)(audio->data + AUDIO_SAMPLES_EFFECT_BASE);
     u32 sampleOffset = MBIGENDIAN32(sampleBase[sampleId]);
     return (u16*)(DATA_OFFSET_TO_PTR(sampleOffset));
@@ -435,6 +444,9 @@ static u16 Audio_PlaySample2(AudioContext* audio, u16 sampleId, u16 volume, u16 
     u16 restartSample = 0;
 
     u16* effect = Audio_GetSampleEffect(audio, sampleId);
+    if (effect == 0) {
+        return 0;
+    }
     switch (sampleId) {
         case 14:
             effect[68] = MBIGENDIAN16(0x7d00);
@@ -1495,7 +1507,7 @@ void Audio_RenderInternal(AudioContext* audio, u32 numTicks, b32 bWriteFrames) {
                     } else {
                         i16* val = sampleConvert->sampleConverted + audio->samplePos[j];
                         i32 hwVolume = audio->hw[j]->volume;
-                        i32 value = (((i32)*val) * hwVolume * audio->masterVolume) / AUDIO_MASTER_VOL_MAX;
+                        i32 value = (((i32)*val) * hwVolume * audio->masterVolume) / AUDIO_VOLUME_MAX;
                         audio->samplePos[j]++;
                         if (audio->samplePos[j] >= sampleConvert->sampleConvertedLen) {
                             audio->samplePos[j] = 0;

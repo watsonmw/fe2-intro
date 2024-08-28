@@ -943,30 +943,70 @@ const char* MStrEnd(const char* str) {
 
 i32 MParseI32(const char* start, const char* end, i32* out) {
     int val = 0;
-    int begin = 1;
+    int state = 0;
+    int isMinus = 0;
     int base = 10;
 
     for (const char* pos = start; pos < end; pos++) {
         char c = *pos;
-        if (begin && M_IsWhitespace(c)) {
-            continue;
+        if (state == 0) {
+            if (M_IsWhitespace(c)) {
+                continue;
+            } else {
+                state = 1;
+            }
         }
 
-        begin = 0;
-
-        int p = 0;
         if (c >= '0' && c <= '9') {
-            p = c - '0';
+            state = 3;
+            int p = c - '0';
+            val = (val * base) + p;
+        } else if (state == 1 && c == '-') {
+            state = 2;
+            isMinus = TRUE;
         } else {
             return MParse_NOT_A_NUMBER;
         }
-
-        val = (val * base) + p;
     }
 
-    *out = val;
+    if (state == 3) {
+        if (isMinus) {
+            *out = -val;
+        } else {
+            *out = val;
+        }
+        return MParse_SUCCESS;
+    } else {
+        return MParse_NOT_A_NUMBER;
+    }
+}
 
-    return MParse_SUCCESS;
+i32 MParseI32NoSign(const char* start, const char* end, i32* out) {
+    int val = 0;
+    int state = 0;
+    int base = 10;
+
+    for (const char* pos = start; pos < end; pos++) {
+        char c = *pos;
+        if (state == 0 && M_IsWhitespace(c)) {
+            continue;
+        }
+
+        if (c >= '0' && c <= '9') {
+            state = 2;
+            int p = c - '0';
+            val = (val * base) + p;
+        } else {
+            return MParse_NOT_A_NUMBER;
+        }
+    }
+
+    if (state == 2) {
+        *out = val;
+        return MParse_SUCCESS;
+    } else {
+        return MParse_NOT_A_NUMBER;
+    }
 }
 
 i32 MParseI32Hex(const char* start, const char* end, i32* out) {

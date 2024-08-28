@@ -2,9 +2,10 @@
 set -e
 set -x
 CLANG=clang
+CLANG=clang-15
 # OSX - XCode clang won't build WASM, you have to use the homebrew version (or otherwise install clang with wasm
 # support)
-CLANG=/opt/homebrew/opt/llvm/bin/clang
+#CLANG=/opt/homebrew/opt/llvm/bin/clang
 
 BUILD_DIR=build_wasm
 

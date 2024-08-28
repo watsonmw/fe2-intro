@@ -92,17 +92,17 @@ static ULONG sClockTickInterval;
 static u16 sFIntroPalette[256];
 
 static Intro sIntro;
-static AudioContext sAudio;
+static AudioContext sAudioContext;
 static u64 sStartTime;
 static u64 sCurrentClock;
 
 static u16 sModToPlay = Audio_ModEnum_FRONTIER_THEME_INTRO;
-static const char* sFrontierExePath;
+static const char* sFrontierExePath = NULL;
 static b32 sProfile;
 static b32 sProfileFrame;
 static b32 sProfileSteps;
 
-#define INTRO_OVERRIDES "data/model-overrides-be.dat"
+#define INTRO_OVERRIDES "model-overrides-be.dat"
 
 static UWORD sMouseCursorNullGraphic[] = {
         0x0000, 0x0000, // reserved, must be NULL
@@ -267,7 +267,7 @@ void AOS_screen_init(void) {
                                WA_Top, 0,
                                WA_Width, sScreenWidth,
                                WA_Height, sScreenHeight,
-                               WA_CustomScreen, aosScreen,
+                               WA_CustomScreen, (u32)aosScreen,
                                WA_Title, NULL,
                                WA_Backdrop, TRUE,
                                WA_Borderless, TRUE,
@@ -428,16 +428,16 @@ void AudioProgressTick(__reg("a1") struct AudioTimerCallbackInfo* audioTimer) {
 void StartAudioTickTimer(AudioContext* audioContext) {
     sAudioTimer.audioContext = audioContext;
 
-    /* Initialize message list */
-    /* Allocate message port, data & interrupt structures. Don't use CreatePort() */
-    /* or CreateMsgPort() since they allocate a signal (don't need that) for a    */
-    /* PA_SIGNAL type port. We need PA_SOFTINT.                                   */
+    // Initialize message list
+    // Allocate message port, data & interrupt structures. Don't use CreatePort()
+    // or CreateMsgPort() since they allocate a signal (don't need that) for a
+    // PA_SIGNAL type port. We need PA_SOFTINT.
     NewList(&(sAudioTimer.timerPort.mp_MsgList));
 
-    /* Set up the (software)interrupt structure. Note that this task runs at  */
-    /* priority 0. Software interrupts may only be priority -32, -16, 0, +16, */
-    /* +32. Also, note that the correct node type for a software interrupt is   */
-    /* NT_INTERRUPT. (NT_SOFTINT is an internal Exec flag). */
+    // Set up the (software)interrupt structure. Note that this task runs at
+    // priority 0. Software interrupts may only be priority -32, -16, 0, +16,
+    // +32. Also, note that the correct node type for a software interrupt is
+    // NT_INTERRUPT. (NT_SOFTINT is an internal Exec flag).
     sAudioTimer.softInterrupt.is_Code = AudioProgressTick;
     sAudioTimer.softInterrupt.is_Data = &sAudioTimer;
     sAudioTimer.softInterrupt.is_Node.ln_Pri = 0;
@@ -502,6 +502,7 @@ static b32 PathAppend(char* dirInOut, u32 dirLen, const char* fileName) {
 static i32 ParseCommandLine(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         const char* arg = argv[i];
+        MLog(arg);
         if (*arg == '-') {
             if (MStrCmp("mod", arg + 1) == 0) {
                 i++;
@@ -510,7 +511,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
                 }
                 const char* arg2 = argv[i];
                 i32 mod = 0;
-                if (!MParseI32(arg2, MStrEnd(arg2), &mod)) {
+                if (!MParseI32NoSign(arg2, MStrEnd(arg2), &mod)) {
                     if (mod >= 0 && mod < 11) {
                         sModToPlay = mod;
                     }
@@ -522,7 +523,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
                 }
                 const char* arg2 = argv[i];
                 i32 offset = 0;
-                if (!MParseI32(arg2, MStrEnd(arg2), &offset)) {
+                if (!MParseI32NoSign(arg2, MStrEnd(arg2), &offset)) {
                     if (offset >= 0) {
                         sFrameOffset = offset;
                     }
@@ -535,7 +536,7 @@ static i32 ParseCommandLine(int argc, char** argv) {
                 }
                 const char* arg2 = argv[i];
                 i32 offset = 0;
-                if (!MParseI32(arg2, MStrEnd(arg2), &offset)) {
+                if (!MParseI32NoSign(arg2, MStrEnd(arg2), &offset)) {
                     if (offset >= 0) {
                         sFrameOffset = offset;
                     }
@@ -556,24 +557,30 @@ static i32 ParseCommandLine(int argc, char** argv) {
 
 void* AmigaMalloc(void* alloc, size_t size) {
     void* mem = AllocMem(size, MEMF_ANY);
+    MLogf("AmigaMalloc %p %u", mem, size);
     return mem;
 }
 
 void* AmigaRealloc(void* alloc, void* mem, size_t oldSize, size_t newSize) {
+    MLogf("AmigaRealloc %p %ul %u", mem, oldSize, newSize);
     if (newSize > 0) {
         void* newMem = AllocMem(newSize, MEMF_ANY);
-        if (oldSize) {
+        MLogf("AllocMem %p %u", newMem, newSize);
+        if (oldSize && mem != NULL) {
             memmove(newMem, mem, oldSize);
+            MLogf("FreeMem %p %u", mem, oldSize);
             FreeMem(mem, oldSize);
-            return newMem;
         }
+        return newMem;
     } else {
+        MLogf("FreeMem2 %p %u", mem, oldSize);
         FreeMem(mem, oldSize);
         return 0;
     }
 }
 
 void AmigaFree(void* alloc, void* mem, size_t size) {
+    MLogf("AmigaFree %p %u", size);
     FreeMem(mem, size);
 }
 
@@ -591,7 +598,6 @@ __stdargs int main(int argc, char** argv) {
     MReadFileRet amigaExeData;
 
     ParseCommandLine(argc, argv);
-
     if (sFrontierExePath) {
         amigaExeData = MFileReadFully(sFrontierExePath);
         if (!amigaExeData.size) {
@@ -934,7 +940,7 @@ __stdargs int main(int argc, char** argv) {
         u32 buildInfoLen = MStrLen(BUILD_STRING);
         MFileWriteData(&fileOut, (u8*)BUILD_STRING, buildInfoLen);
 
-        MFileWriteData(&fileOut, (u8*)build_source_diffs, build_source_diffs_len);
+        MFileWriteData(&fileOut, (u8*)build_amiga_source_diffs, build_amiga_source_diffs_len);
         MFileWriteMem(&fileOut, &stats);
         MFileClose(&fileOut);
         MMemFree(&stats);

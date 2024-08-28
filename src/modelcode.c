@@ -10,25 +10,32 @@ static inline u16 ror16(u16 n, u8 c) {
     return (n >> c) | (n << ((-c)&mask));
 }
 
-static void PrintParam8Base10(char* buff, int buffSize, u16 param) {
+static b32 PrintParam8Base10(char* buff, int buffSize, u16 param) {
     u16 cmd = param & 0xc0;
     u16 val = param & 0x3f;
 
     switch (cmd) {
         case 0x00:
-            snprintf(buff, buffSize, "%d", (int)val);
-            break;
+        {
+            i32 out = (i32)(val);
+            snprintf(buff, buffSize, "%d", (int)out);
+            return ((int)out == 0);
+        }
         case 0x40:
-            snprintf(buff, buffSize, "%d", (int)(val << 10));
-            break;
+        {
+            i32 out = (i32)(val << 10);
+            snprintf(buff, buffSize, "%d", out);
+            return out == 0;
+        }
         case 0x80:
             snprintf(buff, buffSize, "scene[%d]", (int)val);
             break;
         case 0xc0:
         default:
-            snprintf(buff, buffSize, "tmp[%d]", (int)val);
+            snprintf(buff, buffSize, "t%d", (int)val);
             break;
     }
+    return FALSE;
 }
 
 static void PrintParam8HexFract(char *buff, int buffSize, u16 param) {
@@ -47,7 +54,7 @@ static void PrintParam8HexFract(char *buff, int buffSize, u16 param) {
             break;
         case 0xc0:
         default:
-            snprintf(buff, buffSize, "tmp[%d]", val);
+            snprintf(buff, buffSize, "t%d", val);
             break;
     }
 }
@@ -57,7 +64,7 @@ static void PrintParam16Base10(char* buff, int buffSize, u16 param16) {
         u16 val = param16 & 0x3f;
         if (param16 & 0x40) {
             // this can alias values off the end of this struct?
-            snprintf(buff, buffSize, "tmp[%d]", val);
+            snprintf(buff, buffSize, "t%d", val);
         } else {
             snprintf(buff, buffSize, "scene[%d]", val);
         }
@@ -88,7 +95,7 @@ static void PrintCircleSize(char* buff, int buffSize, u16 param) {
             break;
         case 0xc0:
         default:
-            snprintf(buff, buffSize, "size:tmp[%d]", val);
+            snprintf(buff, buffSize, "size:t%d", val);
             break;
     }
 }
@@ -103,7 +110,8 @@ ByteCodeTrace* TraceForOffset(ByteCodeTraceArray* byteCodeTrace, int insOffset) 
     return NULL;
 }
 
-static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, MMemIO* writer) {
+static void DumpVerticesAndNormals(ModelData* model, DebugModelParams* debugModelParams, DebugModelInfo* modelInfo,
+                                   MMemIO* writer) {
     modelInfo->numVertices = (model->verticesDataSize / sizeof(VertexData)) >> 1;
 
     MStringAppendf(writer, "vertices: ; %d\n", (int)modelInfo->numVertices);
@@ -117,8 +125,8 @@ static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, 
         int vi = i << 1;
 
         // 1 byte type, 3 bytes for (x, y, z)
-        u16 vpacked1 = vertexData[vi];     // bx
-        u16 vpacked2 = vertexData[vi + 1]; // dx
+        u16 vpacked1 = vertexData[vi];
+        u16 vpacked2 = vertexData[vi + 1];
 
         u8 vertexType = vpacked1 >> 8;
 
@@ -202,7 +210,11 @@ static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, 
             lenWrote++;
         }
 
-        MStringAppendf(writer, "; %3d : %04x:%04x\n", vi, (int)vpacked1, (int)vpacked2);
+        if (debugModelParams->hexCodeComment) {
+            MStringAppendf(writer, "; %3d : %04x:%04x\n", vi, (int)vpacked1, (int)vpacked2);
+        } else {
+            MStringAppendf(writer, "; %3d\n", vi);
+        }
     }
 
     MStringAppend(writer, "\n");
@@ -234,31 +246,39 @@ static void DumpVerticesAndNormals(ModelData* model, DebugModelInfo* modelInfo, 
                 MStringAppend(writer, " ");
                 lenWrote++;
             }
-            MStringAppendf(writer, "; %3d %04x:%04x\n", (int)((1 + i) << 1), (int)n1, (int)n2);
+            if (debugModelParams->hexCodeComment) {
+                MStringAppendf(writer, "; %3d %04x:%04x\n", (int) ((1 + i) << 1), (int) n1, (int) n2);
+            } else {
+                MStringAppendf(writer, "; %3d\n", (int) ((1 + i) << 1));
+            }
         }
 
         MStringAppend(writer, "\n");
     }
 }
 
-static void DumpComplexInfo(MMemIO* dataReader, u64 offsetBegin, ByteCodeTraceArray* byteCodeTrace, u32 onlyLabels, MMemIO* writer) {
+static void DumpComplexInfo(MMemIO* dataReader, u64 offsetBegin, ByteCodeTraceArray* byteCodeTrace, u32 codeOffsets, MMemIO* writer) {
     u8* origPos = dataReader->pos;
     while (!MMemReadDone(dataReader)) {
         int insOffset = offsetBegin + (dataReader->pos - origPos);
         u16 data0 = 0;
         MMemReadU16(dataReader, &data0);
 
-        if (onlyLabels) {
-            MStringAppend(writer, "  ");
-        } else {
-            ByteCodeTrace* trace = NULL;
-            if (byteCodeTrace) {
-                trace = TraceForOffset(byteCodeTrace, insOffset);
-            }
+        ByteCodeTrace* trace = NULL;
+        if (byteCodeTrace) {
+            trace = TraceForOffset(byteCodeTrace, insOffset);
+        }
+        if (codeOffsets) {
             if (trace) {
                 MStringAppendf(writer, "*%05x: ", insOffset);
             } else {
                 MStringAppendf(writer, " %05x: ", insOffset);
+            }
+        } else {
+            if (trace) {
+                MStringAppend(writer, "* ");
+            } else {
+                MStringAppend(writer, "  ");
             }
         }
 
@@ -477,26 +497,32 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
             trace = TraceForOffset(debugModelParams->byteCodeTrace, insOffset);
         }
 
-        if (debugModelParams->onlyLabels) {
-            char label[20];
-            snprintf(label, 20, "%05llx", insOffset);
+        if (debugModelParams->codeOffsets) {
+            if (trace) {
+                MStringAppendf(strOutput, "*%05lx: ", insOffset);
+            } else {
+                MStringAppendf(strOutput, " %05lx: ", insOffset);
+            }
+        } else {
             b32 hasLabel = FALSE;
             for (int i = 0; i < MArraySize(codeOffsets); i++) {
                 u64 codeOffset = MArrayGet(codeOffsets, i);
                 if (codeOffset == insOffset) {
-                    MStringAppendf(strOutput, "%05llx: ", insOffset);
+                    if (trace) {
+                        MStringAppendf(strOutput, "*%05llx: ", insOffset);
+                    } else {
+                        MStringAppendf(strOutput, "%05llx: ", insOffset);
+                    }
                     hasLabel = TRUE;
                     break;
                 }
             }
             if (!hasLabel) {
-                MStringAppend(strOutput, "  ");
-            }
-        } else {
-            if (trace) {
-                MStringAppendf(strOutput, "*%05lx: ", insOffset);
-            } else {
-                MStringAppendf(strOutput, " %05lx: ", insOffset);
+                if (trace) {
+                    MStringAppend(strOutput, "* ");
+                } else {
+                    MStringAppend(strOutput, "  ");
+                }
             }
         }
 
@@ -610,7 +636,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                     largestOffset = jumpOffset;
                 }
                 DumpComplexInfo(&dataReader, insOffset + 4, debugModelParams->byteCodeTrace,
-                        debugModelParams->onlyLabels, strOutput);
+                                debugModelParams->codeOffsets, strOutput);
                 break;
             }
             case Render_BATCH: {
@@ -778,7 +804,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         u16 normalIndex = (data1 & 0x7f);
                         MStringAppendf(strOutput, "if > normal:%d loc:%05x", (int)normalIndex, (int)jumpOffset);
                     } else {
-                        u16 z = data1 >> 1;
+                        u16 z = data1;
                         MStringAppendf(strOutput, "if > z:%d loc:%05x", (int)z, jumpOffset);
                     }
                     if (jumpOffset > largestOffset) {
@@ -789,7 +815,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         u16 normalIndex = (data1 & 0x7f);
                         MStringAppendf(strOutput, "if > normal:%d end", (int)normalIndex);
                     } else {
-                        u16 z = data1 >> 1;
+                        u16 z = data1;
                         MStringAppendf(strOutput, "if > z:%d end", (int)z);
                     }
                 }
@@ -806,7 +832,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         u16 normalIndex = (data1 & 0x7f);
                         MStringAppendf(strOutput, "if < normal:%d loc:%05x", (int)normalIndex, jumpOffset);
                     } else {
-                        u16 z = data1 >> 1;
+                        u16 z = data1;
                         MStringAppendf(strOutput, "if < z:%d loc:%05x", (int)z, jumpOffset);
                     }
                     if (jumpOffset > largestOffset) {
@@ -817,7 +843,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         u16 normalIndex = (data1 & 0x7f);
                         MStringAppendf(strOutput, "if < normal:%d", (int)normalIndex);
                     } else {
-                        u16 z = data1 >> 1;
+                        u16 z = data1;
                         MStringAppendf(strOutput, "if < z:%d", (int)z);
                     }
                 }
@@ -827,17 +853,31 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
             case Render_CALC_B: {
                 u16 data1 = 0;
                 MMemReadU16(&dataReader, &data1);
-                PrintParam8Base10(buff1, buffSize, data1 & 0xff);
-                PrintParam8Base10(buff2, buffSize, data1 >> 8);
+                u16 data1lo = data1 & 0xff;
+                b32 param1IsZero = PrintParam8Base10(buff1, buffSize, data1lo);
+                u16 data1hi = data1 >> 8;
+                b32 param2IsZero = PrintParam8Base10(buff2, buffSize, data1hi);
                 u16 mathFunc = (data0 >> 4) & 0xf;
                 u16 resultOffset = (data0 >> 8) & 0x7;
 
                 switch (mathFunc) {
                     case MathFunc_Add:
-                        snprintf(buff3, buffSize, "%s + %s", buff1, buff2);
+                        if (param2IsZero) {
+                            snprintf(buff3, buffSize, "%s", buff1);
+                        } else if (param1IsZero) {
+                            snprintf(buff3, buffSize, "%s", buff2);
+                        } else {
+                            snprintf(buff3, buffSize, "%s + %s", buff1, buff2);
+                        }
                         break;
                     case MathFunc_Sub:
-                        snprintf(buff3, buffSize, "%s - %s", buff1, buff2);
+                        if (param2IsZero) {
+                            snprintf(buff3, buffSize, "%s", buff1);
+                        } else if (param1IsZero) {
+                            snprintf(buff3, buffSize, "%s", buff2);
+                        } else {
+                            snprintf(buff3, buffSize, "%s - %s", buff1, buff2);
+                        }
                         break;
                     case MathFunc_Mult:
                         snprintf(buff3, buffSize, "%s * %s", buff1, buff2);
@@ -887,10 +927,10 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         break;
                 }
 
-                MStringAppendf(strOutput, "tmp[%d] = %s", resultOffset, buff3);
+                MStringAppendf(strOutput, "t%d = %s", resultOffset, buff3);
 
                 if (trace) {
-                    MStringAppendf(strOutput, " ; %d", trace->result);
+                    MStringAppendf(strOutput, " ; %x", trace->result);
                 }
 
                 break;
@@ -1037,7 +1077,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 }
                 break;
             }
-            case Render_ZTREE_PUSH_POP: {
+            case Render_DEPTH_TREE_PUSH_POP: {
                 if (data0 & 0x8000) {
                     MStringAppendf(strOutput, "ztree pop");
                 } else {
@@ -1209,7 +1249,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
 
                 if (data2 & 0x800) {
                     u16 ix = data2 >> 0xc;
-                    MStringAppendf(strOutput, " scale:tmp[%d]", (int)ix);
+                    MStringAppendf(strOutput, " scale:t%d", (int)ix);
                 } else {
                     u16 scale = data2 >> 0xc;
                     MStringAppendf(strOutput, " scale:%d", (int)scale);
@@ -1420,22 +1460,24 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 MStringAppend(strOutput, " features:[");
 
                 u32 dataRemaining = dataSize - (dataReader.pos - pos);
+                u8* beginPos = dataReader.pos;
 
                 int i = 0;
                 while (dataRemaining) {
-                    i8 featureControl = 0;
-                    MMemReadI8(&dataReader, &featureControl);
+                    u8 featureControl = 0;
+                    MMemReadU8(&dataReader, &featureControl);
                     dataRemaining--;
                     if (featureControl == 0) {
                         break;
                     }
 
                     if (i == 1) {
-                        MStringAppend(strOutput, ", ");
+                        MStringAppend(strOutput, ",");
                     }
+                    MStringAppend(strOutput, "\n      ");
 
                     i8 coord[3] = { 0, 0, 0 };
-                    if (featureControl < 0) {
+                    if (featureControl & 0x80) {
                         // Render surface circle on sphere at given point
                         MMemReadI8(&dataReader, coord + 0);
                         MMemReadI8(&dataReader, coord + 1);
@@ -1469,7 +1511,16 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
 
                     i = 1;
                 }
+                if (i == 1) {
+                    MStringAppendf(strOutput, "\n    ");
+                }
                 MStringAppend(strOutput, "]");
+
+                if (debugModelParams->hexCodeComment) {
+                    u64 featuresOffset = offsetBegin + (beginPos - codeStart);
+                    MStringAppendf(strOutput, " ; 0x%x %d", featuresOffset, dataSize - (beginPos - pos));
+                }
+
                 dataReader.pos = pos + dataSize;
                 break;
             }
@@ -1478,12 +1529,14 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                 break;
         }
 
-        MStringAppend(strOutput, " ; ");
-        u16* end = (u16*)dataReader.pos;
-        for (u16* pos = (u16*)begin; pos < end; pos++) {
-            MStringAppendf(strOutput, "%04x", (int)*pos);
-            if (pos < end - 1) {
-                MStringAppend(strOutput, ":");
+        if (debugModelParams->hexCodeComment) {
+            MStringAppend(strOutput, " ; ");
+            u16 *end = (u16 *) dataReader.pos;
+            for (u16 *pos = (u16 *) begin; pos < end; pos++) {
+                MStringAppendf(strOutput, "%04x", (int) *pos);
+                if (pos < end - 1) {
+                    MStringAppend(strOutput, ":");
+                }
             }
         }
 
@@ -1507,7 +1560,7 @@ void DecompileModel(ModelData *model, u32 modelIndex, DebugModelParams* debugMod
 
     MArrayInit(modelInfo->modelIndexes);
 
-    DumpVerticesAndNormals(model, modelInfo, strOutput);
+    DumpVerticesAndNormals(model, debugModelParams, modelInfo, strOutput);
 
     MStringAppend(strOutput, "code:\n");
     u8* codeStart = ((u8*)model) + model->codeOffset;
@@ -1529,7 +1582,7 @@ void DecompileFontModel(FontModelData* model, u32 modelIndex, DebugModelParams* 
 
     MArrayInit(modelInfo->modelIndexes);
 
-    DumpVerticesAndNormals((ModelData*)model, modelInfo, strOutput);
+    DumpVerticesAndNormals((ModelData*)model, debugModelParams, modelInfo, strOutput);
 
     FontModelData* fontModel = (FontModelData*) model;
     u16* offsets = fontModel->offsets;
@@ -1574,7 +1627,7 @@ void DecompileModelToConsole(ModelData* modelData, u32 modelIndex, ModelType mod
     DebugModelParams params;
     memset(&params,  0, sizeof(DebugModelParams));
     params.maxSize = 0xfff;
-    params.onlyLabels = 1;
+    params.codeOffsets = 1;
     if (modelType == ModelType_OBJ) {
         DecompileModel(modelData, modelIndex, &params, &modelInfo, &writer);
     } else {
@@ -1784,6 +1837,15 @@ MINTERNAL ModelParserTokenEnum NextTokenIfNewLine(ModelParserContext* ctxt) {
     return token;
 }
 
+MINTERNAL ModelParserTokenEnum NextTokenIfNotNewLine(ModelParserContext* ctxt) {
+    ModelParserTokenEnum token = ctxt->token;
+    if (token != ModelParserToken_NEW_LINE) {
+        token = NextToken(ctxt);
+    }
+
+    return token;
+}
+
 MINTERNAL ModelParserTokenEnum NextTokenConsumeNewLine(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = NextToken(ctxt);
     if (token == ModelParserToken_NEW_LINE) {
@@ -1866,7 +1928,6 @@ MINTERNAL i32 StrCmp(ModelParserContext* ctxt, const char* str) {
     return MStrCmp3(str, ctxt->valueStart, ctxt->valueEnd);
 }
 
-
 #define RETURN_ERROR(msg) \
     ctxt->result.error = (char*)msg; \
     return -1;
@@ -1890,7 +1951,7 @@ MINTERNAL i32 ParseI32(ModelParserContext* ctxt, i32* val) {
     if (*ctxt->valueStart == '#') {
         r = MParseI32Hex(ctxt->valueStart + 1, ctxt->valueEnd, val);
     } else {
-        r = MParseI32(ctxt->valueStart, ctxt->valueEnd, val);
+        r = MParseI32NoSign(ctxt->valueStart, ctxt->valueEnd, val);
     }
 
     if (r == 0 && minus) {
@@ -1928,7 +1989,7 @@ MINTERNAL i32 ParseU8(ModelParserContext* ctxt, u8* out) {
     if (*ctxt->valueStart == '#') {
         r = MParseI32Hex(ctxt->valueStart + 1, ctxt->valueEnd, &val);
     } else {
-        r = MParseI32(ctxt->valueStart, ctxt->valueEnd, &val);
+        r = MParseI32NoSign(ctxt->valueStart, ctxt->valueEnd, &val);
     }
 
     if (r < 0) {
@@ -1955,7 +2016,7 @@ MINTERNAL i32 ParseU16(ModelParserContext* ctxt, u16* out) {
     if (*ctxt->valueStart == '#') {
         r = MParseI32Hex(ctxt->valueStart + 1, ctxt->valueEnd, &val);
     } else {
-        r = MParseI32(ctxt->valueStart, ctxt->valueEnd, &val);
+        r = MParseI32NoSign(ctxt->valueStart, ctxt->valueEnd, &val);
     }
 
     if (r < 0) {
@@ -2060,17 +2121,60 @@ MINTERNAL i32 ParseColour(ModelParserContext* ctxt, u16* val) {
     return ParseU16(ctxt, val);
 }
 
-MINTERNAL i32 ParseParam16Base10(ModelParserContext* ctxt, u16* outParam) {
+MINTERNAL i32 ParseParam16(ModelParserContext* ctxt, u16* outParam) {
     i32 r;
     i32 valI32;
-    b32 isTmpVariable = FALSE;
-    b32 isSceneVariable = FALSE;
-    if (StrCmp(ctxt, "tmp") == 0) {
-        isTmpVariable = TRUE;
+    char firstChar = 0;
+    if (ctxt->valueStart < ctxt->valueEnd) {
+        firstChar = ctxt->valueStart[0];
+    }
+
+    if (firstChar == 't') {
+        r = MParseI32NoSign(ctxt->valueStart + 1, ctxt->valueEnd, &valI32);
+        if (r) {
+            ctxt->result.error = (char*)"Syntax error: parsing int";
+            return r;
+        }
+
+        if (valI32 > 0x3f) {
+            ctxt->result.error = (char*)"Syntax error: out of range";
+            return -1;
+        }
+
+        *outParam = 0x80 | 0x40 | (u8)valI32;
     } else if (StrCmp(ctxt, "scene") == 0) {
-        isSceneVariable = TRUE;
+        ModelParserTokenEnum token = NextToken(ctxt);
+        if (token != ModelParserToken_SQUARE_BRACKET_OPEN) {
+            ctxt->result.error = (char*)"Syntax error: expecting [";
+            return -1;
+        }
+
+        token = NextToken(ctxt);
+        if (token != ModelParserToken_VALUE) {
+            ctxt->result.error = (char*)"Syntax error: expecting value";
+            return -1;
+        }
+
+        r = MParseI32NoSign(ctxt->valueStart, ctxt->valueEnd, &valI32);
+        if (r) {
+            ctxt->result.error = (char*)"Syntax error: parsing int";
+            return r;
+        }
+
+        if (valI32 > 0x3f) {
+            ctxt->result.error = (char*)"Syntax error: out of range";
+            return -1;
+        }
+
+        token = NextToken(ctxt);
+        if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
+            ctxt->result.error = (char*) "Syntax error: expecting ]";
+            return -1;
+        }
+
+        *outParam = 0x80 | (u16)valI32;
     } else {
-        r = MParseI32(ctxt->valueStart, ctxt->valueEnd, &valI32);
+        r = MParseI32NoSign(ctxt->valueStart, ctxt->valueEnd, &valI32);
         if (r) {
             ctxt->result.error = (char*)"Syntax error: parsing int";
             return r;
@@ -2084,59 +2188,66 @@ MINTERNAL i32 ParseParam16Base10(ModelParserContext* ctxt, u16* outParam) {
         return 0;
     }
 
-    ModelParserTokenEnum token = NextToken(ctxt);
-    if (token != ModelParserToken_SQUARE_BRACKET_OPEN) {
-        ctxt->result.error = (char*)"Syntax error: expecting [";
-        return -1;
-    }
-
-    token = NextToken(ctxt);
-    if (token != ModelParserToken_VALUE) {
-        ctxt->result.error = (char*)"Syntax error: expecting value";
-        return -1;
-    }
-
-    r = MParseI32(ctxt->valueStart, ctxt->valueEnd, &valI32);
-    if (r) {
-        ctxt->result.error = (char*)"Syntax error: parsing int";
-        return r;
-    }
-
-    if (valI32 > 0x3f) {
-        ctxt->result.error = (char*)"Syntax error: out of range";
-        return -1;
-    }
-
-    u16 out = 0x80 | (u16)valI32;
-    if (isTmpVariable) {
-        out |= 0x40;
-    }
-
-    token = NextToken(ctxt);
-    if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
-        ctxt->result.error = (char*) "Syntax error: expecting ]";
-        return -1;
-    }
-
-    *outParam = out;
-
     return r;
 }
 
-MINTERNAL i32 ParseParam8Base10(ModelParserContext* ctxt, u8* outParam) {
+MINTERNAL i32 ParseParam8(ModelParserContext* ctxt, u8* outParam) {
     i32 r;
     i32 valI32;
-    b32 isTmpVariable = FALSE;
-    b32 isSceneVariable = FALSE;
-    if (StrCmp(ctxt, "tmp") == 0) {
-        isTmpVariable = TRUE;
+    char firstChar = 0;
+    if (ctxt->valueStart < ctxt->valueEnd) {
+        firstChar = ctxt->valueStart[0];
+    }
+
+    if (firstChar == 't') {
+        r = MParseI32NoSign(ctxt->valueStart + 1, ctxt->valueEnd, &valI32);
+        if (r) {
+            ctxt->result.error = (char*)"Syntax error: parsing int";
+            return r;
+        }
+
+        if (valI32 > 0x3f) {
+            ctxt->result.error = (char*)"Syntax error: out of range";
+            return -1;
+        }
+
+        *outParam =  0x80 | 0x40 | (u8)valI32;
     } else if (StrCmp(ctxt, "scene") == 0) {
-        isSceneVariable = TRUE;
+        ModelParserTokenEnum token = NextToken(ctxt);
+        if (token != ModelParserToken_SQUARE_BRACKET_OPEN) {
+            ctxt->result.error = (char*)"Syntax error: expecting [";
+            return -1;
+        }
+
+        token = NextToken(ctxt);
+        if (token != ModelParserToken_VALUE) {
+            ctxt->result.error = (char*)"Syntax error: expecting value";
+            return -1;
+        }
+
+        r = MParseI32NoSign(ctxt->valueStart, ctxt->valueEnd, &valI32);
+        if (r) {
+            ctxt->result.error = (char*)"Syntax error: parsing int";
+            return r;
+        }
+
+        if (valI32 > 0x3f) {
+            ctxt->result.error = (char*)"Syntax error: out of range";
+            return -1;
+        }
+
+        token = NextToken(ctxt);
+        if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
+            ctxt->result.error = (char*) "Syntax error: expecting ]";
+            return -1;
+        }
+
+        *outParam = 0x80 | (u8)valI32;
     } else {
-        if (*(ctxt->valueStart) == '.') {
+        if (firstChar == '.') {
             r = MParseI32Hex(ctxt->valueStart + 1, ctxt->valueEnd, &valI32);
         } else {
-            r = MParseI32(ctxt->valueStart, ctxt->valueEnd, &valI32);
+            r = MParseI32NoSign(ctxt->valueStart, ctxt->valueEnd, &valI32);
         }
         if (r) {
             ctxt->result.error = (char*)"Syntax error: parsing int";
@@ -2161,45 +2272,7 @@ MINTERNAL i32 ParseParam8Base10(ModelParserContext* ctxt, u8* outParam) {
             }
             *outParam = 0x40 | newVal;
         }
-
-        return 0;
     }
-
-    ModelParserTokenEnum token = NextToken(ctxt);
-    if (token != ModelParserToken_SQUARE_BRACKET_OPEN) {
-        ctxt->result.error = (char*)"Syntax error: expecting [";
-        return -1;
-    }
-
-    token = NextToken(ctxt);
-    if (token != ModelParserToken_VALUE) {
-        ctxt->result.error = (char*)"Syntax error: expecting value";
-        return -1;
-    }
-
-    r = MParseI32(ctxt->valueStart, ctxt->valueEnd, &valI32);
-    if (r) {
-        ctxt->result.error = (char*)"Syntax error: parsing int";
-        return r;
-    }
-
-    if (valI32 > 0x3f) {
-        ctxt->result.error = (char*)"Syntax error: out of range";
-        return -1;
-    }
-
-    u8 out = 0x80 | (u8)valI32;
-    if (isTmpVariable) {
-        out |= 0x40;
-    }
-
-    token = NextToken(ctxt);
-    if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
-        ctxt->result.error = (char*) "Syntax error: expecting ]";
-        return -1;
-    }
-
-    *outParam = out;
 
     return r;
 }
@@ -2249,7 +2322,7 @@ MINTERNAL i32 ReadParam8Base10(ModelParserContext* ctxt, u8* outParam) {
         RETURN_ERROR("Syntax error: expecting value");
     }
 
-    return ParseParam8Base10(ctxt, outParam);
+    return ParseParam8(ctxt, outParam);
 }
 
 MINTERNAL i32 ReadParam16Base10(ModelParserContext* ctxt, u16* outParam) {
@@ -2258,7 +2331,7 @@ MINTERNAL i32 ReadParam16Base10(ModelParserContext* ctxt, u16* outParam) {
         RETURN_ERROR("Syntax error: expecting param");
     }
 
-    return ParseParam16Base10(ctxt, outParam);
+    return ParseParam16(ctxt, outParam);
 }
 
 MINTERNAL i32 ReadComma(ModelParserContext* ctxt) {
@@ -2290,6 +2363,9 @@ static i32 ReadParanClose(ModelParserContext* ctxt) {
 
 static i32 ReadSquareBracketOpen(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = NextToken(ctxt);
+    if (token == ModelParserToken_NEW_LINE) {
+        token = NextToken(ctxt);
+    }
     if (token != ModelParserToken_SQUARE_BRACKET_OPEN) {
         RETURN_ERROR("Syntax error: expecting '['");
     }
@@ -2299,6 +2375,21 @@ static i32 ReadSquareBracketOpen(ModelParserContext* ctxt) {
 
 static i32 ReadSquareBracketClose(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = NextToken(ctxt);
+    if (token == ModelParserToken_NEW_LINE) {
+        token = NextToken(ctxt);
+    }
+    if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
+        RETURN_ERROR("Syntax error: expecting ']'");
+    }
+
+    return 0;
+}
+
+static i32 CheckSquareBracketClose(ModelParserContext* ctxt) {
+    ModelParserTokenEnum token = ctxt->token;
+    if (token == ModelParserToken_NEW_LINE) {
+        token = NextToken(ctxt);
+    }
     if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
         RETURN_ERROR("Syntax error: expecting ']'");
     }
@@ -2536,7 +2627,7 @@ i32 ReadIfVariable(ModelParserContext* ctxt, u16* paramOut) {
         RETURN_IF_ERROR(ReadParanClose(ctxt));
         *paramOut = param;
     } else {
-        RETURN_IF_ERROR(ParseParam16Base10(ctxt, paramOut));
+        RETURN_IF_ERROR(ParseParam16(ctxt, paramOut));
     }
     return 0;
 }
@@ -2905,7 +2996,7 @@ i32 ReadRightSideCalc(ModelParserContext* ctxt, u8* paramA, u16* mathFunc, u8* p
         }
     }
 
-    RETURN_IF_ERROR(ParseParam8Base10(ctxt, paramA));
+    RETURN_IF_ERROR(ParseParam8(ctxt, paramA));
 
     token = NextToken(ctxt);
     switch (token) {
@@ -2915,7 +3006,7 @@ i32 ReadRightSideCalc(ModelParserContext* ctxt, u8* paramA, u16* mathFunc, u8* p
                 *mathFunc = MathFunc_DivPower2;
             } else {
                 *mathFunc = MathFunc_ZeroIfGreater;
-                RETURN_IF_ERROR(ParseParam8Base10(ctxt, paramB));
+                RETURN_IF_ERROR(ParseParam8(ctxt, paramB));
                 return 0;
             }
             break;
@@ -2925,7 +3016,7 @@ i32 ReadRightSideCalc(ModelParserContext* ctxt, u8* paramA, u16* mathFunc, u8* p
                 *mathFunc = MathFunc_MultPower2;
             } else {
                 *mathFunc = MathFunc_ZeroIfLess;
-                RETURN_IF_ERROR(ParseParam8Base10(ctxt, paramB));
+                RETURN_IF_ERROR(ParseParam8(ctxt, paramB));
                 return 0;
             }
             break;
@@ -2953,7 +3044,7 @@ i32 ReadRightSideCalc(ModelParserContext* ctxt, u8* paramA, u16* mathFunc, u8* p
                 }
             }
             *mathFunc = MathFunc_Mult;
-            return ParseParam8Base10(ctxt, paramB);
+            return ParseParam8(ctxt, paramB);
             break;
         case ModelParserToken_DIV:
             *mathFunc = MathFunc_Div;
@@ -2961,6 +3052,10 @@ i32 ReadRightSideCalc(ModelParserContext* ctxt, u8* paramA, u16* mathFunc, u8* p
         case ModelParserToken_AND:
             *mathFunc = MathFunc_And;
             break;
+        case ModelParserToken_NEW_LINE:
+            *mathFunc = MathFunc_Add;
+            *paramB = 0;
+            return 0;
         default:
             RETURN_ERROR("Unexpected token");
     }
@@ -3046,6 +3141,23 @@ i32 WriteBatchControl(ModelParserContext* ctxt, enum BatchZMode mode, u16 z) {
         }
     }
 
+    return 0;
+}
+
+static i32 ParseTempSet(ModelParserContext* ctxt, u16* resultOffset) {
+    char firstChar = 0;
+    if (ctxt->valueStart < ctxt->valueEnd) {
+        firstChar = ctxt->valueStart[0];
+    }
+
+    if (firstChar == 't') {
+        i32 valI32 = 0;
+        i32 r = MParseI32NoSign(ctxt->valueStart + 1, ctxt->valueEnd, &valI32);
+        if (!r && valI32 < 32) {
+            *resultOffset = (u8) valI32;
+            return 1;
+        }
+    }
     return 0;
 }
 
@@ -3275,6 +3387,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
         RETURN_ERROR("Syntax error: Expecting new line");
     }
 
+    u16 resultOffset = 0;
     b32 endedWithDone = FALSE;
 
     CodeLabels codeLabels;
@@ -3726,7 +3839,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             }
 
             if (StrCmp(ctxt, "pop") == 0) {
-                ModelWriteU16(ctxt, 0x8000 | Render_ZTREE_PUSH_POP);
+                ModelWriteU16(ctxt, 0x8000 | Render_DEPTH_TREE_PUSH_POP);
             } else if (StrCmp(ctxt, "push") == 0) {
                 token = NextToken(ctxt);
                 if (token != ModelParserToken_LABEL || ((StrCmp(ctxt, "vertex") != 0) && (StrCmp(ctxt, "v") != 0))) {
@@ -3735,24 +3848,18 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
 
                 i8 index;
                 RETURN_IF_ERROR(ReadI8(ctxt, &index));
-                ModelWriteU16(ctxt, ((u16)((u8)index) << 5) | Render_ZTREE_PUSH_POP);
+                ModelWriteU16(ctxt, ((u16)((u8)index) << 5) | Render_DEPTH_TREE_PUSH_POP);
             } else {
                 RETURN_ERROR_VAL("Syntax error: ztree '%s' should be 'push' or 'pop'");
             }
 
             token = NextToken(ctxt);
-        } else if (StrCmp(ctxt, "tmp") == 0) {
-            u16 resultOffset = 0;
-
-            RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
-            RETURN_IF_ERROR(ReadU16(ctxt, &resultOffset));
-            RETURN_IF_ERROR(ReadSquareBracketClose(ctxt));
-            RETURN_IF_ERROR(ReadEquals(ctxt));
-
+        } else if (ParseTempSet(ctxt, &resultOffset)) {
             u8 paramA = 0;
             u16 mathFunc = 0;
             u8 paramB = 0;
 
+            RETURN_IF_ERROR(ReadEquals(ctxt));
             RETURN_IF_ERROR(ReadRightSideCalc(ctxt, &paramA, &mathFunc, &paramB));
 
             resultOffset |= 0xc0; // tmp variable write, byte code allows for scene write as well technically, but
@@ -3761,7 +3868,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             ModelWriteU16(ctxt, ((resultOffset << 4) | mathFunc) << 4 | Render_CALC_A);
             ModelWriteU16(ctxt, (((u16)paramB) << 8) | paramA);
 
-            token = NextToken(ctxt);
+            token = NextTokenIfNotNewLine(ctxt);
         } else if (StrCmp(ctxt, "planet") == 0) {
             token = NextToken(ctxt);
 
@@ -3876,12 +3983,12 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                     do {
                         RETURN_IF_ERROR(ReadSquareBracketOpen(ctxt));
 
-                        i8 featureControl = 0;
-                        RETURN_IF_ERROR(ReadI8(ctxt, &featureControl));
+                        u8 featureControl = 0;
+                        RETURN_IF_ERROR(ReadU8(ctxt, &featureControl));
 
                         *(featuresByteCode + (featuresSize++)) = featureControl;
 
-                        if (featureControl < 0) {
+                        if (featureControl & 0x80) {
                             // Render surface circle on sphere at given point
                             RETURN_IF_ERROR(ReadComma(ctxt));
                             RETURN_IF_ERROR(ReadI8(ctxt, featuresByteCode + (featuresSize++)));
@@ -3921,9 +4028,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                                     token = NextToken(ctxt);
                                 } while (token == ModelParserToken_COMMA);
 
-                                if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
-                                    RETURN_ERROR("Syntax error: expecting ']'");
-                                }
+                                CheckSquareBracketClose(ctxt);
                                 featuresByteCode[featuresSize++] = 0;
                             }
                         }

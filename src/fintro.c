@@ -28,19 +28,19 @@ static IntroScene Intro_SceneList[] = {
         { 0x200, 0x000, 0, 384 },  // Eagles attack over ship
         { 0x1fe, 0x000, 0, 1152 }, // Courier attack over ship & kill eagle 1
         { 0x200, 0x000, 0, 576 },  // Courier attack eagle 2
-        { 0x400, 0x040, 0, 2208 }, // Courier kill eagle 2
+        { 0x400, 0x001, 0, 2208 }, // Courier kill eagle 2
         { 0x800, 0x400, 0, 1728 }, // Rotate courier
 };
 
 static void SetupSceneFromRenderData(Intro* intro, SceneSetup* sceneSetup, u32 renderDataOffset) {
     u8* renderData = (u8*) (intro->sceneSetupData + renderDataOffset);
-#ifdef FINSPECTOR
+#ifdef FINTRO_INSPECTOR
     sceneSetup->renderDataOffset = renderDataOffset;
 #endif
     u16* data = (u16*)(renderData);
     sceneSetup->modelIndex = data[0x2d] >> 1;
 
-#ifdef FINSPECTOR
+#ifdef FINTRO_INSPECTOR
     sceneSetup->modelDataFileStartAddress = intro->sceneSetupData;
 #endif
 
@@ -56,7 +56,7 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData
     intro->sceneSetupData = introFileData;
     intro->creditsStringData = (u16*)(gameFileData + 0xa3);
 
-#ifdef FINSPECTOR
+#ifdef FINTRO_INSPECTOR
     sceneSetup->galmapModelDataFileStartAddress = assetsData->mainExeData;
     sceneSetup->modelDataFileStartAddress = assetsData->mainExeData;
 #endif
@@ -65,7 +65,7 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData
     sceneSetup->moduleStringNum = 33;
 
     Assets_LoadModelPointers16LE(introFileData + 0x3b0, 120, &sceneSetup->assets.models);
-    Assets_LoadModelPointers16LE(assetsData->vectorFontData, 15, &sceneSetup->assets.galmapModels);
+    Assets_LoadModelPointers16LE(assetsData->galmapModels, 15, &sceneSetup->assets.galmapModels);
 
     sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
 
@@ -181,7 +181,7 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
 
     ARRAY_REWRITE_BE16((u8*)intro->creditsStringData, 26 * 2);
 
-#ifdef FINSPECTOR
+#ifdef FINTRO_INSPECTOR
     sceneSetup->modelDataFileStartAddress = fileData;
     sceneSetup->galmapModelDataFileStartAddress = fileData;
 #endif
@@ -236,6 +236,8 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
         MFree(image.data, image.w * image.h);
 #endif
     }
+    sceneSetup->planetDetail = 2;
+    sceneSetup->renderDetail = 2;
 }
 
 void Intro_Free(Intro* intro, SceneSetup* sceneSetup) {
@@ -346,13 +348,13 @@ void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, int fram
         u16 angle = (lightAngle & 0xffff);
         LookupSineAndCosine(angle, &sine, &cosine);
 
-        sceneSetup->lightVec[0] = (i16)((0x5a82 * sine) >> 16);
-        sceneSetup->lightVec[1] = (i16)0xa57e;
-        sceneSetup->lightVec[2] = (i16)((0x5a82 * cosine) >> 16);
+        sceneSetup->lightDirView[0] = (i16)((0x5a82 * sine) >> 16);
+        sceneSetup->lightDirView[1] = (i16)0xa57e;
+        sceneSetup->lightDirView[2] = (i16)((0x5a82 * cosine) >> 16);
     } else {
-        sceneSetup->lightVec[0] = (i16)0xb619;
-        sceneSetup->lightVec[1] = (i16)0xb619;
-        sceneSetup->lightVec[2] = (i16)0x49e7;
+        sceneSetup->lightDirView[0] = (i16)0xb619;
+        sceneSetup->lightDirView[1] = (i16)0xb619;
+        sceneSetup->lightDirView[2] = (i16)0x49e7;
 
         switch (scenePos.scene) {
             case 10: {
@@ -362,11 +364,11 @@ void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, int fram
 
                 Matrix3x3i16 rotation;
                 Matrix3x3i16Identity(rotation);
-                Matrix3x3i16RotateAxisAngle(rotation, RotateAxis_Y, -rot);
+                Matrix3x3i16RotateAxisAngle(rotation, RotateAxis_Y, rot);
 
-                Vec3i16 lightV;
-                MultVec3i16Matrix(rotation, sceneSetup->lightVec, lightV);
-                Vec3i16Copy(lightV, sceneSetup->lightVec);
+                Vec3i16 lightVec;
+                MatrixMult_Vec3i16(sceneSetup->lightDirView, rotation, lightVec);
+                Vec3i16Copy(lightVec, sceneSetup->lightDirView);
                 break;
             }
             case 12: {
@@ -375,11 +377,11 @@ void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, int fram
 
                 Matrix3x3i16 rotation;
                 Matrix3x3i16Identity(rotation);
-                Matrix3x3i16RotateAxisAngle(rotation, RotateAxis_X, -(rot - 2048));
+                Matrix3x3i16RotateAxisAngle(rotation, RotateAxis_X, (rot - 2048));
 
-                Vec3i16 lightV;
-                MultVec3i16Matrix(rotation, sceneSetup->lightVec, lightV);
-                Vec3i16Copy(lightV, sceneSetup->lightVec);
+                Vec3i16 lightVec;
+                MatrixMult_Vec3i16(sceneSetup->lightDirView, rotation, lightVec);
+                Vec3i16Copy(lightVec, sceneSetup->lightDirView);
                 break;
             }
             default:

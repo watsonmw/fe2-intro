@@ -308,7 +308,7 @@ MINTERNAL b32 MMemReadDone(MMemIO* reader) {
 }
 
 MINLINE void* MPtrAlign(void* ptr, size_t alignBytes) {
-    return (void*)((uintptr_t)(ptr + alignBytes - 1) & ~(alignBytes - 1));
+    return (void*)((uintptr_t)((u8*)ptr + alignBytes - 1) & ~(alignBytes - 1));
 }
 
 MINLINE size_t MSizeAlign(size_t size, size_t alignBytes) {
@@ -484,6 +484,7 @@ enum MParse {
 };
 
 i32 MParseI32(const char* start, const char* end, i32* out);
+i32 MParseI32NoSign(const char* start, const char* end, i32* out);
 i32 MParseI32Hex(const char* start, const char* end, i32* out);
 i32 MStrCmp(const char* str1, const char* str2);
 i32 MStrCmp3(const char* str1, const char* str2Start, const char* str2End);

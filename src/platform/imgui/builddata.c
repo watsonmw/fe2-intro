@@ -2,7 +2,7 @@
 #include "mlib.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "stb/stb_image.h"
 
 i32 Build_Stars(const char* filepath, u8* out, i32 images, i32 tileSize, i32 tileSize2) {
     int w = 0;

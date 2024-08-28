@@ -4,7 +4,6 @@
 #include "mlib.h"
 #include "fmath.h"
 #include "assets.h"
-#include "render.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +28,8 @@ typedef struct sDebugModelInfo {
 typedef struct sDebugModelParams {
     u64 offsetBegin;
     u32 maxSize;
-    u32 onlyLabels;
+    u8 codeOffsets;
+    u8 hexCodeComment;
     ByteCodeTraceArray* byteCodeTrace;
 } DebugModelParams;
 

@@ -28,7 +28,7 @@ add_executable(
         src/modelcode.c
 )
 
-# Amiga target (Just to get IDE source code inspections - to actually build use 'amiga/build-ami-gcc.sh')
+# Amiga target (Just to get IDE source code inspections - to actually build use 'amiga/build-amiga-gcc.sh')
 add_executable(
         fintro-amiga
         src/platform/amiga/main-amiga.c
@@ -47,7 +47,7 @@ add_executable(
         src/fmath.c
 )
 
-# Native WASM target (also just for IDE support, use scripts/build_wasm.sh to build)
+# Native WASM target (also just for IDE support, use scripts/build-wasm.sh to build)
 add_executable(
         fintro-wasm
         src/platform/basicalloc.c
@@ -69,12 +69,56 @@ add_executable(
         src/fmath.c
 )
 
+add_executable(
+        fintro-imgui
+        src/platform/imgui/gl3w/GL/gl3w.c
+        src/platform/imgui/imgui/imgui_impl_opengl3.cpp
+        src/platform/imgui/imgui/imgui_impl_sdl.cpp
+        src/platform/imgui/imgui/imgui.cpp
+        src/platform/imgui/imgui/imgui_draw.cpp
+        src/platform/imgui/imgui/imgui_widgets.cpp
+        src/platform/imgui/annotation.cpp
+        src/platform/imgui/annotation.h
+        src/platform/imgui/builddata.c
+        src/platform/imgui/builddata.h
+        src/platform/imgui/drawinfo.cpp
+        src/platform/imgui/main-imgui.cpp
+        src/platform/imgui/mcpplib.cpp
+        src/platform/imgui/mcpplib.h
+        src/platform/imgui/mini.c
+        src/platform/imgui/mini.h
+        src/platform/imgui/modelviewer.cpp
+        src/platform/imgui/modelviewer.h
+        src/platform/imgui/tinypng/TinyPngOut.cpp
+        src/platform/sdl/mlib-sdl.c
+        src/assets.c
+        src/assets.h
+        src/audio.c
+        src/audio.h
+        src/fintro.c
+        src/fintro.h
+        src/fmath.c
+        src/fmath.h
+        src/mlib.h
+        src/modelcode.c
+        src/modelcode.h
+        src/render.c
+        src/render.h
+        src/renderinternal.h
+)
+
 # Define DEBUG c/c++ macro when compiling in debug mode
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG -DM_ASSERT -fno-strict-aliasing")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG -DM_ASSERT -fno-strict-aliasing")
 
 target_compile_definitions(fintro PRIVATE -DM_USE_SDL -DM_USE_STDLIB -DFINTRO_SCREEN_RES=3)
 target_compile_options(fintro PRIVATE -ggdb)
+
+# ImGui target
+target_compile_definitions(fintro-imgui PRIVATE -DM_USE_SDL -DM_USE_STDLIB -DFINTRO_SCREEN_RES=3 -DFINTRO_INSPECTOR)
+target_include_directories(fintro-imgui PRIVATE src/platform/imgui)
+target_include_directories(fintro-imgui PRIVATE src/platform/imgui src/platform/imgui/imgui src/platform/imgui/gl3w)
+target_compile_options(fintro-imgui PRIVATE -ggdb)
 
 # Point to your actual AmigaOS NDK
 target_compile_definitions(fintro-amiga PRIVATE -DAMIGA -DM_USE_STDLIB -DFINTRO_SCREEN_RES=2)
@@ -95,41 +139,8 @@ IF(MINGW)
     target_compile_definitions(fintro PRIVATE -Dmain=SDL_main)
     target_compile_options(fintro PRIVATE -mconsole)
     target_link_libraries(fintro mingw32 SDL2main SDL2 opengl32 -static-libgcc)
+
+    target_compile_definitions(fintro-imgui PRIVATE -Dmain=SDL_main -DUSE_SDL)
+    target_compile_options(fintro-imgui PRIVATE -mconsole)
+    target_link_libraries(fintro-imgui mingw32 SDL2main SDL2 opengl32 -static-libgcc -static-libstdc++)
 ENDIF()
-
-# Enscripten + SDL (Old wasm target)
-if(EMSCRIPTEN)
-    string(APPEND CMAKE_C_FLAGS " -s DEMANGLE_SUPPORT=1")
-    string(APPEND CMAKE_C_FLAGS " -s DISABLE_EXCEPTION_CATCHING=2")
-    string(APPEND CMAKE_C_FLAGS " -s USE_SDL=2")
-    string(APPEND CMAKE_C_FLAGS " -s USE_SDL_IMAGE=2")
-    string(APPEND CMAKE_C_FLAGS " -s ENVIRONMENT=web")
-    string(APPEND CMAKE_C_FLAGS " -s WASM=1")
-    string(APPEND CMAKE_C_FLAGS " -s INITIAL_MEMORY=64mb")
-
-    # Debug flags
-    # string(APPEND CMAKE_C_FLAGS " -DDEBUG")
-    # string(APPEND CMAKE_C_FLAGS " -gsource-map")
-    # string(APPEND CMAKE_C_FLAGS " --source-map-base http://localhost:8000/build_emscripten/")
-
-    # Release flags
-    string(APPEND CMAKE_C_FLAGS " -O3")
-
-    configure_file(
-        src/platform/enscripten/fe2-intro.html
-        ${CMAKE_CURRENT_BINARY_DIR}/fe2-intro.html
-    )
-
-    configure_file(
-        src/platform/wasm/manifest.json
-        ${CMAKE_CURRENT_BINARY_DIR}/manifest.json
-    )
-
-    # Allow the directory /data to be fetched by the web browser.
-    file(GLOB data_files "./data/*")
-    foreach(file ${data_files})
-        file(RELATIVE_PATH relative_file ${CMAKE_SOURCE_DIR} ${file})
-        string(APPEND CMAKE_C_FLAGS " --preload-file ${file}@/${relative_file}")
-    endforeach()
-    string(APPEND CMAKE_C_FLAGS " --preload-file ${CMAKE_SOURCE_DIR}/game@game")
-endif()

@@ -170,7 +170,7 @@ typedef struct sChannelRegisters {
 }  ChannelRegisters;
 #endif
 
-#define AUDIO_MASTER_VOL_MAX 128
+#define AUDIO_VOLUME_MAX 128
 #define AUDIO_SAMPLE_VOL_MAX 0x3f
 #define AUDIO_SAMPLE_CACHE_SIZE 30
 #define AUDIO_NUM_CHANNELS 4

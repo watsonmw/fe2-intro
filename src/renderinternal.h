@@ -79,7 +79,7 @@ typedef enum eRenderEnum {
     Render_BITMAP_TEXT = 0x12,
     Render_IF_NOT_VAR = 0x13,
     Render_IF_VAR = 0x14,
-    Render_ZTREE_PUSH_POP = 0x15,
+    Render_DEPTH_TREE_PUSH_POP = 0x15,
     Render_LINE_BEZIER = 0x16,
     Render_IF_SCREENSPACE_DIST = 0x17,
     Render_CICLES = 0x18,
@@ -136,18 +136,19 @@ typedef enum eDrawFuncEnum {
     DRAW_FUNC_BODY_START = 21,
     DRAW_FUNC_BODY_LINE = 22,
     DRAW_FUNC_BODY_BEZIER = 23,
-    DRAW_FUNC_BODY_XOR = 24,
+    DRAW_FUNC_BODY_TOGGLE_COLOUR = 24,
     DRAW_FUNC_BODY_DRAW_1 = 25,
     DRAW_FUNC_BODY_DRAW_2 = 26,
     DRAW_FUNC_BODY_DRAW_3 = 27,
-    DRAW_FUNC_NOP = 28
+    DRAW_FUNC_NOP = 28,
+    DRAW_FUNC_ELLIPSE = 29
 } DrawFuncEnum;
 
 typedef struct sVertexData {
     Vec2i16 sVec; // vertex in screen coords
 
     Vec3i32 vVec; // vertex in view space
-    Vec3i32 wVec; // vertex in world space
+    Vec3i32 rVec; // model vertex rotated to view space, but not yet translated
 
     // -1    : Transformed only - directly
     //  0    : Not projected yet
@@ -244,18 +245,17 @@ typedef struct sDrawParamsBezierColour {
 } MSTRUCTPACKED DrawParamsBezierColour;
 
 typedef struct sDrawParamsText {
-    u16 strOffset;
+    u16 strCode;
     i16 x;
     i16 y;
-    u16 t1;
-    u16 t2;
+    u32 strOffset;
     u16 t3;
 }  MSTRUCTPACKED DrawParamsText;
 
 typedef struct sDrawParamsBodyXor {
     i16 offset;
     i16 colour;
-}  MSTRUCTPACKED DrawParamsBodyXor;
+}  MSTRUCTPACKED DrawParamsBodyToggleColour;
 
 typedef struct sDrawParamsColour8 {
     u16 colour[8];

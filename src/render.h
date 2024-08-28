@@ -10,6 +10,9 @@
 #include "fmath.h"
 #include "assets.h"
 #include "audio.h"
+#ifdef FINTRO_INSPECTOR
+#include "modelcode.h"
+#endif
 
 #define FONT_HEIGHT 9
 #define FONT_NEW_LINE 10
@@ -56,7 +59,7 @@ typedef struct sSurface {
     u16 width;
     u16 height;
     u8* pixels;
-#ifdef FINSPECTOR
+#ifdef FINTRO_INSPECTOR
     u32* insOffset;
     u32 insOffsetTmp;
 #endif
@@ -83,20 +86,20 @@ void Surface_DrawRectFill(Surface* surface, int x1, int y1, int x2, int y2, u8 c
 
 MARRAY_TYPEDEF(u8*, PtrsU8)
 
-typedef struct sZTree {
+typedef struct sDepthTree {
     u8* data;
     u8* root;
     u32 offset;
     u32 size;
     u32 firstNodeOffset;
 
-#ifdef FINSPECTOR
+#ifdef FINTRO_INSPECTOR
     u32 insOffsetTmp;
     u32* insOffset;
 #endif
 
     PtrsU8 subTrees;
-} ZTree;
+} DepthTree;
 
 enum PaletteEntryStateEnum {
     PALETTESTATE_FIXED = 0,          // Pre allocated fixed colour
@@ -197,7 +200,7 @@ typedef struct sRasterContext {
     Surface* surface;
 
     PaletteContext paletteContext;
-    ZTree zTree;
+    DepthTree depthTree;
     SpanRenderer spanRenderer;
     BodySpanRenderer bodySpanRenderer;
     RasterOpNodeArray drawNodeStack;
@@ -227,10 +230,8 @@ typedef struct sSceneSetup {
     // Viewspace
     Matrix3x3i16 viewMatrix;
 
-    u16 x12;
-
-    // Viewport vec to object
-    Vec3i32 viewVec;
+    // Object pos in view space
+    Vec3i32 objectPosView;
 
     // Model to render (this model can render sub models)
     u16 modelIndex;
@@ -240,8 +241,8 @@ typedef struct sSceneSetup {
 
     i16 renderPlanetAtmos;
 
-    // Light vec transformed into viewspace
-    Vec3i16 lightVec;
+    // Light direction in viewspace
+    Vec3i16 lightDirView;
 
     // Shading map, added to model base colours based on facing towards light
     i16 shadeRamp[8];
@@ -250,7 +251,9 @@ typedef struct sSceneSetup {
     u32 random1;
     u32 random2;
 
-    i16 zScale;
+    i16 depthScale;
+    i16 renderDetail;
+    i16 planetDetail;
 
     // Model text (e.g. ship name / base name / platform name)
     i8 modelText[40];
@@ -267,16 +270,17 @@ typedef struct sSceneSetup {
     AudioContext* audio;
 
     MMemStack memStack;
-#ifdef FINSPECTOR
+#ifdef FINTRO_INSPECTOR
     // Logging info
     int logLevel;
     u32Array loadedModelIndexes;
     ByteCodeTraceArray byteCodeTrace;
-    b32 hideModel[200];
+    b32 hideModel[400];
     u8* modelDataFileStartAddress;
     u8* galmapModelDataFileStartAddress;
     u8* fontModelDataFileStartAddress;
     u32 renderDataOffset;
+    int planetRender;
 #endif
 } SceneSetup;
 
@@ -290,7 +294,7 @@ static ModelData* Render_GetModel(SceneSetup* sceneSetup, u16 offset) {
     return MArrayGet(sceneSetup->assets.models, offset);
 }
 
-#ifdef FINSPECTOR
+#ifdef FINTRO_INSPECTOR
 static u32 Render_GetModelCodeOffset(SceneSetup* sceneSetup, u16 offset) {
     ModelData* modelData = MArrayGet(sceneSetup->assets.models, offset);
     if (modelData == NULL) {
@@ -331,18 +335,6 @@ enum RotateAxisEnum {
     RotateAxis_Y = 1,
     RotateAxis_Z = 2,
 };
-
-#ifdef FINSPECTOR
-static u32 Render_GetModelCodeOffset(SceneSetup* sceneSetup, u16 offset) {
-    ModelData* modelData = MArrayGet(sceneSetup->assets.models, offset);
-    if (modelData == NULL) {
-        return 0;
-    }
-
-    u32 fileOffset = ((u8*)modelData - sceneSetup->modelDataFileStartAddress);
-    return fileOffset + modelData->codeOffset;
-}
-#endif
 
 void Render_RunTests(void);
 
