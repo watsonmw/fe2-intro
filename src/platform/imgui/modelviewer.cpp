@@ -3,21 +3,22 @@
 
 void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData) {
     SceneSetup* sceneSetup = &viewer->sceneSetup;
+    RenderEntity* entity = &viewer->entity;
 
-    memset(sceneSetup->modelVars, 0, sizeof(sceneSetup->modelVars));
+    memset(entity->entityVars, 0, sizeof(entity->entityVars));
 
-    sceneSetup->shadeRamp[0] = 0x0777;
-    sceneSetup->shadeRamp[1] = 0x0777;
-    sceneSetup->shadeRamp[2] = 0x0666;
-    sceneSetup->shadeRamp[3] = 0x0555;
-    sceneSetup->shadeRamp[4] = 0x0444;
-    sceneSetup->shadeRamp[5] = 0x0333;
-    sceneSetup->shadeRamp[6] = 0x0222;
-    sceneSetup->shadeRamp[7] = 0x0111;
+    entity->shadeRamp[0] = 0x0777;
+    entity->shadeRamp[1] = 0x0777;
+    entity->shadeRamp[2] = 0x0666;
+    entity->shadeRamp[3] = 0x0555;
+    entity->shadeRamp[4] = 0x0444;
+    entity->shadeRamp[5] = 0x0333;
+    entity->shadeRamp[6] = 0x0222;
+    entity->shadeRamp[7] = 0x0111;
 
-    sceneSetup->lightDirView[0] = 0xb619;
-    sceneSetup->lightDirView[1] = 0xb619;
-    sceneSetup->lightDirView[2] = 0x49e7;
+    entity->lightDirView[0] = 0xb619;
+    entity->lightDirView[1] = 0xb619;
+    entity->lightDirView[2] = 0x49e7;
 
     Assets_LoadModelPointers16LE(assetsData->mainExeData + 0x418d4, 300, &sceneSetup->assets.models);
     Assets_LoadModelPointers16LE(assetsData->galmapModels, 15, &sceneSetup->assets.galmapModels);
@@ -25,7 +26,7 @@ void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData) {
     sceneSetup->moduleStrings = Assets_LoadStringPointers16LE(assetsData->mainStringData, 126);
     sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
 
-    memcpy(sceneSetup->modelText, " usil24", 8);
+    memcpy(entity->entityText, " usil24", 8);
 
     viewer->yaw = 0;
     viewer->roll = 0;
@@ -39,21 +40,22 @@ void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData) {
 
 void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsDataAmiga* assetsData) {
     SceneSetup* sceneSetup = &viewer->sceneSetup;
+    RenderEntity* entity = &viewer->entity;
 
-    memset(sceneSetup->modelVars, 0, sizeof(sceneSetup->modelVars));
+    memset(entity->entityVars, 0, sizeof(entity->entityVars));
 
-    sceneSetup->shadeRamp[0] = 0x0777;
-    sceneSetup->shadeRamp[1] = 0x0777;
-    sceneSetup->shadeRamp[2] = 0x0666;
-    sceneSetup->shadeRamp[3] = 0x0555;
-    sceneSetup->shadeRamp[4] = 0x0444;
-    sceneSetup->shadeRamp[5] = 0x0333;
-    sceneSetup->shadeRamp[6] = 0x0222;
-    sceneSetup->shadeRamp[7] = 0x0111;
+    entity->shadeRamp[0] = 0x0777;
+    entity->shadeRamp[1] = 0x0777;
+    entity->shadeRamp[2] = 0x0666;
+    entity->shadeRamp[3] = 0x0555;
+    entity->shadeRamp[4] = 0x0444;
+    entity->shadeRamp[5] = 0x0333;
+    entity->shadeRamp[6] = 0x0222;
+    entity->shadeRamp[7] = 0x0111;
 
-    sceneSetup->lightDirView[0] = 0xb619;
-    sceneSetup->lightDirView[1] = 0xb619;
-    sceneSetup->lightDirView[2] = 0x49e7;
+    entity->lightDirView[0] = 0xb619;
+    entity->lightDirView[1] = 0xb619;
+    entity->lightDirView[2] = 0x49e7;
 
     u8* fileData = assetsData->mainExeData;
 
@@ -96,7 +98,7 @@ void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsDataAmiga* assetsData) {
     sceneSetup->assets.mainStrings = assetsData->mainStrings;
     sceneSetup->moduleStrings = sceneSetup->assets.mainStrings;
 
-    memcpy(sceneSetup->modelText, "  usil24", 9);
+    memcpy(entity->entityText, "  usil24", 9);
 
     viewer->yaw = 0;
     viewer->roll = 0;
@@ -113,7 +115,8 @@ void ModelViewer_Free(ModelViewer* viewer) {
 
 bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
     SceneSetup* sceneSetup = &viewer->sceneSetup;
-    sceneSetup->modelIndex = modelOffset;
+    RenderEntity* entity = &viewer->entity;
+    entity->modelIndex = modelOffset;
 
     ModelData* modelData = Render_GetModel(sceneSetup, modelOffset);
     if (modelData == NULL) {
@@ -133,14 +136,14 @@ bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
         return false;
     }
 
-    sceneSetup->depthScale = viewer->depthScale;
+    entity->depthScale = viewer->depthScale;
     if (modelData->scale2 > 0) {
-        sceneSetup->depthScale = 7 + modelData->scale2;
+        entity->depthScale = 7 + modelData->scale2;
     }
     sceneSetup->renderDetail = viewer->renderDetail;
     sceneSetup->planetDetail = viewer->planetDetail;
 
-    i32 scale = (i32)modelData->scale1 + modelData->scale2 - sceneSetup->depthScale;
+    i32 scale = (i32)modelData->scale1 + modelData->scale2 - entity->depthScale;
 
     i32 x = viewer->pos[0];
     i32 y = viewer->pos[1];
@@ -169,9 +172,9 @@ bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
     } else if (rScale < 0) {
         offsetZ >>= -rScale;
     }
-    sceneSetup->objectPosView[0] = x;
-    sceneSetup->objectPosView[1] = y;
-    sceneSetup->objectPosView[2] = z + offsetZ;
+    entity->objectPosView[0] = x;
+    entity->objectPosView[1] = y;
+    entity->objectPosView[2] = z + offsetZ;
 
     Matrix3x3i16 m;
     i16 sinA = 0;
@@ -198,7 +201,7 @@ bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
     m[2][1] = (i16)(((((i32)sinA * -sinB) >> 15) * (((i32)cosY)) - ((i32)cosA * sinY))  >> 15);
     m[2][2] = (i16)(((i32)-cosB * cosY) >> 15);
 
-    Matrix3i16Copy(m, sceneSetup->viewMatrix);
+    Matrix3i16Copy(m, entity->viewMatrix);
 
     return true;
 }

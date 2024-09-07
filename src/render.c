@@ -67,10 +67,10 @@
 
 #define MINTERNAL static
 
-// TODO:
-//   - Some matrix setup modes are not implemented (not needed for intro)
-//   - Some text rendering options are not implemented (not needed for intro)
-//   - Many text sourcing / formatting functions are not implemented (not needed for intro)
+// TODO:  (none of these needed for intro, but would for full game)
+//   - Some matrix setup modes are not implemented
+//   - Some text rendering options are not implemented
+//   - Many text sourcing / formatting functions are not implemented
 //   - Bitmap text attached to model not supported e.g. HUD strings
 
 #ifdef __GNUC__
@@ -2498,7 +2498,7 @@ MINTERNAL void DoRasterTree(RasterContext* raster, u8* mem, RasterOpNode* drawNo
     } while (drawNode != NULL || MArraySize(raster->drawNodeStack) > initialSize);
 }
 
-void Raster_Draw(RasterContext *raster) {
+void Raster_Draw(RasterContext* raster) {
     raster->paletteContext.nextFreeColour = 0;
 
     u8* depthTreeMem = raster->depthTree.data;
@@ -2529,7 +2529,7 @@ typedef struct sRenderFrame {
 
     u16* vertexData; // into modelData->data, typically packed vertex data, vertex per dword
 
-    SceneSetup* renderContext;
+    RenderEntity* renderObject;
 
     // Current byte code position
     u8* byteCodePos;
@@ -2689,8 +2689,9 @@ typedef struct sRenderContext {
     i16 renderPlanetAtmos;
 
     PaletteContext* palette;
-    SceneSetup* sceneSetup;
+    RenderEntity* entity;
     MMemStack* memStack;
+    SceneSetup* sceneSetup;
 
 #ifdef FINTRO_INSPECTOR
     int logLevel;
@@ -2947,7 +2948,7 @@ MINTERNAL u16 GetValueForParam8(RenderFrame* rf, u16 param8) {
         case 0x40:
             return val << 10;
         case 0x80:
-            return rf->renderContext->modelVars[val];
+            return rf->renderObject->entityVars[val];
         case 0xc0:
         default:
             // this can alias values off the end of this struct?
@@ -2977,7 +2978,7 @@ MINTERNAL u16 GetValueForParam16(RenderFrame* rf, u16 param16) {
             // this can alias values off the end of this struct?
             return rf->tmpVariable[val];
         } else {
-            return rf->renderContext->modelVars[val];
+            return rf->renderObject->entityVars[val];
         }
     }
 
@@ -4421,9 +4422,7 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
     }
 }
 
-u32 Render_LoadFormattedString(SceneSetup* sceneSetup, u16 index, i8* outputBuffer, u32 outputBufferLen);
-
-u32 Render_ProcessString(SceneSetup* sceneSetup, const i8* text, i8* outputBuffer, u32 outputBufferLen) {
+u32 Render_ProcessString(SceneSetup* sceneSetup, RenderEntity* entity, const i8* text, i8* outputBuffer, u32 outputBufferLen) {
     u32 readIndex = 0;
     u32 writeIndex = 0;
     u8  c;
@@ -4440,7 +4439,7 @@ u32 Render_ProcessString(SceneSetup* sceneSetup, const i8* text, i8* outputBuffe
             readIndex += 3;
         } else if (c == 0xff) {
             u16 offset = (text[readIndex + 2] << 8) + text[readIndex + 1];
-            writeIndex += Render_LoadFormattedString(sceneSetup, offset, outputBuffer + writeIndex, outputBufferLen);
+            writeIndex += Render_LoadFormattedString(sceneSetup, entity, offset, outputBuffer + writeIndex, outputBufferLen);
             readIndex += 3;
         } else {
             outputBuffer[writeIndex] = c;
@@ -4455,6 +4454,66 @@ enum LoadStringEnum {
     LoadString_ModelText = 22,
     LoadString_ModelTextWordWrap = 34
 };
+
+MINTERNAL u32 WordWrap(i8* text, u32 textBufferLen, u32 len, u16 max) {
+    u32 charsOnLine = 0;
+    u32 lastWordEnd = 0;
+
+    for (u32 i = 0; i < len; i++) {
+        u8 c = text[i];
+        charsOnLine++;
+        if (c == 0x20) {
+            lastWordEnd = i;
+            if (charsOnLine > max) {
+                text[i] = 0xd;
+                charsOnLine = 0;
+            }
+        }
+    }
+    return len;
+}
+
+u32 Render_LoadFormattedString(SceneSetup* sceneSetup, RenderEntity* entity, u16 index, i8* outputBuffer, u32 outputBufferLen) {
+    if (index & 0x8000) {
+        MLogf("Unhandled LoadFormattedString %d", index);
+        outputBuffer[0] = 'N';
+        outputBuffer[1] = '/';
+        outputBuffer[2] = 'A';
+        outputBuffer[3] = 0;
+    } else if (index & 0x4000) {
+        // 'Module' string e.g. star system / galmap
+        index &= 0x7f;
+        i8* text = (i8*)(sceneSetup->moduleStrings[index]);
+        return Render_ProcessString(sceneSetup, entity, text, outputBuffer, outputBufferLen);
+    } else if (index >= 0x3000) {
+        // Instance text
+        index = (index & 0x7f);
+        switch (index) {
+            case LoadString_ModelText: {
+                return Render_ProcessString(sceneSetup, entity, entity->entityText, outputBuffer, outputBufferLen);
+            }
+            case LoadString_ModelTextWordWrap: {
+                u32 len = Render_ProcessString(sceneSetup, entity, entity->entityText, outputBuffer, outputBufferLen);
+                return WordWrap(outputBuffer, outputBufferLen, len, 40);
+            }
+            default:
+                outputBuffer[0] = '?';
+                outputBuffer[1] = '?';
+                outputBuffer[2] = '?';
+                outputBuffer[3] = 0;
+                break;
+        }
+    } else {
+        // Load fixed string exec?
+        index &= 0x7f;
+        MLogf("Unhandled LoadFormattedString %d", index);
+        outputBuffer[0] = 'N';
+        outputBuffer[1] = '/';
+        outputBuffer[2] = 'A';
+        outputBuffer[3] = 0;
+    }
+    return 0;
+}
 
 MINTERNAL i16 DrawBitmapChar(u8* bitmapFontData, u8* pixels, i16 x, i16 y, u8 charIndex, u8 colour) {
     if (x < 0 || x >= (SURFACE_WIDTH - FONT_MIN_WIDTH)) {
@@ -4547,66 +4606,6 @@ void Render_DrawBitmapText(SceneSetup* sceneSetup, const i8* text, Vec2i16 pos, 
         }
         c = text[i++];
     }
-}
-
-u32 WordWrap(i8* text, u32 textBufferLen, u32 len, u16 max) {
-    u32 charsOnLine = 0;
-    u32 lastWordEnd = 0;
-
-    for (u32 i = 0; i < len; i++) {
-        u8 c = text[i];
-        charsOnLine++;
-        if (c == 0x20) {
-            lastWordEnd = i;
-            if (charsOnLine > max) {
-                text[i] = 0xd;
-                charsOnLine = 0;
-            }
-        }
-    }
-    return len;
-}
-
-u32 Render_LoadFormattedString(SceneSetup* sceneSetup, u16 index, i8* outputBuffer, u32 outputBufferLen) {
-    if (index & 0x8000) {
-        MLogf("Unhandled LoadFormattedString %d", index);
-        outputBuffer[0] = 'N';
-        outputBuffer[1] = '/';
-        outputBuffer[2] = 'A';
-        outputBuffer[3] = 0;
-    } else if (index & 0x4000) {
-        // Load string from current module
-        index &= 0x7f;
-        i8* text = (i8*)(sceneSetup->moduleStrings[index]);
-        return Render_ProcessString(sceneSetup, text, outputBuffer, outputBufferLen);
-    } else if (index >= 0x3000) {
-        // Model text
-        index = (index & 0x7f);
-        switch (index) {
-            case LoadString_ModelText: {
-                return Render_ProcessString(sceneSetup, sceneSetup->modelText, outputBuffer, outputBufferLen);
-            }
-            case LoadString_ModelTextWordWrap: {
-                u32 len = Render_ProcessString(sceneSetup, sceneSetup->modelText, outputBuffer, outputBufferLen);
-                return WordWrap(outputBuffer, outputBufferLen, len, 40);
-            }
-            default:
-                outputBuffer[0] = '?';
-                outputBuffer[1] = '?';
-                outputBuffer[2] = '?';
-                outputBuffer[3] = 0;
-                break;
-        }
-    } else {
-        // Load fixed string exec?
-        index &= 0x7f;
-        MLogf("Unhandled LoadFormattedString %d", index);
-        outputBuffer[0] = 'N';
-        outputBuffer[1] = '/';
-        outputBuffer[2] = 'A';
-        outputBuffer[3] = 0;
-    }
-    return 0;
 }
 
 void Render_ImageFromPlanerBitmap(Image8Bit* image, const u8* bitmapRaw, const u16* colours, u16 numColours) {
@@ -5537,7 +5536,7 @@ MINTERNAL int RenderSubModel(RenderContext* renderContext, RenderFrame* rf, u16 
 
     u16 modelIndex = (funcParam >> 5) & 0xff;
 
-    ModelData* modelData = Render_GetModel(rf->renderContext, modelIndex);
+    ModelData* modelData = Render_GetModel(renderContext->sceneSetup, modelIndex);
 
     scale += modelData->scale1 + modelData->scale2 - rf->depthScale;
 
@@ -5613,7 +5612,7 @@ doneProjects:
 
     CopyVertexView(objectPosition, newRenderFrame->objectPos);
     newRenderFrame->depthScale = rf->depthScale;
-    newRenderFrame->renderContext = rf->renderContext;
+    newRenderFrame->renderObject = rf->renderObject;
     newRenderFrame->parentVertexTrans = rf->vertexTrans;
     newRenderFrame->parentVertices = rf->vertexTrans;
     newRenderFrame->scale = scale;
@@ -6111,7 +6110,7 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
     RenderFrame* newRenderFrame = PushRenderFrame(rc);
 
     newRenderFrame->depthScale = rf->depthScale;
-    newRenderFrame->renderContext = rf->renderContext;
+    newRenderFrame->renderObject = rf->renderObject;
 
     CopyVertexView(v1, newRenderFrame->objectPos);
     CopyVertexView(v1, newRenderFrame->lineStartVec);
@@ -6134,7 +6133,7 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
     }
 
     u16 fontIndex = (param1 >> 12);
-    FontModelData* font = GetFontModel(rf->renderContext, fontIndex);
+    FontModelData* font = GetFontModel(rc->sceneSetup, fontIndex);
 
     newRenderFrame->vertexData = (u16*) (((u8*)font) + font->vertexDataOffset);
 
@@ -6145,7 +6144,7 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
     newRenderFrame->modelData = (ModelData*)font;
 
 #ifdef FINTRO_INSPECTOR
-    newRenderFrame->fileDataStartAddress = rf->renderContext->fontModelDataFileStartAddress;
+    newRenderFrame->fileDataStartAddress = rc->sceneSetup->fontModelDataFileStartAddress;
 #endif
 
 #ifdef FRAME_MEM_USE_STACK_ALLOC
@@ -6189,7 +6188,7 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
     newRenderFrame->frameId = 2;
 
     // Render each char
-    Render_LoadFormattedString(rf->renderContext, param3, textBuffer, textBufSize);
+    Render_LoadFormattedString(rc->sceneSetup, rf->renderObject, param3, textBuffer, textBufSize);
 
     int i = 0;
     u8 c = 0;
@@ -6415,7 +6414,7 @@ MINTERNAL int RenderCalc(RenderContext* renderContext, u16 funcParam) {
         }
         case MathFunc_GetModelVar: {
             u16 i = (p1 + p2);
-            u16Result = rf->renderContext->modelVars[i];
+            u16Result = rf->renderObject->entityVars[i];
             break;
         }
         case MathFunc_ZeroIfGreater: {
@@ -8677,11 +8676,11 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
 //                i16 colors[] = {0xfff, 0xf00, 0x0f0, 0xff0};
 //                for (int i = 0; i < 4; i++) {
 //                    bezierPt[i] = ScreenCoords(bezierPt[i]);
-//                    DrawParamsCircle* draw = BatchCircle(renderContext->depthTree);
+//                    DrawParamsCircle* draw = BatchCircle(entity->depthTree);
 //                    draw->x = bezierPt[i].x;
 //                    draw->y = bezierPt[i].y;
 //                    draw->diameter = 7;
-//                    draw->colour = Palette_GetIndexFor12bitColour(renderContext->palette, colors[i]);
+//                    draw->colour = Palette_GetIndexFor12bitColour(entity->palette, colors[i]);
 //                }
                 DrawParamsBezierColour * drawBezier = NULL;
                 cpMinorAxisW /= 2;
@@ -8815,7 +8814,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
             workspace.doneRenderFeatures = 0;
             workspace.radiusFeatureDraw = radiusScaled;
 //            workspace.radiusFeatureDraw = (workspace.radiusScaled * 0x82c0) >> 15; // * 1.02
-            workspace.random = (rf->renderContext->modelVars[3] << 16) + rf->renderContext->modelVars[2];
+            workspace.random = (rf->renderObject->entityVars[3] << 16) + rf->renderObject->entityVars[2];
 
             while (featureCtrl) {
                 if (featureCtrl < 0) {
@@ -9033,7 +9032,7 @@ MINTERNAL void FrameRenderObjects(RenderContext* rc, ModelData* model) {
     u8* data = ((u8*)model) + model->codeOffset;
     rf->byteCodePos = data;
 #ifdef FINTRO_INSPECTOR
-    rf->fileDataStartAddress = rf->renderContext->modelDataFileStartAddress;
+    rf->fileDataStartAddress = rc->sceneSetup->modelDataFileStartAddress;
 #endif
     InterpretModelCode(rc, rf);
 
@@ -9062,7 +9061,7 @@ void Render_Free(SceneSetup* sceneSetup) {
 #endif
 }
 
-void Render_RenderScene(SceneSetup* sceneSetup) {
+void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* renderEntity) {
     RenderContext renderContext;
 
     memset(renderContext.renderFrame, 0, sizeof(renderContext.renderFrame));
@@ -9070,8 +9069,8 @@ void Render_RenderScene(SceneSetup* sceneSetup) {
     renderContext.currentRenderFrame = renderContext.renderFrame;
     renderContext.currentRenderFrameIx = 0;
 
-    renderContext.random1 = sceneSetup->random1;
-    renderContext.random2 = sceneSetup->random2;
+    renderContext.random1 = renderEntity->random1;
+    renderContext.random2 = renderEntity->random2;
 
     renderContext.depthTree = &sceneSetup->raster->depthTree;
     DepthTree_Clear(renderContext.depthTree);
@@ -9089,15 +9088,16 @@ void Render_RenderScene(SceneSetup* sceneSetup) {
     renderContext.currentRenderFrame = NULL;
     RenderFrame* rf = PushRenderFrame(&renderContext);
 
-    renderContext.sceneSetup = sceneSetup;
+    renderContext.entity = renderEntity;
     renderContext.memStack = &sceneSetup->memStack;
 
     renderContext.renderPlanetAtmos = sceneSetup->renderPlanetAtmos;
+    renderContext.sceneSetup = sceneSetup;
 
-    rf->renderContext = sceneSetup;
+    rf->renderObject = renderEntity;
     rf->matrixWinding = 0;
 
-    ModelData* modelData = Render_GetModel(sceneSetup, sceneSetup->modelIndex);
+    ModelData* modelData = Render_GetModel(sceneSetup, renderEntity->modelIndex);
 
 #ifdef FINTRO_INSPECTOR
     renderContext.logLevel = sceneSetup->logLevel;
@@ -9106,12 +9106,12 @@ void Render_RenderScene(SceneSetup* sceneSetup) {
 #endif
 
     // Copy rotation to view space
-    Matrix3i16Copy(rf->renderContext->viewMatrix, rf->objectToView);
+    Matrix3i16Copy(rf->renderObject->viewMatrix, rf->objectToView);
 
-    Vec3i32Copy(sceneSetup->objectPosView, rf->objectPos);
+    Vec3i32Copy(renderEntity->objectPosView, rf->objectPos);
 
-    rf->scale = modelData->scale1 + modelData->scale2 - sceneSetup->depthScale; // Simple draw setup, doesn't work for directly drawing large objects e.g. planets
-    rf->depthScale = sceneSetup->depthScale;
+    rf->scale = modelData->scale1 + modelData->scale2 - renderEntity->depthScale; // Simple draw setup, doesn't work for directly drawing large objects e.g. planets
+    rf->depthScale = renderEntity->depthScale;
 
     if (!CheckClipped(&renderContext, modelData)) {
         return;
@@ -9122,11 +9122,11 @@ void Render_RenderScene(SceneSetup* sceneSetup) {
     rf->baseColour = 0x111;
 
     // Light vector
-    Vec3i16Copy(sceneSetup->lightDirView, rf->lightDirView);
+    Vec3i16Copy(renderEntity->lightDirView, rf->lightDirView);
 
     // Copy light colour ramp
     for (int i = 0; i < 8; i++) {
-        rf->shadeRamp[i] = sceneSetup->shadeRamp[i];
+        rf->shadeRamp[i] = renderEntity->shadeRamp[i];
     }
 
     TransformLightAndViewVectors(&renderContext);
@@ -9139,8 +9139,8 @@ void Render_RenderScene(SceneSetup* sceneSetup) {
     renderContext.currentBatchId = 0;
 
     // Save updated seed for next frame
-    sceneSetup->random1 = renderContext.random1;
-    sceneSetup->random2 = renderContext.random2;
+    renderEntity->random1 = renderContext.random1;
+    renderEntity->random2 = renderContext.random2;
 }
 
 MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf) {
@@ -9296,14 +9296,14 @@ MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf)
     }
 }
 
-void Render_RenderAndDrawScene(SceneSetup* sceneSetup, b32 resetPalette) {
+void Render_RenderAndDrawScene(SceneSetup* sceneSetup, RenderEntity* renderEntity, b32 resetPalette) {
 #ifdef FINTRO_INSPECTOR
     MArrayClear(sceneSetup->loadedModelIndexes);
     MArrayClear(sceneSetup->byteCodeTrace);
 #endif
 
     Palette_SetupForNewFrame(&sceneSetup->raster->paletteContext, resetPalette);
-    Render_RenderScene(sceneSetup);
+    Render_RenderScene(sceneSetup, renderEntity);
     Palette_CalcDynamicColourUpdates(&sceneSetup->raster->paletteContext);
     Surface_Clear(sceneSetup->raster->surface, BACKGROUND_COLOUR_INDEX);
     Raster_Draw(sceneSetup->raster);

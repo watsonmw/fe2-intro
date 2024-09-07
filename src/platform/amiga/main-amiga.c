@@ -382,11 +382,11 @@ static void Palette_CopyDynamicColours(PaletteContext* context) {
     }
 }
 
-static void RenderIntroAtTime(Intro* intro, SceneSetup* sceneSetup, int frameOffset, b32 resetPalette, u64 startClock) {
-    Intro_SetSceneForFrameOffset(intro, sceneSetup, frameOffset);
+static void RenderIntroAtTime(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, int frameOffset, b32 resetPalette, u64 startClock) {
+    Intro_SetSceneForFrameOffset(intro, sceneSetup, entity, frameOffset);
 
     Palette_SetupForNewFrame(&sceneSetup->raster->paletteContext, resetPalette);
-    Render_RenderScene(sceneSetup);
+    Render_RenderScene(sceneSetup, entity);
     u64 renderClock = AOS_GetClockCount();
     sRenderTime = ((renderClock - startClock) * 10000) / sClockTickInterval;
 
@@ -674,6 +674,7 @@ __stdargs int main(int argc, char** argv) {
     raster.legacy = 0;
     Raster_Init(&raster);
 
+    RenderEntity introEntity;
     SceneSetup introSceneSetup;
     Render_Init(&introSceneSetup, &raster);
 
@@ -687,7 +688,7 @@ __stdargs int main(int argc, char** argv) {
         Audio_ModStart(&sAudioContext, sModToPlay);
     }
 
-    Intro_InitAmiga(&sIntro, &introSceneSetup, &assetsDataAmiga);
+    Intro_InitAmiga(&sIntro, &introSceneSetup, &introEntity, &assetsDataAmiga);
 
     // Read model overrides if exists
     ModelsArray overrideModels;
@@ -744,7 +745,7 @@ __stdargs int main(int argc, char** argv) {
         MLogf("Profiling frames [samples x%d]...", SAMPLES_REPEAT);
         for (int i = 0; i < WARMUP_SAMPLES; i++) {
             sCurrentClock = AOS_GetClockCount();
-            RenderIntroAtTime(&sIntro, &introSceneSetup, sFrameOffset, FALSE, sCurrentClock);
+            RenderIntroAtTime(&sIntro, &introSceneSetup, &introEntity, sFrameOffset, FALSE, sCurrentClock);
         }
 
         MMemWriteU16BE(&stats, 0); // version
@@ -756,7 +757,7 @@ __stdargs int main(int argc, char** argv) {
             u32 renderTimes[SAMPLES_REPEAT];
             for (int i = 0; i < SAMPLES_REPEAT; i++) {
                 sCurrentClock = AOS_GetClockCount();
-                RenderIntroAtTime(&sIntro, &introSceneSetup, frameOffset, FALSE, sCurrentClock);
+                RenderIntroAtTime(&sIntro, &introSceneSetup, &introEntity, frameOffset, FALSE, sCurrentClock);
                 rasterTimes[i] = sRasterTime;
                 renderTimes[i] = sRenderTime;
             }
@@ -847,7 +848,7 @@ __stdargs int main(int argc, char** argv) {
             }
 
             if (!sPause || sRender) {
-                RenderIntroAtTime(&sIntro, &introSceneSetup, sFrameOffset, FALSE, sCurrentClock);
+                RenderIntroAtTime(&sIntro, &introSceneSetup, &introEntity, sFrameOffset, FALSE, sCurrentClock);
                 sRender = FALSE;
             }
 

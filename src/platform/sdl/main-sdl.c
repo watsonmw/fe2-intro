@@ -45,10 +45,10 @@ static void UpdateSurfaceTexture(Surface* surface, RGB* palette, u8* pixels, int
     }
 }
 
-static void RenderIntroAtTime(Intro* intro, SceneSetup* sceneSetup, int frameOffset) {
-    Intro_SetSceneForFrameOffset(intro, sceneSetup, frameOffset);
+static void RenderIntroAtTime(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, int frameOffset) {
+    Intro_SetSceneForFrameOffset(intro, sceneSetup, entity, frameOffset);
 
-    Render_RenderAndDrawScene(sceneSetup, FALSE);
+    Render_RenderAndDrawScene(sceneSetup, entity, FALSE);
 
     Intro_Post3dRender(intro, sceneSetup, frameOffset);
 
@@ -193,7 +193,7 @@ int CompileFileAndWriteOut(const char* fileToCompile, const char* fileOutputPath
     return result;
 }
 
-void HotReload(SceneSetup *introSceneSetup, SceneSetup *sceneSetup) {
+void HotReload(SceneSetup* sceneSetup) {
     MMemReset(&sModelOverrides);
     ModelsArray modelsArray;
     MArrayInit(modelsArray);
@@ -201,7 +201,7 @@ void HotReload(SceneSetup *introSceneSetup, SceneSetup *sceneSetup) {
     CompileFileAndWriteOut(sFileToHotCompile, INTRO_OVERRIDES_LE, &sModelOverrides, &modelsArray,
                            ModelEndian_LITTLE, TRUE);
 
-    MArrayCopy(sOrigModels, (*introSceneSetup).assets.models);
+    MArrayCopy(sOrigModels, (*sceneSetup).assets.models);
     for (int i = 0; i < MArraySize(modelsArray); i++) {
         if (modelsArray.arr[i] != NULL) {
             MArraySet(sceneSetup->assets.models, i, modelsArray.arr[i]);
@@ -231,7 +231,7 @@ typedef struct LoopContext {
     AudioContext audio;
     Intro intro;
     SceneSetup introScene;
-    SceneSetup* sceneSetup;
+    RenderEntity entity;
     AssetsDataAmiga* assetsDataAmiga;
     Surface surface;
 
@@ -357,7 +357,7 @@ void MainLoopIteration() {
                         PauseIntro(FALSE);
                         sLoopContext.windowHidden = FALSE;
                         if (sFileToHotCompile) {
-                            HotReload(&sLoopContext.introScene, sLoopContext.sceneSetup);
+                            HotReload(&sLoopContext.introScene);
                             sRender = TRUE;
                         }
                     } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
@@ -403,7 +403,7 @@ void MainLoopIteration() {
     }
 
     if (!sPause || sRender) {
-        RenderIntroAtTime(&sLoopContext.intro, &sLoopContext.introScene, sFrameOffset);
+        RenderIntroAtTime(&sLoopContext.intro, &sLoopContext.introScene, &sLoopContext.entity, sFrameOffset);
         sRender = FALSE;
     }
 
@@ -481,7 +481,7 @@ int main(int argc, char**argv) {
     AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub2;
     Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExe, assetsRead);
     sLoopContext.intro.drawFrontierLogo = 1;
-    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &assetsDataAmiga);
+    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &sLoopContext.entity, &assetsDataAmiga);
 
     if (sDumpIntroModels) {
         WriteAllModels(&sLoopContext.introScene.assets.models, assetsDataAmiga.mainExeData);
@@ -541,7 +541,6 @@ int main(int argc, char**argv) {
 
     sLoopContext.texture = SDL_CreateTexture(sLoopContext.renderer, SDL_PIXELFORMAT_RGBA8888,SDL_TEXTUREACCESS_STREAMING,
             SURFACE_WIDTH, SURFACE_HEIGHT);
-    SceneSetup* sceneSetup = &sLoopContext.introScene;
 
     sClockTickInterval = SDL_GetPerformanceFrequency();
 
@@ -555,7 +554,6 @@ int main(int argc, char**argv) {
     sLoopContext.fpsFrames = 0;
     sLoopContext.numIntroFrames = Intro_GetNumFrames(&sLoopContext.intro);
     sLoopContext.prevClock = SDL_GetPerformanceCounter();
-    sLoopContext.sceneSetup = sceneSetup;
     sLoopContext.assetsDataAmiga = &assetsDataAmiga;
 
     StartIntro();
@@ -565,7 +563,7 @@ int main(int argc, char**argv) {
     }
 
     Audio_Exit(&sLoopContext.audio);
-    Intro_Free(&sLoopContext.intro, sceneSetup);
+    Intro_Free(&sLoopContext.intro, &sLoopContext.introScene);
     Assets_FreeAmigaFiles(&assetsDataAmiga);
     MArrayFree(overrideModels);
     if (overridesFile.data) {
@@ -574,7 +572,7 @@ int main(int argc, char**argv) {
 
     MArrayFree(sOrigModels);
 
-    Render_Free(sceneSetup);
+    Render_Free(&sLoopContext.introScene);
     Raster_Free(&raster);
     Surface_Free(&sLoopContext.surface);
 

@@ -4,6 +4,7 @@
 #include "render.h"
 
 typedef struct sModelViewer {
+    RenderEntity entity;
     SceneSetup sceneSetup;
     i32 yaw;
     i32 pitch;

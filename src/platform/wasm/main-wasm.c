@@ -51,6 +51,7 @@ typedef struct LoopContext {
     Intro intro;
     RasterContext raster;
     SceneSetup introScene;
+    RenderEntity entity;
     AssetsDataAmiga assetsDataAmiga;
     ModelsArray overrideModels;
     Surface surface;
@@ -93,10 +94,10 @@ static void UpdateSurfaceTexture(Surface* surface, RGB* palette, u8* pixels, int
     }
 }
 
-static void RenderIntroAtTime(Intro* intro, SceneSetup* sceneSetup, int frameOffset) {
-    Intro_SetSceneForFrameOffset(intro, sceneSetup, frameOffset);
+static void RenderIntroAtTime(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, int frameOffset) {
+    Intro_SetSceneForFrameOffset(intro, sceneSetup, entity, frameOffset);
 
-    Render_RenderAndDrawScene(sceneSetup, FALSE);
+    Render_RenderAndDrawScene(sceneSetup, entity, FALSE);
 
     Intro_Post3dRender(intro, sceneSetup, frameOffset);
 
@@ -207,7 +208,7 @@ int setup(void) {
     AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub2;
     Assets_LoadAmigaFiles(&sLoopContext.assetsDataAmiga, &sLoopContext.gameExeFile, assetsRead);
     sLoopContext.intro.drawFrontierLogo = 0;
-    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &sLoopContext.assetsDataAmiga);
+    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &sLoopContext.entity, &sLoopContext.assetsDataAmiga);
 
     MArrayInit(sLoopContext.overrideModels);
     sLoopContext.overridesFile =
@@ -237,7 +238,7 @@ int setup(void) {
 __attribute__((export_name("cleanup")))
 void cleanup(void) {
     Audio_Exit(&sLoopContext.audio);
-//    Intro_Free(&sLoopContext.intro, sceneSetup);
+//    Intro_Free(&sLoopContext.intro, entity);
 //    Assets_FreeAmigaFiles(&assetsDataAmiga);
 //    MArrayFree(overrideModels);
 //    if (overridesFile.data) {
@@ -246,7 +247,7 @@ void cleanup(void) {
 //
 //    MArrayFree(sOrigModels);
 //
-//    Render_Free(sceneSetup);
+//    Render_Free(entity);
 //    Raster_Free(&raster);
     Surface_Free(&sLoopContext.surface);
 }
@@ -326,7 +327,7 @@ void render(u32 currentTimestampMs) {
         }
 
         if (!sLoopContext.pause || sLoopContext.render) {
-            RenderIntroAtTime(&sLoopContext.intro, &sLoopContext.introScene, sLoopContext.frameOffset);
+            RenderIntroAtTime(&sLoopContext.intro, &sLoopContext.introScene, &sLoopContext.entity, sLoopContext.frameOffset);
             sLoopContext.render = FALSE;
         }
 

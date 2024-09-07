@@ -33,11 +33,11 @@ typedef struct sScenePos {
     i32 offset;
 } ScenePos;
 
-void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData);
-void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* assetsData);
+void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, AssetsDataPC* assetsData);
+void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, AssetsDataAmiga* assetsData);
 void Intro_Free(Intro* intro, SceneSetup* sceneSetup);
 
-void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, i32 frameOffset);
+void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, i32 frameOffset);
 void Intro_Post3dRender(Intro* intro, SceneSetup* sceneSetup, i32 frameOffset);
 
 // Return total number of frames in the intro

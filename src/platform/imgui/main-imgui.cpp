@@ -22,14 +22,14 @@
 #include "tinypng/TinyPngOut.hpp"
 
 
-static RGB defaultPalette[256];
-static bool modelRendered = false;
-static u8 minIndex = 0;
-static u8 maxIndex = 0;
-static u8* surfaceTexturePixels = NULL;
+static RGB sDefaultPalette[256];
+static bool sModelRendered = false;
+static u8 sMinIndex = 0;
+static u8 sMaxIndex = 0;
+static u8* sSurfaceTexturePixels = NULL;
 
 
-void WritePng(const char* filepath, Surface* surface, RGB* palette) {
+MINTERNAL void WritePng(const char* filepath, Surface* surface, RGB* palette) {
     std::ofstream out(filepath, std::ios::binary);
     TinyPngOut pngout(surface->width, surface->height, out);
 
@@ -63,7 +63,7 @@ void WritePng(const char* filepath, Surface* surface, RGB* palette) {
     MFree(surfaceTexturePixels, surface->width * surface->height * 3);
 }
 
-MReadFileRet Assets_LoadAmigaExeFromDataDir(AssetsReadEnum assetsRead) {
+MINTERNAL MReadFileRet Assets_LoadAmigaExeFromDataDir(AssetsReadEnum assetsRead) {
     if (assetsRead == AssetsRead_Amiga_EliteClub) {
         return MFileReadFully("data/FrontierSE.amiga");
     } else if (assetsRead == AssetsRead_Amiga_EliteClub2) {
@@ -73,7 +73,7 @@ MReadFileRet Assets_LoadAmigaExeFromDataDir(AssetsReadEnum assetsRead) {
     }
 }
 
-void Assets_LoadPCFiles(AssetsDataPC* assets) {
+MINTERNAL void Assets_LoadPCFiles(AssetsDataPC* assets) {
     MReadFileRet frontierExe = MFileReadFully("data/frontier.exe");
     assets->mainExeData = frontierExe.data;
     assets->mainExeSize = frontierExe.size;
@@ -96,10 +96,10 @@ void Assets_LoadPCFiles(AssetsDataPC* assets) {
     assets->defaultPalette = videoModelData.data + 0x5fe7;
 }
 
-GLuint CreateTextureForSurface(Surface *surface) {
-    free(surfaceTexturePixels); surfaceTexturePixels = NULL;
+MINTERNAL GLuint CreateTextureForSurface(Surface *surface) {
+    free(sSurfaceTexturePixels); sSurfaceTexturePixels = NULL;
 
-    surfaceTexturePixels = (uint8_t*) malloc(surface->width * surface->height * 4);
+    sSurfaceTexturePixels = (uint8_t*) malloc(surface->width * surface->height * 4);
 
     // Turn the RGBA pixel data into an OpenGL texture:
     GLuint glTextureId;
@@ -112,59 +112,61 @@ GLuint CreateTextureForSurface(Surface *surface) {
     return glTextureId;
 }
 
-void UpdateSurfaceTexture(GLuint glTextureId, Surface* surface, RGB* palette) {
+MINTERNAL void UpdateSurfaceTexture(GLuint glTextureId, Surface* surface, RGB* palette) {
     for (int y = 0; y < surface->height; ++y) {
         for (int x = 0; x < surface->width; ++x) {
             u8 index = surface->pixels[x + (y * surface->width)];
             RGB col = palette[index];
 
-            if (index != 0 && index < minIndex) {
-                minIndex = index;
+            if (index != 0 && index < sMinIndex) {
+                sMinIndex = index;
             }
 
-            if (index > maxIndex) {
-                maxIndex = index;
+            if (index > sMaxIndex) {
+                sMaxIndex = index;
             }
 
             int d = (x + (y *  surface->width)) * 4;
-            surfaceTexturePixels[d] = col.r;
-            surfaceTexturePixels[d+1] = col.g;
-            surfaceTexturePixels[d+2] = col.b;
-            surfaceTexturePixels[d+3] = 0xff;
+            sSurfaceTexturePixels[d] = col.r;
+            sSurfaceTexturePixels[d + 1] = col.g;
+            sSurfaceTexturePixels[d + 2] = col.b;
+            sSurfaceTexturePixels[d + 3] = 0xff;
         }
     }
 
     glBindTexture(GL_TEXTURE_2D, glTextureId);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, surface->width, surface->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, surfaceTexturePixels);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, surface->width, surface->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, sSurfaceTexturePixels);
 }
 
-void RenderIntroAtTime(GLuint surfaceTexture, Surface* surface, Intro* intro, SceneSetup* sceneSetup, int frameOffset, bool* resetPalette) {
-    modelRendered = true;
+MINTERNAL void RenderIntroAtTime(GLuint surfaceTexture, Surface* surface, Intro* intro, SceneSetup* sceneSetup,
+                                 RenderEntity* entity, int frameOffset, bool* resetPalette) {
+    sModelRendered = true;
 
-    Intro_SetSceneForFrameOffset(intro, sceneSetup, frameOffset);
+    Intro_SetSceneForFrameOffset(intro, sceneSetup, entity, frameOffset);
 
-    Render_RenderAndDrawScene(sceneSetup, *resetPalette);
+    Render_RenderAndDrawScene(sceneSetup, entity,  *resetPalette);
 
     Intro_Post3dRender(intro, sceneSetup, frameOffset);
 
     if (*resetPalette) {
-        Palette_CopyFixedColoursRGB(&sceneSetup->raster->paletteContext, (RGB*) defaultPalette);
+        Palette_CopyFixedColoursRGB(&sceneSetup->raster->paletteContext, (RGB*) sDefaultPalette);
         *resetPalette = false;
     }
-    Palette_CopyDynamicColoursRGB(&sceneSetup->raster->paletteContext, (RGB*) defaultPalette);
-    UpdateSurfaceTexture(surfaceTexture, surface, (RGB *) defaultPalette);
+    Palette_CopyDynamicColoursRGB(&sceneSetup->raster->paletteContext, (RGB*) sDefaultPalette);
+    UpdateSurfaceTexture(surfaceTexture, surface, (RGB *) sDefaultPalette);
 }
 
-void RenderModelViewer(GLuint surfaceTexture, Surface* surface, ModelViewer* modelViewer, u16 modelIndex, bool resetPalette) {
-    modelRendered = true;
+MINTERNAL void RenderModelViewer(GLuint surfaceTexture, Surface* surface, ModelViewer* modelViewer, u16 modelIndex,
+                                 bool resetPalette) {
+    sModelRendered = true;
 
     if (ModelViewer_SetSceneForModel(modelViewer, modelIndex)) {
-        Render_RenderAndDrawScene(&(modelViewer->sceneSetup), resetPalette);
+        Render_RenderAndDrawScene(&(modelViewer->sceneSetup), &(modelViewer->entity), resetPalette);
         if (resetPalette) {
-            Palette_CopyFixedColoursRGB(&modelViewer->sceneSetup.raster->paletteContext, (RGB*) defaultPalette);
+            Palette_CopyFixedColoursRGB(&modelViewer->sceneSetup.raster->paletteContext, (RGB*) sDefaultPalette);
         }
-        Palette_CopyDynamicColoursRGB(&modelViewer->sceneSetup.raster->paletteContext, (RGB*) defaultPalette);
-        UpdateSurfaceTexture(surfaceTexture, surface, (RGB *) defaultPalette);
+        Palette_CopyDynamicColoursRGB(&modelViewer->sceneSetup.raster->paletteContext, (RGB*) sDefaultPalette);
+        UpdateSurfaceTexture(surfaceTexture, surface, (RGB *) sDefaultPalette);
     } else {
         Surface_Clear(modelViewer->sceneSetup.raster->surface, 0x7f);
     }
@@ -216,8 +218,7 @@ struct OverridesFile {
     MFileInfo fieInfo{};
 };
 
-
-static void FreeModelOverridesFile(OverridesFile* overridesFile) {
+MINTERNAL void FreeModelOverridesFile(OverridesFile* overridesFile) {
     if (overridesFile->fileData.data) {
         MFree(overridesFile->fileData.data, overridesFile->fileData.size);
         overridesFile->fileData.data = 0;
@@ -265,7 +266,7 @@ i32 LoadModelOverridesIfChanged(const char* filename, SceneSetup* sceneSetup, Ov
     return -1;
 }
 
-int CountModels(SceneSetup* sceneSetup) {
+MINTERNAL int CountModels(SceneSetup* sceneSetup) {
     int foundNull;
     int i = 0;
     while (true) {
@@ -310,6 +311,7 @@ int main(int, char**) {
 
     Intro intro;
     SceneSetup introSceneSetup;
+    RenderEntity introEntity;
     Render_Init(&introSceneSetup, &raster);
 
     // Enabled debug render tracing
@@ -329,7 +331,7 @@ int main(int, char**) {
     // Load intro file data
     if (assetsRead == AssetsRead_PC_EliteClub) {
         Assets_LoadPCFiles(&assetsDataPc);
-        Intro_InitPC(&intro, &introSceneSetup, &assetsDataPc);
+        Intro_InitPC(&intro, &introSceneSetup, &introEntity, &assetsDataPc);
         ModelViewer_InitPC(&modelViewer, &assetsDataPc);
 
         // Load amiga version sounds
@@ -339,7 +341,7 @@ int main(int, char**) {
         MReadFileRet amigaExe = Assets_LoadAmigaExeFromDataDir(assetsRead);
         Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExe, assetsRead);
 
-        Intro_InitAmiga(&intro, &introSceneSetup, &assetsDataAmiga);
+        Intro_InitAmiga(&intro, &introSceneSetup, &introEntity, &assetsDataAmiga);
         ModelViewer_InitAmiga(&modelViewer, &assetsDataAmiga);
     }
 
@@ -413,29 +415,30 @@ int main(int, char**) {
     ImVec4 clearColor = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
     GLuint surfaceTexture = CreateTextureForSurface(&surface);
-    UpdateSurfaceTexture(surfaceTexture, &surface, (RGB *)defaultPalette);
+    UpdateSurfaceTexture(surfaceTexture, &surface, (RGB *)sDefaultPalette);
 
-    static int imageOffset = 0;
-    static int frameOffset = 2631;
-    static MemoryEditor hexEditor;
-    static int sceneTab = 0;
-    static int modelTab = 0;
-    static int modelRadio = 0;
-    static int drawTab = 0;
-    static int modOffset = 1;
-    static int volume = 32;
-    static int sampleVolume = 63;
-    static int sampleId = 5;
-    static int engineSoundId = 1;
-    static int tonePeriod = 1000;
-    static int selectedModel = 0;
-    static int playIntro = 0;
-    static size_t numModels = 0;
-    static const int textInputBuffSize = 1024;
-    static char textInputBuff[textInputBuffSize];
-    SceneSetup* sceneSetup = &introSceneSetup;
-    static Annotations annotations;
+    SceneSetup* curSceneSetup = &introSceneSetup;
+    RenderEntity* curEntity = &introEntity;
     DebugModelParams debugModelParams{};
+    int imageOffset = 0;
+    int frameOffset = 2631;
+    MemoryEditor hexEditor;
+    int sceneTab = 0;
+    int modelTab = 0;
+    int modelRadio = 0;
+    int drawTab = 0;
+    int modOffset = 1;
+    int volume = 32;
+    int sampleVolume = 63;
+    int sampleId = 5;
+    int engineSoundId = 1;
+    int tonePeriod = 1000;
+    int selectedModel = 0;
+    int playIntro = 0;
+    size_t numModels = 0;
+    const int textInputBuffSize = 1024;
+    char textInputBuff[textInputBuffSize];
+    Annotations annotations;
     bool renderScene = true;
     int modelOffset = 11;
     const char *annotationsFile = "data/annotations.csv";
@@ -492,7 +495,7 @@ int main(int, char**) {
     }
 
     if (modelRadio == 0) {
-        RenderIntroAtTime(surfaceTexture, &surface, &intro, &introSceneSetup, frameOffset, &resetPalette);
+        RenderIntroAtTime(surfaceTexture, &surface, &intro, &introSceneSetup, &introEntity, frameOffset, &resetPalette);
     }
 
     i32 mouseX = 0;
@@ -522,32 +525,8 @@ int main(int, char**) {
                             done = true;
                             break;
                         case SDLK_F2:
-                            WritePng("screenshot.png", sceneSetup->raster->surface, defaultPalette);
+                            WritePng("screenshot.png", curSceneSetup->raster->surface, sDefaultPalette);
                             break;
-                        case SDLK_a: {
-                            Vec3i32 tmp{1000000, 0, 0};
-                            ModelViewer_Move(&modelViewer, tmp);
-                            renderScene = true;
-                            break;
-                        }
-                        case SDLK_d: {
-                            Vec3i32 tmp{-1000000, 0, 0};
-                            ModelViewer_Move(&modelViewer, tmp);
-                            renderScene = true;
-                            break;
-                        }
-                        case SDLK_w: {
-                            Vec3i32 tmp{0, 0, 1000000};
-                            ModelViewer_Move(&modelViewer, tmp);
-                            renderScene = true;
-                            break;
-                        }
-                        case SDLK_s: {
-                            Vec3i32 tmp{0, 0, -1000000};
-                            ModelViewer_Move(&modelViewer, tmp);
-                            renderScene = true;
-                            break;
-                        }
                     }
                     break;
                 case SDL_KEYUP:
@@ -873,8 +852,8 @@ int main(int, char**) {
                     }
 
                     if (renderScene) {
-                        RenderIntroAtTime(surfaceTexture, &surface, &intro, &introSceneSetup, frameOffset,
-                                          &resetPalette);
+                        RenderIntroAtTime(surfaceTexture, &surface, &intro, &introSceneSetup, &introEntity,
+                                          frameOffset, &resetPalette);
                         renderScene = false;
                     }
                 } else {
@@ -1027,27 +1006,27 @@ int main(int, char**) {
                         renderScene = true;
                     }
                     if (ImGui::Button("Planet - Normal")) {
-                        sceneSetup->planetRender = 0;
+                        curSceneSetup->planetRender = 0;
                         renderScene = true;
                     }
                     ImGui::SameLine();
                     if (ImGui::Button("Planet - 2d Ellipse")) {
-                        sceneSetup->planetRender = 1;
+                        curSceneSetup->planetRender = 1;
                         renderScene = true;
                     }
                     ImGui::SameLine();
                     if (ImGui::Button("Planet - Outline")) {
-                        sceneSetup->planetRender = 2;
+                        curSceneSetup->planetRender = 2;
                         renderScene = true;
                     }
                     ImGui::SameLine();
                     if (ImGui::Button("Planet - 4 Bezier")) {
-                        sceneSetup->planetRender = 3;
+                        curSceneSetup->planetRender = 3;
                         renderScene = true;
                     }
                     ImGui::SameLine();
                     if (ImGui::Button("Planet - Ellipse")) {
-                        sceneSetup->planetRender = 4;
+                        curSceneSetup->planetRender = 4;
                         renderScene = true;
                     }
                     if (ImGui::Button("Bad Planet1")) {
@@ -1114,12 +1093,14 @@ int main(int, char**) {
                 }
 
                 if (modelRadio == 0) {
-                    sceneSetup = &introSceneSetup;
+                    curSceneSetup = &introSceneSetup;
+                    curEntity = &introEntity;
                 } else if (modelRadio == 1) {
-                    sceneSetup = &modelViewer.sceneSetup;
+                    curSceneSetup = &modelViewer.sceneSetup;
+                    curEntity = &modelViewer.entity;
                 }
 
-                numModels = CountModels(sceneSetup);
+                numModels = CountModels(curSceneSetup);
 
                 ImGui::End();
 
@@ -1127,118 +1108,122 @@ int main(int, char**) {
 
                 if (ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_None)) {
                     if (ImGui::BeginTabItem("Scene")) {
-                        i32 tickTime = sceneSetup->modelVars[0];
-                        if (ImGui::SliderInt("Tick Time", &tickTime, 0, 65535)) {
-                            sceneSetup->modelVars[0] = tickTime;
+                        i32 tickTime = curEntity->entityVars[0];
+                        if (ImGui::SliderInt("Tick Time [0]", &tickTime, 0, 65535)) {
+                            curEntity->entityVars[0] = tickTime;
                             renderScene = true;
                         }
-                        i32 landingTime = sceneSetup->modelVars[1];
-                        if (ImGui::SliderInt("Landing Time", &landingTime, 0, 65535)) {
-                            sceneSetup->modelVars[1] = landingTime;
+                        i32 landingTime = curEntity->entityVars[1];
+                        if (ImGui::SliderInt("Landing Time [1]", &landingTime, 0, 65535)) {
+                            curEntity->entityVars[1] = landingTime;
                             renderScene = true;
                         }
-                        i32 param2 = sceneSetup->modelVars[2];
-                        if (ImGui::SliderInt("Param 2", &param2, 0, 65535)) {
-                            sceneSetup->modelVars[2] = param2;
+                        i32 param2 = curEntity->entityVars[2];
+                        if (ImGui::SliderInt("Param [2]", &param2, 0, 65535)) {
+                            curEntity->entityVars[2] = param2;
                             renderScene = true;
                         }
-                        i32 param3 = sceneSetup->modelVars[3];
-                        if (ImGui::SliderInt("Param 3", &param3, 0, 65535)) {
-                            sceneSetup->modelVars[3] = param3;
+                        i32 param3 = curEntity->entityVars[3];
+                        if (ImGui::SliderInt("Param [3]", &param3, 0, 65535)) {
+                            curEntity->entityVars[3] = param3;
                             renderScene = true;
                         }
-                        i32 param4 = sceneSetup->modelVars[4];
-                        if (ImGui::SliderInt("Param 4", &param4, 0, 65535)) {
-                            sceneSetup->modelVars[4] = param4;
+                        i32 param4 = curEntity->entityVars[4];
+                        if (ImGui::SliderInt("Param [4]", &param4, 0, 65535)) {
+                            curEntity->entityVars[4] = param4;
                             renderScene = true;
                         }
-                        i32 param5 = sceneSetup->modelVars[5];
-                        if (ImGui::SliderInt("Param 5", &param5, 0, 65535)) {
-                            sceneSetup->modelVars[5] = param5;
+                        i32 param5 = curEntity->entityVars[5];
+                        if (ImGui::SliderInt("Param [5]", &param5, 0, 65535)) {
+                            curEntity->entityVars[5] = param5;
                             renderScene = true;
                         }
-                        i32 time1 = sceneSetup->modelVars[7];
-                        if (ImGui::SliderInt("Time Of Day", &time1, 0, 65535)) {
-                            sceneSetup->modelVars[7] = time1;
+                        i32 time1 = curEntity->entityVars[7];
+                        if (ImGui::SliderInt("Time Of Day [6]", &time1, 0, 65535)) {
+                            curEntity->entityVars[7] = time1;
                             renderScene = true;
                         }
-                        i32 time2 = sceneSetup->modelVars[6];
-                        if (ImGui::SliderInt("Time Of Day 2", &time2, 0, 65535)) {
-                            sceneSetup->modelVars[6] = time2;
+                        i32 time2 = curEntity->entityVars[6];
+                        if (ImGui::SliderInt("Time Of Day [7]", &time2, 0, 65535)) {
+                            curEntity->entityVars[6] = time2;
                             renderScene = true;
                         }
-                        i32 date1 = sceneSetup->modelVars[9];
-                        if (ImGui::SliderInt("Date 1", &date1, 0, 65535)) {
-                            sceneSetup->modelVars[9] = date1;
+                        i32 date1 = curEntity->entityVars[9];
+                        if (ImGui::SliderInt("Date [8]", &date1, 0, 65535)) {
+                            curEntity->entityVars[9] = date1;
                             renderScene = true;
                         }
-                        i32 date2 = sceneSetup->modelVars[8];
-                        if (ImGui::SliderInt("Date 2", &date2, 0, 65535)) {
-                            sceneSetup->modelVars[8] = date2;
+                        i32 date2 = curEntity->entityVars[8];
+                        if (ImGui::SliderInt("Date [9]", &date2, 0, 65535)) {
+                            curEntity->entityVars[8] = date2;
                             renderScene = true;
                         }
-                        i32 leftTrust = sceneSetup->modelVars[13];
-                        if (ImGui::SliderInt("Left/Right Thrust", &leftTrust, 0, 65535)) {
-                            sceneSetup->modelVars[13] = leftTrust;
+                        i32 leftTrust = curEntity->entityVars[13];
+                        if (ImGui::SliderInt("Left/Right Thrust [13]", &leftTrust, 0, 65535)) {
+                            curEntity->entityVars[13] = leftTrust;
                             renderScene = true;
                         }
-                        i32 rightThrust = sceneSetup->modelVars[14];
-                        if (ImGui::SliderInt("Up/Down Thrust", &rightThrust, 0, 65535)) {
-                            sceneSetup->modelVars[14] = rightThrust;
+                        i32 rightThrust = curEntity->entityVars[14];
+                        if (ImGui::SliderInt("Up/Down Thrust [14]", &rightThrust, 0, 65535)) {
+                            curEntity->entityVars[14] = rightThrust;
                             renderScene = true;
                         }
-                        i32 mainTrust = sceneSetup->modelVars[15];
-                        if (ImGui::SliderInt("Forward/Back Thrust", &mainTrust, 0, 65535)) {
-                            sceneSetup->modelVars[15] = mainTrust;
+                        i32 mainTrust = curEntity->entityVars[15];
+                        if (ImGui::SliderInt("Forward/Back Thrust [15]", &mainTrust, 0, 65535)) {
+                            curEntity->entityVars[15] = mainTrust;
                             renderScene = true;
                         }
-                        i32 missile1 = sceneSetup->modelVars[29];
-                        if (ImGui::SliderInt("Missile 1", &missile1, 0, 65535)) {
-                            sceneSetup->modelVars[29] = missile1;
+                        i32 missile1 = curEntity->entityVars[29];
+                        if (ImGui::SliderInt("Missile [29]", &missile1, 0, 65535)) {
+                            curEntity->entityVars[29] = missile1;
                             renderScene = true;
                         }
-                        i32 missile2 = sceneSetup->modelVars[30];
-                        if (ImGui::SliderInt("Missile 2", &missile2, 0, 65535)) {
-                            sceneSetup->modelVars[30] = missile2;
+                        i32 missile2 = curEntity->entityVars[30];
+                        if (ImGui::SliderInt("Missile [30]", &missile2, 0, 65535)) {
+                            curEntity->entityVars[30] = missile2;
                             renderScene = true;
                         }
-                        i32 missile3 = sceneSetup->modelVars[31];
-                        if (ImGui::SliderInt("Missile 3", &missile3, 0, 65535)) {
-                            sceneSetup->modelVars[31] = missile3;
+                        i32 missile3 = curEntity->entityVars[31];
+                        if (ImGui::SliderInt("Missile [31]", &missile3, 0, 65535)) {
+                            curEntity->entityVars[31] = missile3;
                             renderScene = true;
                         }
-                        i32 missile4 = sceneSetup->modelVars[32];
-                        if (ImGui::SliderInt("Missile 4", &missile4, 0, 65535)) {
-                            sceneSetup->modelVars[32] = missile4;
+                        i32 missile4 = curEntity->entityVars[32];
+                        if (ImGui::SliderInt("Missile [32]", &missile4, 0, 65535)) {
+                            curEntity->entityVars[32] = missile4;
                             renderScene = true;
                         }
-                        i32 missile5 = sceneSetup->modelVars[33];
-                        if (ImGui::SliderInt("Missile 5", &missile5, 0, 65535)) {
-                            sceneSetup->modelVars[33] = missile5;
+                        i32 missile5 = curEntity->entityVars[33];
+                        if (ImGui::SliderInt("Missile [33]", &missile5, 0, 65535)) {
+                            curEntity->entityVars[33] = missile5;
                             renderScene = true;
                         }
 
-                        ImGui::Text("Scene pos x: %x (%d)  y: %x (%d)  z: %x (%d)",
-                                    sceneSetup->objectPosView[0], sceneSetup->objectPosView[0],
-                                    sceneSetup->objectPosView[1], sceneSetup->objectPosView[1],
-                                    sceneSetup->objectPosView[2], sceneSetup->objectPosView[2]);
+                        if (ImGui::InputText("Entity Text", curEntity->entityText, sizeof(curEntity->entityText))) {
+                            renderScene = true;
+                        }
 
-                        hexEditor.DrawContents(sceneSetup->modelVars, sizeof(sceneSetup->modelVars),
-                                               sceneSetup->renderDataOffset + 0x72);
+                        ImGui::Text("Entity pos x: %x (%d)  y: %x (%d)  z: %x (%d)",
+                                    curEntity->objectPosView[0], curEntity->objectPosView[0],
+                                    curEntity->objectPosView[1], curEntity->objectPosView[1],
+                                    curEntity->objectPosView[2], curEntity->objectPosView[2]);
+
+                        hexEditor.DrawContents(curEntity->entityVars, sizeof(curEntity->entityVars),
+                                               curSceneSetup->renderDataOffset + 0x72);
                         ImGui::EndTabItem();
                     }
 
                     if (ImGui::BeginTabItem("Model")) {
-                        if (modelRendered) {
+                        if (sModelRendered) {
                             ImGui::RadioButton("Text", &modelTab, 0);
                             ImGui::SameLine();
                             ImGui::RadioButton("Hex", &modelTab, 1);
                             ImGui::SameLine();
                             bool copy = ImGui::Button("Copy");
                             ImGui::SameLine();
-                            bool hide = sceneSetup->hideModel[selectedModel];
+                            bool hide = curSceneSetup->hideModel[selectedModel];
                             if (ImGui::Checkbox("Hide", &hide)) {
-                                sceneSetup->hideModel[selectedModel] = hide;
+                                curSceneSetup->hideModel[selectedModel] = hide;
                                 renderScene = true;
                             }
                             ImGui::SameLine();
@@ -1253,7 +1238,7 @@ int main(int, char**) {
                             }
 
                             {
-                                ModelData* model = Render_GetModel(sceneSetup, sceneSetup->modelIndex);
+                                ModelData* model = Render_GetModel(curSceneSetup, curEntity->modelIndex);
                                 if (model) {
                                     u16 modelSizeScale = model->scale1 + model->scale2;
                                     u64 modelSize = ((u64)model->radius) << modelSizeScale;
@@ -1293,10 +1278,10 @@ int main(int, char**) {
                             tmpWriter.clear();
                             int foundNull = 0;
                             int i = 0;
-                            uint32_t rootIndex = sceneSetup->modelIndex;
-                            u32Array *loadedModelIndexes = &sceneSetup->loadedModelIndexes;
+                            uint32_t rootIndex = curEntity->modelIndex;
+                            u32Array *loadedModelIndexes = &curSceneSetup->loadedModelIndexes;
                             while (true) {
-                                u32 modelOffset2 = Render_GetModelCodeOffset(sceneSetup, i);
+                                u32 modelOffset2 = Render_GetModelCodeOffset(curSceneSetup, i);
                                 if (modelOffset2 == 0) {
                                     foundNull++;
                                     if (foundNull > 1 && i > 2) {
@@ -1329,13 +1314,13 @@ int main(int, char**) {
                                            strArray.size(), strArray.size());
                             ImGui::EndChild();
                             ImGui::SameLine();
-                            ModelData *modelData = Render_GetModel(sceneSetup, selectedModel);
+                            ModelData *modelData = Render_GetModel(curSceneSetup, selectedModel);
                             u64 byteCodeBegin = 0;
                             MMemIO modelDecompile;
                             MMemInitAlloc(&modelDecompile, 100);
 
                             if (modelData != NULL) {
-                                byteCodeBegin = ((u8 *) modelData - sceneSetup->modelDataFileStartAddress) +
+                                byteCodeBegin = ((u8 *) modelData - curSceneSetup->modelDataFileStartAddress) +
                                                 modelData->codeOffset;
 
                                 DebugModelInfo modelInfo;
@@ -1344,7 +1329,7 @@ int main(int, char**) {
                                 if (copy) {
                                     debugModelParams.byteCodeTrace = NULL;
                                 } else {
-                                    debugModelParams.byteCodeTrace = &sceneSetup->byteCodeTrace;
+                                    debugModelParams.byteCodeTrace = &curSceneSetup->byteCodeTrace;
                                 }
 
                                 DecompileModel(modelData, selectedModel, &debugModelParams, &modelInfo, &modelDecompile);
@@ -1364,7 +1349,7 @@ int main(int, char**) {
                                 }
                             } else {
                                 if (modelData != NULL) {
-                                    u32 modelBegin = ((u8*) modelData - sceneSetup->modelDataFileStartAddress);
+                                    u32 modelBegin = ((u8*) modelData - curSceneSetup->modelDataFileStartAddress);
                                     hexEditor.DrawContents(modelData, 0xff, modelBegin);
                                 }
                             }
@@ -1412,7 +1397,7 @@ int main(int, char**) {
                         }
                         DebugPaletteInfo paletteInfo;
                         paletteInfo.writer.init(100);
-                        DumpPaletteInfo(&raster, defaultPalette, paletteInfo);
+                        DumpPaletteInfo(&raster, sDefaultPalette, paletteInfo);
                         ImGui::BeginChild("PaletteTextArea", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
                         ImGui::TextUnformatted(paletteInfo.writer.data(),
                                                paletteInfo.writer.data() + paletteInfo.writer.size());

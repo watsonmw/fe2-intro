@@ -226,37 +226,16 @@ typedef struct MMemStack {
     size_t size;
 } MMemStack;
 
+
 typedef struct sSceneSetup {
-    // Viewspace
-    Matrix3x3i16 viewMatrix;
-
-    // Object pos in view space
-    Vec3i32 objectPosView;
-
-    // Model to render (this model can render sub models)
-    u16 modelIndex;
-
-    // Model variables used by model code
-    u16 modelVars[0x80];
-
-    i16 renderPlanetAtmos;
-
-    // Light direction in viewspace
-    Vec3i16 lightDirView;
-
-    // Shading map, added to model base colours based on facing towards light
-    i16 shadeRamp[8];
-
     // Random seed vars, mutated everytime a new random is generated
     u32 random1;
     u32 random2;
 
-    i16 depthScale;
+    i16 renderPlanetAtmos;
     i16 renderDetail;
     i16 planetDetail;
-
-    // Model text (e.g. ship name / base name / platform name)
-    i8 modelText[40];
+    int planetRender;
 
     // List of strings available for rendering
     u8** moduleStrings;
@@ -270,6 +249,7 @@ typedef struct sSceneSetup {
     AudioContext* audio;
 
     MMemStack memStack;
+
 #ifdef FINTRO_INSPECTOR
     // Logging info
     int logLevel;
@@ -280,15 +260,44 @@ typedef struct sSceneSetup {
     u8* galmapModelDataFileStartAddress;
     u8* fontModelDataFileStartAddress;
     u32 renderDataOffset;
-    int planetRender;
 #endif
 } SceneSetup;
+
+typedef struct sRenderEntity {
+    // Viewspace
+    Matrix3x3i16 viewMatrix;
+
+    // Object pos in view space
+    Vec3i32 objectPosView;
+
+    // Model to render (this model can render sub models)
+    u16 modelIndex;
+
+    // Entity variables used by model code
+    u16 entityVars[0x80];
+
+    // Entity text (e.g. ship name / base name / platform name)
+    i8 entityText[40];
+
+    // Light direction in viewspace
+    Vec3i16 lightDirView;
+
+    // Shading map, added to model base colours based on facing towards light
+    i16 shadeRamp[8];
+
+    // Random seed vars, mutated everytime a new random is generated
+    u32 random1;
+    u32 random2;
+
+    i16 depthScale;
+} RenderEntity;
+
 
 // Model renderer
 void Render_Init(SceneSetup* sceneSetup, RasterContext* raster);
 void Render_Free(SceneSetup* sceneSetup);
-void Render_RenderScene(SceneSetup* sceneSetup);
-void Render_RenderAndDrawScene(SceneSetup* sceneSetup, b32 resetPalette);
+void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* entity);
+void Render_RenderAndDrawScene(SceneSetup* sceneSetup, RenderEntity* entity, b32 resetPalette);
 
 static ModelData* Render_GetModel(SceneSetup* sceneSetup, u16 offset) {
     return MArrayGet(sceneSetup->assets.models, offset);
@@ -307,15 +316,14 @@ static u32 Render_GetModelCodeOffset(SceneSetup* sceneSetup, u16 offset) {
 #endif
 
 // String loading and formatting
-u32 Render_LoadFormattedString(SceneSetup* sceneSetup, u16 index, i8* outputBuffer, u32 outputBufferLen);
-u32 Render_ProcessString(SceneSetup* sceneSetup, const i8* text, i8* outputBuffer, u32 outputBufferLen);
+u32 Render_LoadFormattedString(SceneSetup* sceneSetup, RenderEntity* entity, u16 index, i8* outputBuffer, u32 outputBufferLen);
+u32 Render_ProcessString(SceneSetup* sceneSetup, RenderEntity* entity, const i8* text, i8* outputBuffer, u32 outputBufferLen);
 void Render_DrawBitmapText(SceneSetup* sceneSetup, const i8* text, Vec2i16 pos, u8 colour, b32 drawShadow);
 
 // Image / Bitmap functions
 typedef struct {
     u16 w;
     u16 h;
-
     u8* data;
 } Image8Bit;
 
