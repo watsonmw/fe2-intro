@@ -119,6 +119,8 @@ target_compile_definitions(fintro-imgui PRIVATE -DM_USE_SDL -DM_USE_STDLIB -DFIN
 target_include_directories(fintro-imgui PRIVATE src/platform/imgui)
 target_include_directories(fintro-imgui PRIVATE src/platform/imgui src/platform/imgui/imgui src/platform/imgui/gl3w)
 target_compile_options(fintro-imgui PRIVATE -ggdb)
+target_compile_features(fintro-imgui PRIVATE cxx_std_17)
+target_compile_definitions(fintro-imgui PRIVATE -DUSE_SDL)
 
 # Point to your actual AmigaOS NDK
 target_compile_definitions(fintro-amiga PRIVATE -DAMIGA -DM_USE_STDLIB -DFINTRO_SCREEN_RES=2)
@@ -132,7 +134,11 @@ target_link_options(fintro-wasm PRIVATE --target=wasm32)
 
 IF(APPLE)
     find_library(SDL2_LIBRARY SDL2 REQUIRED)
+    find_package(OpenGL REQUIRED)
+    find_library(COCOA_LIBRARY Cocoa REQUIRED)
     target_link_libraries(fintro ${COCOA_LIBRARY} ${SDL2_LIBRARY})
+    target_link_libraries(fintro-imgui ${COCOA_LIBRARY} ${SDL2_LIBRARY} ${OPENGL_LIBRARIES})
+    target_compile_definitions(fintro-imgui PRIVATE -DIMGUI_IMPL_OPENGL_LOADER_GL3W)
 ENDIF()
 
 IF(MINGW)
@@ -140,7 +146,7 @@ IF(MINGW)
     target_compile_options(fintro PRIVATE -mconsole)
     target_link_libraries(fintro mingw32 SDL2main SDL2 opengl32 -static-libgcc)
 
-    target_compile_definitions(fintro-imgui PRIVATE -Dmain=SDL_main -DUSE_SDL)
+    target_compile_definitions(fintro-imgui PRIVATE -Dmain=SDL_main)
     target_compile_options(fintro-imgui PRIVATE -mconsole)
     target_link_libraries(fintro-imgui mingw32 SDL2main SDL2 opengl32 -static-libgcc -static-libstdc++)
 ENDIF()
