@@ -45,7 +45,7 @@ set -x # echo on
 # -mregparm             - gives a ~ 2% speedup and reduces exe size (less moves)
 # -fno-strict-aliasing  - code violates strict aliasing, but also strict aliasing generates worse code in gcc6.5 (!)
 #OPT_FLAGS="-m68040 -mregparm=4 -fomit-frame-pointer -fweb -frename-registers -fno-strict-aliasing"
-OPT_FLAGS="-O2 -mregparm=4 -fomit-frame-pointer -fweb -frename-registers -fno-strict-aliasing -funsafe-math-optimizations"
+OPT_FLAGS="-m68040 -O1 -mregparm=4 -fomit-frame-pointer -fweb -frename-registers -fno-strict-aliasing"
 
 GCC="/opt/amiga/bin/m68k-amigaos-gcc"
 VASM="/opt/amiga/bin/vasmm68k_mot"
@@ -76,7 +76,7 @@ ${GCC} src/assets.c $CCFLAGS -I src -c -o build-amiga/assets.o
 
 # Link with -noixemul for smaller exe size, this disables the UNIX emulation layer, this can be buggy and we don't need
 # it anyway.  (could use nostdlib)
-POST_LDFLAGS="-lm"
+POST_LDFLAGS="-noixemul"
 ${GCC} $CCFLAGS build-amiga/main.o build-amiga/mlib-amiga.o build-amiga/fmath.o build-amiga/fintro.o build-amiga/render.o build-amiga/assets.o build-amiga/audio.o ${POST_LDFLAGS} -o build-amiga/fintro-gcc -Xlinker -verbose
 #/opt/amiga/bin/m68k-amigaos-objdump -S --disassemble build-amiga/fintro-gcc > build-amiga/fintro-gcc.asm
 cp build-amiga/fintro-gcc /mnt/c/Amiga/frontier/build-amiga

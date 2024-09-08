@@ -2529,7 +2529,7 @@ typedef struct sRenderFrame {
 
     u16* vertexData; // into modelData->data, typically packed vertex data, vertex per dword
 
-    RenderEntity* renderObject;
+    RenderEntity* entity;
 
     // Current byte code position
     u8* byteCodePos;
@@ -2582,10 +2582,10 @@ typedef struct sRenderFrame {
 
     // Matrix 3x3
     // Rotation from object space to view space - combination of both object and view rotations
-    Matrix3x3i16 objectToView;
+    Matrix3x3i16 entityToView;
 
     // Object pos in view space
-    Vec3i32 objectPos;
+    Vec3i32 entityPos;
 
     // Scaling for object position
     u16 viewDirScale;
@@ -2948,7 +2948,7 @@ MINTERNAL u16 GetValueForParam8(RenderFrame* rf, u16 param8) {
         case 0x40:
             return val << 10;
         case 0x80:
-            return rf->renderObject->entityVars[val];
+            return rf->entity->entityVars[val];
         case 0xc0:
         default:
             // this can alias values off the end of this struct?
@@ -2978,7 +2978,7 @@ MINTERNAL u16 GetValueForParam16(RenderFrame* rf, u16 param16) {
             // this can alias values off the end of this struct?
             return rf->tmpVariable[val];
         } else {
-            return rf->renderObject->entityVars[val];
+            return rf->entity->entityVars[val];
         }
     }
 
@@ -2992,11 +2992,11 @@ MINTERNAL int CheckClipped(RenderContext* objectContext, ModelData* modelData) {
     RenderFrame* rf = GetRenderFrame(objectContext);
 
     i32 radius = modelData->radius << rf->scale;
-    return IsInViewport(radius, rf->objectPos[0], rf->objectPos[1], rf->objectPos[2]);
+    return IsInViewport(radius, rf->entityPos[0], rf->entityPos[1], rf->entityPos[2]);
 }
 
 MINTERNAL void TranslateProjectVertexDirect(RenderFrame* rf, VertexData* vertex) {
-    Vec3i32Add(vertex->rVec, rf->objectPos, vertex->vVec);
+    Vec3i32Add(vertex->rVec, rf->entityPos, vertex->vVec);
 
     if (vertex->vVec[2] < ZCLIPNEAR) {
         vertex->sVec.x = PT_ZCLIPPED;
@@ -3010,7 +3010,7 @@ MINTERNAL void TranslateProjectVertexDirect(RenderFrame* rf, VertexData* vertex)
 }
 
 MINTERNAL void TranslateProjectVertex(RenderFrame* rf, VertexData* vertex) {
-    Vec3i32Add(vertex->rVec, rf->objectPos, vertex->vVec);
+    Vec3i32Add(vertex->rVec, rf->entityPos, vertex->vVec);
 
     if (vertex->projectedState < 0) {
         return;
@@ -3046,7 +3046,7 @@ MINTERNAL VertexData* TransformProjectVertexRecursive(RenderContext* rc, RenderF
         VertexData* src = rf->parentVertexTrans + v1x;
         VertexData* dest = rf->vertexTrans + vertexIndex;
         dest->sVec = src->sVec;
-        Vec3i32Sub(src->vVec, rf->objectPos, dest->rVec);
+        Vec3i32Sub(src->vVec, rf->entityPos, dest->rVec);
         Vec3i32Copy(src->vVec, dest->vVec);
         return dest;
     }
@@ -3077,13 +3077,13 @@ MINTERNAL VertexData* TransformProjectVertexRecursive(RenderContext* rc, RenderF
             v[1] = hi8s32(vertexData2) << 8;
             v[2] = lo8s32(vertexData2) << 8;
 
-            i32 dx = rf->objectToView[0][0] * v[0];
-            i32 dy = rf->objectToView[0][1] * v[0];
-            i32 dz = rf->objectToView[0][2] * v[0];
+            i32 dx = rf->entityToView[0][0] * v[0];
+            i32 dy = rf->entityToView[0][1] * v[0];
+            i32 dz = rf->entityToView[0][2] * v[0];
 
-            i32 x = dx + rf->objectToView[1][0] * v[1] + rf->objectToView[2][0] * v[2];
-            i32 y = dy + rf->objectToView[1][1] * v[1] + rf->objectToView[2][1] * v[2];
-            i32 z = dz + rf->objectToView[1][2] * v[1] + rf->objectToView[2][2] * v[2];
+            i32 x = dx + rf->entityToView[1][0] * v[1] + rf->entityToView[2][0] * v[2];
+            i32 y = dy + rf->entityToView[1][1] * v[1] + rf->entityToView[2][1] * v[2];
+            i32 z = dz + rf->entityToView[1][2] * v[1] + rf->entityToView[2][2] * v[2];
 
             u16 scale = (u16)0x17 - rf->scale;
 
@@ -3248,13 +3248,13 @@ MINTERNAL VertexData* TransformProjectVertexRecursive(RenderContext* rc, RenderF
             v[1] = hi8s32(vertexData2) << 8;
             v[2] = lo8s32(vertexData2) << 8;
 
-            i32 dx = rf->objectToView[0][0] * v[0];
-            i32 dy = rf->objectToView[0][1] * v[0];
-            i32 dz = rf->objectToView[0][2] * v[0];
+            i32 dx = rf->entityToView[0][0] * v[0];
+            i32 dy = rf->entityToView[0][1] * v[0];
+            i32 dz = rf->entityToView[0][2] * v[0];
 
-            i32 x = dx + rf->objectToView[1][0] * v[1] + rf->objectToView[2][0] * v[2];
-            i32 y = dy + rf->objectToView[1][1] * v[1] + rf->objectToView[2][1] * v[2];
-            i32 z = dz + rf->objectToView[1][2] * v[1] + rf->objectToView[2][2] * v[2];
+            i32 x = dx + rf->entityToView[1][0] * v[1] + rf->entityToView[2][0] * v[2];
+            i32 y = dy + rf->entityToView[1][1] * v[1] + rf->entityToView[2][1] * v[2];
+            i32 z = dz + rf->entityToView[1][2] * v[1] + rf->entityToView[2][2] * v[2];
 
             u16 scale = (u16) 0x17 - rf->scale;
 
@@ -3454,7 +3454,7 @@ MINTERNAL VertexData* TransformVertex(RenderContext* rc, RenderFrame* rf, i16 ve
     if (v1->projectedState == 0) {
         return TransformVertexRecursive(rc, rf, vertexIndex);
     } else {
-        Vec3i32Add(v1->rVec, rf->objectPos, v1->vVec);
+        Vec3i32Add(v1->rVec, rf->entityPos, v1->vVec);
         return v1;
     }
 }
@@ -3655,9 +3655,9 @@ MINTERNAL i16 FlipMatrixAxis(RenderFrame* rf, Matrix3x3i16 matrixDest, u16 flipC
 
     i16 newWinding = rf->matrixWinding ^ sMatrixAxisSwaps[flipOffset];
 
-    i16 x = rf->objectToView[0][0];
-    i16 y = rf->objectToView[0][1];
-    i16 z = rf->objectToView[0][2];
+    i16 x = rf->entityToView[0][0];
+    i16 y = rf->entityToView[0][1];
+    i16 z = rf->entityToView[0][2];
 
     if (flipCommand & 0x20) {
         x = -x;
@@ -3671,9 +3671,9 @@ MINTERNAL i16 FlipMatrixAxis(RenderFrame* rf, Matrix3x3i16 matrixDest, u16 flipC
     matrixDest[di][1] = y;
     matrixDest[di][2] = z;
 
-    x = rf->objectToView[1][0];
-    y = rf->objectToView[1][1];
-    z = rf->objectToView[1][2];
+    x = rf->entityToView[1][0];
+    y = rf->entityToView[1][1];
+    z = rf->entityToView[1][2];
 
     if (flipCommand & 0x10) {
         x = -x;
@@ -3687,9 +3687,9 @@ MINTERNAL i16 FlipMatrixAxis(RenderFrame* rf, Matrix3x3i16 matrixDest, u16 flipC
     matrixDest[di][1] = y;
     matrixDest[di][2] = z;
 
-    x = rf->objectToView[2][0];
-    y = rf->objectToView[2][1];
-    z = rf->objectToView[2][2];
+    x = rf->entityToView[2][0];
+    y = rf->entityToView[2][1];
+    z = rf->entityToView[2][2];
 
     if (flipCommand & 0x08) {
         x = -x;
@@ -3709,11 +3709,11 @@ MINTERNAL i16 FlipMatrixAxis(RenderFrame* rf, Matrix3x3i16 matrixDest, u16 flipC
 MINTERNAL void TransformLightAndViewVectors(RenderContext *scene) {
     RenderFrame* rf = GetRenderFrame(scene);
 
-    i8 scale = GetScaleBelow(rf->objectPos, 0x3f00);
+    i8 scale = GetScaleBelow(rf->entityPos, 0x3f00);
 
     Vec3i32 objectDir;
     // Normalize object direction
-    Vec3i32Copy(rf->objectPos, objectDir);
+    Vec3i32Copy(rf->entityPos, objectDir);
     Vec3i32ShiftRight(objectDir, scale);
 
     rf->viewDirScale = scale;
@@ -3727,18 +3727,18 @@ MINTERNAL void TransformLightAndViewVectors(RenderContext *scene) {
 
     Vec3i32Neg(objectDir);
 
-    MatrixMult_Vec3i32_T(objectDir, rf->objectToView, rf->viewDirObject);
-    MatrixMult_Vec3i16_T(rf->lightDirView, rf->objectToView, rf->lightDirObject);
+    MatrixMult_Vec3i32_T(objectDir, rf->entityToView, rf->viewDirObject);
+    MatrixMult_Vec3i16_T(rf->lightDirView, rf->entityToView, rf->lightDirObject);
 }
 
 MINTERNAL int SetupNewTransformMatrix(RenderContext* renderContext, RenderFrame* newRenderFrame, RenderFrame* prevRenderFrame, u16 param) {
     u16 flipOffset = (param & (u16)0x7);
     if (flipOffset == 6) {
-        Matrix3i16Copy(prevRenderFrame->tmpMatrix, newRenderFrame->objectToView);
+        Matrix3i16Copy(prevRenderFrame->tmpMatrix, newRenderFrame->entityToView);
         newRenderFrame->matrixWinding = prevRenderFrame->newMatrixWinding;
     } else {
         newRenderFrame->matrixWinding =
-                FlipMatrixAxis(prevRenderFrame, newRenderFrame->objectToView, param);
+                FlipMatrixAxis(prevRenderFrame, newRenderFrame->entityToView, param);
     }
 
     Vec3i16Copy(prevRenderFrame->lightDirView, newRenderFrame->lightDirView);
@@ -3996,7 +3996,7 @@ MINTERNAL i32 CalcVec3i32Depth(RenderFrame* rf, const Vec3i32 v) {
 
 MINTERNAL i32 CalcObjectOffsetDepth(RenderFrame* rf, i32 depthOffset) {
     i16 scale = 3 - rf->depthScale;
-    i32 z = depthOffset + rf->objectPos[2];
+    i32 z = depthOffset + rf->entityPos[2];
     if (scale <= 0) {
         scale += 24;
         if (z > 0) {
@@ -4008,12 +4008,12 @@ MINTERNAL i32 CalcObjectOffsetDepth(RenderFrame* rf, i32 depthOffset) {
         }
     }
 
-    i32 x = rf->objectPos[0];
+    i32 x = rf->entityPos[0];
     if (x < 0) {
         x = -x;
     }
 
-    i32 y = rf->objectPos[1];
+    i32 y = rf->entityPos[1];
     if (y < 0) {
         x -= y;
     } else {
@@ -5144,7 +5144,7 @@ MINTERNAL int RComplexCircle(RenderContext* renderContext, u16 funcParam) {
         Vec3i32 n;
         GetNormalVec3i32(rf, normalIndex, n);
 
-        MatrixMult_Vec3i32(n, rf->objectToView, rf->complexNormal);
+        MatrixMult_Vec3i32(n, rf->entityToView, rf->complexNormal);
 
         rf->complexNormalIndex = normalIndex;
     }
@@ -5610,9 +5610,9 @@ doneProjects:
     newRenderFrame->parentFrameVertexIndexes[3] = v3i;
     newRenderFrame->parentFrameVertexIndexes[4] = v4i;
 
-    CopyVertexView(objectPosition, newRenderFrame->objectPos);
+    CopyVertexView(objectPosition, newRenderFrame->entityPos);
     newRenderFrame->depthScale = rf->depthScale;
-    newRenderFrame->renderObject = rf->renderObject;
+    newRenderFrame->entity = rf->entity;
     newRenderFrame->parentVertexTrans = rf->vertexTrans;
     newRenderFrame->parentVertices = rf->vertexTrans;
     newRenderFrame->scale = scale;
@@ -6110,9 +6110,9 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
     RenderFrame* newRenderFrame = PushRenderFrame(rc);
 
     newRenderFrame->depthScale = rf->depthScale;
-    newRenderFrame->renderObject = rf->renderObject;
+    newRenderFrame->entity = rf->entity;
 
-    CopyVertexView(v1, newRenderFrame->objectPos);
+    CopyVertexView(v1, newRenderFrame->entityPos);
     CopyVertexView(v1, newRenderFrame->lineStartVec);
 
     newRenderFrame->baseColour = colour;
@@ -6127,9 +6127,9 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
     SetupNewTransformMatrix(rc, newRenderFrame, rf, param2 >> 8);
 
     if (newRenderFrame->matrixWinding < 0) {
-        newRenderFrame->objectToView[0][0] = -newRenderFrame->objectToView[0][0];
-        newRenderFrame->objectToView[0][1] = -newRenderFrame->objectToView[0][1];
-        newRenderFrame->objectToView[0][2] = -newRenderFrame->objectToView[0][2];
+        newRenderFrame->entityToView[0][0] = -newRenderFrame->entityToView[0][0];
+        newRenderFrame->entityToView[0][1] = -newRenderFrame->entityToView[0][1];
+        newRenderFrame->entityToView[0][2] = -newRenderFrame->entityToView[0][2];
     }
 
     u16 fontIndex = (param1 >> 12);
@@ -6188,7 +6188,7 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
     newRenderFrame->frameId = 2;
 
     // Render each char
-    Render_LoadFormattedString(rc->sceneSetup, rf->renderObject, param3, textBuffer, textBufSize);
+    Render_LoadFormattedString(rc->sceneSetup, rf->entity, param3, textBuffer, textBufSize);
 
     int i = 0;
     u8 c = 0;
@@ -6212,13 +6212,13 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
             if (vertexIndex) {
                 VertexData* v = TransformVertex(rc, newRenderFrame, vertexIndex);
 
-                CopyVertexView(v, newRenderFrame->objectPos);
+                CopyVertexView(v, newRenderFrame->entityPos);
 
                 newRenderFrame->frameId++;
             }
         } else {
             // do transform
-            Vec3i32Copy(newRenderFrame->lineStartVec, newRenderFrame->objectPos);
+            Vec3i32Copy(newRenderFrame->lineStartVec, newRenderFrame->entityPos);
 
             newRenderFrame->frameId++;
 
@@ -6227,7 +6227,7 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
 
             TransformVertex(rc, newRenderFrame, vertexIndex);
 
-            CopyVertexView(v, newRenderFrame->objectPos);
+            CopyVertexView(v, newRenderFrame->entityPos);
             CopyVertexView(v, newRenderFrame->lineStartVec);
 
             newRenderFrame->frameId++;
@@ -6285,7 +6285,7 @@ MINTERNAL int RenderIf(RenderContext* renderContext, u16 funcParam) {
         if (!(normalColour & NORMAL_FACING_AWAY)) {
             return 0;
         }
-    } else if (rf->objectPos[2] > 0) {
+    } else if (rf->entityPos[2] > 0) {
         u16 scale;
         if (param1 & 0x1) {
             scale = renderContext->planetDetail;
@@ -6301,7 +6301,7 @@ MINTERNAL int RenderIf(RenderContext* renderContext, u16 funcParam) {
             }
             scale--;
         }
-        if (z >= rf->objectPos[2]) {
+        if (z >= rf->entityPos[2]) {
             return 0;
         }
     } else {
@@ -6325,7 +6325,7 @@ MINTERNAL int RenderIfNot(RenderContext* renderContext, u16 funcParam) {
         if (normalColour & NORMAL_FACING_AWAY) {
             return 0;
         }
-    } else if (rf->objectPos[2] > 0) {
+    } else if (rf->entityPos[2] > 0) {
         i16 scale;
         if (param1 & 0x1) {
             scale = renderContext->planetDetail;
@@ -6341,7 +6341,7 @@ MINTERNAL int RenderIfNot(RenderContext* renderContext, u16 funcParam) {
             }
             scale--;
         }
-        if (zCmp < rf->objectPos[2]) {
+        if (zCmp < rf->entityPos[2]) {
             return 0;
         }
     }
@@ -6414,7 +6414,7 @@ MINTERNAL int RenderCalc(RenderContext* renderContext, u16 funcParam) {
         }
         case MathFunc_GetModelVar: {
             u16 i = (p1 + p2);
-            u16Result = rf->renderObject->entityVars[i];
+            u16Result = rf->entity->entityVars[i];
             break;
         }
         case MathFunc_ZeroIfGreater: {
@@ -6491,17 +6491,17 @@ MINTERNAL int RenderModel(RenderContext* renderContext, u16 funcParam) {
 MINTERNAL int RenderAudioCue(RenderContext* renderContext, u16 funcParam) {
     RenderFrame* rf = GetRenderFrame(renderContext);
 
-    i32 x = rf->objectPos[0];
+    i32 x = rf->entityPos[0];
     if (x < 0) {
         x = -x;
     }
 
-    i32 y = rf->objectPos[1];
+    i32 y = rf->entityPos[1];
     if (y < 0) {
         y = -y;
     }
 
-    i32 z = rf->objectPos[2];
+    i32 z = rf->entityPos[2];
     if (z < 0) {
         z = -z;
     }
@@ -6681,7 +6681,7 @@ MINTERNAL void RenderConeParams(RenderContext* renderContext, RenderFrame* rf, u
     GetNormalVec3i32(rf, normalIndexCap1, capNormalObject);
 
     Vec3i32 capNormalView;
-    MatrixMult_Vec3i32(capNormalObject, rf->objectToView, capNormalView);
+    MatrixMult_Vec3i32(capNormalObject, rf->entityToView, capNormalView);
 
     Vec2i16 cap1BezierPts[6]; // 6 unique points needed for end cap 1 : 2 actual + 4 control
     Vec3i32 cap1Axis;
@@ -7066,7 +7066,7 @@ MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
             p1 >>= cl;
         }
 
-        i32 z = rf->objectPos[2];
+        i32 z = rf->entityPos[2];
         if (z <= 0) {
             while (TRUE) {
                 i8 param = ByteCodeRead8i(rf);
@@ -7282,10 +7282,10 @@ MINTERNAL int RenderMatrixCopy(RenderContext* scene, u16 funcParam) {
             return 0;
         } else {
             if (param0 == 0xc01) {
-                Matrix3i16Copy(rf->tmpMatrix, rf->objectToView);
+                Matrix3i16Copy(rf->tmpMatrix, rf->entityToView);
             } else {
                 MLogf("Unhandled matrix setup %d 2", param0);
-                Matrix3i16Copy(rf->tmpMatrix, rf->objectToView);
+                Matrix3i16Copy(rf->tmpMatrix, rf->entityToView);
             }
             return 0;
         }
@@ -7838,7 +7838,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
                 a <<= 1;
                 if (a & 0x8000) {
                     Vec3i16 vec3;
-                    Vec3i16Copy(rf->objectToView[0], vec3);
+                    Vec3i16Copy(rf->entityToView[0], vec3);
                     a <<= 1;
                     if (a & 0x8000) {
                         Vec3i16Neg(vec3);
@@ -7850,7 +7850,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
                 a <<= 1;
                 if (a & 0x8000) {
                     Vec3i16 vec3;
-                    Vec3i16Copy(rf->objectToView[1], vec3);
+                    Vec3i16Copy(rf->entityToView[1], vec3);
                     a <<= 1;
                     if (a & 0x8000) {
                         Vec3i16Neg(vec3);
@@ -7862,7 +7862,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
                 a <<= 1;
                 if (a & 0x8000) {
                     Vec3i16 vec3;
-                    Vec3i16Copy(rf->objectToView[2], vec3);
+                    Vec3i16Copy(rf->entityToView[2], vec3);
                     a <<= 1;
                     if (a & 0x8000) {
                         Vec3i16Neg(vec3);
@@ -8814,7 +8814,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
             workspace.doneRenderFeatures = 0;
             workspace.radiusFeatureDraw = radiusScaled;
 //            workspace.radiusFeatureDraw = (workspace.radiusScaled * 0x82c0) >> 15; // * 1.02
-            workspace.random = (rf->renderObject->entityVars[3] << 16) + rf->renderObject->entityVars[2];
+            workspace.random = (rf->entity->entityVars[3] << 16) + rf->entity->entityVars[2];
 
             while (featureCtrl) {
                 if (featureCtrl < 0) {
@@ -8827,7 +8827,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
                     vec[2] = -((i16)ByteCodeRead8i(rf) << 8);
 
                     Vec3i16 vecProjected;
-                    MatrixMult_Vec3i16(vec, rf->objectToView, vecProjected);
+                    MatrixMult_Vec3i16(vec, rf->entityToView, vecProjected);
 
                     // Get angle between vec and outline of circle - 0 (0x00) smallest - 90 degree (0xff) max
                     u16 angle = ((u16)ByteCodeRead8u(rf) << 6); //  2^6 = 2^(8 - 2), 2^2 = 4, 360 / 4 = 90 degree
@@ -8868,7 +8868,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
                         vec[1] = ((i16) ByteCodeRead8i(rf)) << 8;
                         vec[2] = ((i16) ByteCodeRead8i(rf)) << 8;
 
-                        MatrixMult_Vec3i16(vec, rf->objectToView, vecProjected);
+                        MatrixMult_Vec3i16(vec, rf->entityToView, vecProjected);
 
                         if (arcStarted) {
                             paramX = ByteCodeRead8i(rf);
@@ -9044,6 +9044,23 @@ MINTERNAL void FrameRenderObjects(RenderContext* rc, ModelData* model) {
     rf->normalColours = NULL;
 }
 
+void Entity_Init(RenderEntity* entity) {
+    memset(entity, 0, sizeof(*entity));
+    // Entity text always points here into the vars available to model code
+    entity->entityText = (i8*)(entity->entityVars + 66);
+}
+
+void SceneSetup_InitDefaultShadeRamp(SceneSetup* sceneSetup) {
+    sceneSetup->shadeRamp[0] = 0x0777;
+    sceneSetup->shadeRamp[1] = 0x0777;
+    sceneSetup->shadeRamp[2] = 0x0666;
+    sceneSetup->shadeRamp[3] = 0x0555;
+    sceneSetup->shadeRamp[4] = 0x0444;
+    sceneSetup->shadeRamp[5] = 0x0333;
+    sceneSetup->shadeRamp[6] = 0x0222;
+    sceneSetup->shadeRamp[7] = 0x0111;
+}
+
 void Render_Init(SceneSetup* sceneSetup, RasterContext* raster) {
     sceneSetup->audio = NULL;
     sceneSetup->raster = raster;
@@ -9061,7 +9078,7 @@ void Render_Free(SceneSetup* sceneSetup) {
 #endif
 }
 
-void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* renderEntity) {
+void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* entity) {
     RenderContext renderContext;
 
     memset(renderContext.renderFrame, 0, sizeof(renderContext.renderFrame));
@@ -9069,8 +9086,8 @@ void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* renderEntity) {
     renderContext.currentRenderFrame = renderContext.renderFrame;
     renderContext.currentRenderFrameIx = 0;
 
-    renderContext.random1 = renderEntity->random1;
-    renderContext.random2 = renderEntity->random2;
+    renderContext.random1 = sceneSetup->random1;
+    renderContext.random2 = sceneSetup->random2;
 
     renderContext.depthTree = &sceneSetup->raster->depthTree;
     DepthTree_Clear(renderContext.depthTree);
@@ -9080,6 +9097,7 @@ void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* renderEntity) {
 
     renderContext.renderDetail = sceneSetup->renderDetail;
     renderContext.planetDetail = sceneSetup->planetDetail;
+    renderContext.renderPlanetAtmos = sceneSetup->renderPlanetAtmos;
 
     renderContext.currentBatchId = 0;
 
@@ -9088,16 +9106,15 @@ void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* renderEntity) {
     renderContext.currentRenderFrame = NULL;
     RenderFrame* rf = PushRenderFrame(&renderContext);
 
-    renderContext.entity = renderEntity;
+    renderContext.entity = entity;
     renderContext.memStack = &sceneSetup->memStack;
 
-    renderContext.renderPlanetAtmos = sceneSetup->renderPlanetAtmos;
     renderContext.sceneSetup = sceneSetup;
 
-    rf->renderObject = renderEntity;
+    rf->entity = entity;
     rf->matrixWinding = 0;
 
-    ModelData* modelData = Render_GetModel(sceneSetup, renderEntity->modelIndex);
+    ModelData* modelData = Render_GetModel(sceneSetup, entity->modelIndex);
 
 #ifdef FINTRO_INSPECTOR
     renderContext.logLevel = sceneSetup->logLevel;
@@ -9106,27 +9123,25 @@ void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* renderEntity) {
 #endif
 
     // Copy rotation to view space
-    Matrix3i16Copy(rf->renderObject->viewMatrix, rf->objectToView);
+    Matrix3i16Copy(rf->entity->viewMatrix, rf->entityToView);
+    Vec3i32Copy(entity->entityPos, rf->entityPos);
 
-    Vec3i32Copy(renderEntity->objectPosView, rf->objectPos);
-
-    rf->scale = modelData->scale1 + modelData->scale2 - renderEntity->depthScale; // Simple draw setup, doesn't work for directly drawing large objects e.g. planets
-    rf->depthScale = renderEntity->depthScale;
+    rf->scale = modelData->scale1 + modelData->scale2 - entity->depthScale; // Simple draw setup, doesn't work for directly drawing large objects e.g. planets
+    rf->depthScale = entity->depthScale;
 
     if (!CheckClipped(&renderContext, modelData)) {
         return;
     }
 
     rf->tmpVariable[0] = 0;
-
     rf->baseColour = 0x111;
 
     // Light vector
-    Vec3i16Copy(renderEntity->lightDirView, rf->lightDirView);
+    Vec3i16Copy(sceneSetup->lightDirView, rf->lightDirView);
 
     // Copy light colour ramp
     for (int i = 0; i < 8; i++) {
-        rf->shadeRamp[i] = renderEntity->shadeRamp[i];
+        rf->shadeRamp[i] = sceneSetup->shadeRamp[i];
     }
 
     TransformLightAndViewVectors(&renderContext);
@@ -9139,8 +9154,8 @@ void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* renderEntity) {
     renderContext.currentBatchId = 0;
 
     // Save updated seed for next frame
-    renderEntity->random1 = renderContext.random1;
-    renderEntity->random2 = renderContext.random2;
+    sceneSetup->random1 = renderContext.random1;
+    sceneSetup->random2 = renderContext.random2;
 }
 
 MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf) {

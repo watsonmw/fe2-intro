@@ -312,6 +312,7 @@ int main(int, char**) {
     Intro intro;
     SceneSetup introSceneSetup;
     RenderEntity introEntity;
+    Entity_Init(&introEntity);
     Render_Init(&introSceneSetup, &raster);
 
     // Enabled debug render tracing
@@ -331,17 +332,17 @@ int main(int, char**) {
     // Load intro file data
     if (assetsRead == AssetsRead_PC_EliteClub) {
         Assets_LoadPCFiles(&assetsDataPc);
-        Intro_InitPC(&intro, &introSceneSetup, &introEntity, &assetsDataPc);
+        Intro_InitPC(&intro, &introSceneSetup, &assetsDataPc);
         ModelViewer_InitPC(&modelViewer, &assetsDataPc);
 
-        // Load amiga version sounds
+        // Also load amiga version for audio
         MReadFileRet amigaExe = Assets_LoadAmigaExeFromDataDir(AssetsRead_Amiga_EliteClub);
         Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExe, AssetsRead_Amiga_EliteClub);
     } else {
         MReadFileRet amigaExe = Assets_LoadAmigaExeFromDataDir(assetsRead);
         Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExe, assetsRead);
 
-        Intro_InitAmiga(&intro, &introSceneSetup, &introEntity, &assetsDataAmiga);
+        Intro_InitAmiga(&intro, &introSceneSetup, &assetsDataAmiga);
         ModelViewer_InitAmiga(&modelViewer, &assetsDataAmiga);
     }
 
@@ -444,6 +445,8 @@ int main(int, char**) {
     const char *annotationsFile = "data/annotations.csv";
     annotations.load(annotationsFile);
     u32 introNumFrames = Intro_GetNumFrames(&intro) - 1;
+    int showEntityHexView = 0;
+    ScenePos scenePos{};
 
     u64 startTime = SDL_GetPerformanceCounter();
     u64 lastFileCheckTime = startTime;
@@ -826,7 +829,7 @@ int main(int, char**) {
                     if (ImGui::SmallButton("Render")) {
                         renderScene = true;
                     }
-                    ScenePos scenePos = Intro_GetScenePos(&intro, frameOffset);
+                    scenePos = Intro_GetScenePos(&intro, frameOffset);
                     if (ImGui::SliderInt("Scene", &(scenePos.scene), 0, intro.numScenes - 1)) {
                         renderScene = true;
                         frameOffset = Intro_GetSceneFrameOffset(&intro, scenePos.scene);
@@ -1199,17 +1202,34 @@ int main(int, char**) {
                             renderScene = true;
                         }
 
-                        if (ImGui::InputText("Entity Text", curEntity->entityText, sizeof(curEntity->entityText))) {
+                        if (ImGui::InputText("Entity Text", curEntity->entityText, 20)) {
                             renderScene = true;
                         }
 
                         ImGui::Text("Entity pos x: %x (%d)  y: %x (%d)  z: %x (%d)",
-                                    curEntity->objectPosView[0], curEntity->objectPosView[0],
-                                    curEntity->objectPosView[1], curEntity->objectPosView[1],
-                                    curEntity->objectPosView[2], curEntity->objectPosView[2]);
+                                    curEntity->entityPos[0], curEntity->entityPos[0],
+                                    curEntity->entityPos[1], curEntity->entityPos[1],
+                                    curEntity->entityPos[2], curEntity->entityPos[2]);
 
-                        hexEditor.DrawContents(curEntity->entityVars, sizeof(curEntity->entityVars),
-                                               curSceneSetup->renderDataOffset + 0x72);
+                        ImGui::RadioButton("Entity Ours", &showEntityHexView, 0);
+                        ImGui::SameLine();
+                        if (modelRadio == 0) {
+                            ImGui::RadioButton("Entity Exe", &showEntityHexView, 1);
+                            ImGui::SameLine();
+                        }
+                        ImGui::RadioButton("Entity Vars", &showEntityHexView, 2);
+
+                        if (showEntityHexView == 0) {
+                            hexEditor.DrawContents(curEntity, sizeof(*curEntity),
+                                                   curSceneSetup->renderDataOffset);
+                        } else if (showEntityHexView == 1 && modelRadio == 0) {
+                            hexEditor.DrawContents(curSceneSetup->renderData, 0x150,
+                                                   curSceneSetup->renderDataOffset);
+                        } else if (showEntityHexView == 2) {
+                            hexEditor.DrawContents(curEntity->entityVars, sizeof(curEntity->entityVars),
+                                                   curSceneSetup->renderDataOffset + 72);
+                        }
+
                         ImGui::EndTabItem();
                     }
 

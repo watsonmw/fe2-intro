@@ -1,24 +1,29 @@
 #include "modelviewer.h"
 #include "modelcode.h"
 
-void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData) {
-    SceneSetup* sceneSetup = &viewer->sceneSetup;
+void ModelViewer_InitCommon(ModelViewer* viewer) {
     RenderEntity* entity = &viewer->entity;
+    Entity_Init(entity);
 
-    memset(entity->entityVars, 0, sizeof(entity->entityVars));
+    SceneSetup* sceneSetup = &viewer->sceneSetup;
+    SceneSetup_InitDefaultShadeRamp(sceneSetup);
 
-    entity->shadeRamp[0] = 0x0777;
-    entity->shadeRamp[1] = 0x0777;
-    entity->shadeRamp[2] = 0x0666;
-    entity->shadeRamp[3] = 0x0555;
-    entity->shadeRamp[4] = 0x0444;
-    entity->shadeRamp[5] = 0x0333;
-    entity->shadeRamp[6] = 0x0222;
-    entity->shadeRamp[7] = 0x0111;
+    sceneSetup->lightDirView[0] = 0xb619;
+    sceneSetup->lightDirView[1] = 0xb619;
+    sceneSetup->lightDirView[2] = 0x49e7;
 
-    entity->lightDirView[0] = 0xb619;
-    entity->lightDirView[1] = 0xb619;
-    entity->lightDirView[2] = 0x49e7;
+    viewer->yaw = 0;
+    viewer->roll = 0;
+    viewer->pos[0] = 0;
+    viewer->pos[1] = 0;
+    viewer->pos[2] = 0;
+}
+
+void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData) {
+    ModelViewer_InitCommon(viewer);
+
+    RenderEntity* entity = &viewer->entity;
+    SceneSetup* sceneSetup = &viewer->sceneSetup;
 
     Assets_LoadModelPointers16LE(assetsData->mainExeData + 0x418d4, 300, &sceneSetup->assets.models);
     Assets_LoadModelPointers16LE(assetsData->galmapModels, 15, &sceneSetup->assets.galmapModels);
@@ -26,36 +31,17 @@ void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData) {
     sceneSetup->moduleStrings = Assets_LoadStringPointers16LE(assetsData->mainStringData, 126);
     sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
 
-    memcpy(entity->entityText, " usil24", 8);
-
-    viewer->yaw = 0;
-    viewer->roll = 0;
-    viewer->pos[0] = 0;
-    viewer->pos[1] = 0;
-    viewer->pos[2] = 0;
+    memcpy(entity->entityText, "  RUMBA", 8);
 
     sceneSetup->modelDataFileStartAddress = assetsData->mainExeData;
     sceneSetup->fontModelDataFileStartAddress = assetsData->mainExeData;
 }
 
 void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsDataAmiga* assetsData) {
+    ModelViewer_InitCommon(viewer);
+
     SceneSetup* sceneSetup = &viewer->sceneSetup;
     RenderEntity* entity = &viewer->entity;
-
-    memset(entity->entityVars, 0, sizeof(entity->entityVars));
-
-    entity->shadeRamp[0] = 0x0777;
-    entity->shadeRamp[1] = 0x0777;
-    entity->shadeRamp[2] = 0x0666;
-    entity->shadeRamp[3] = 0x0555;
-    entity->shadeRamp[4] = 0x0444;
-    entity->shadeRamp[5] = 0x0333;
-    entity->shadeRamp[6] = 0x0222;
-    entity->shadeRamp[7] = 0x0111;
-
-    entity->lightDirView[0] = 0xb619;
-    entity->lightDirView[1] = 0xb619;
-    entity->lightDirView[2] = 0x49e7;
 
     u8* fileData = assetsData->mainExeData;
 
@@ -98,15 +84,7 @@ void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsDataAmiga* assetsData) {
     sceneSetup->assets.mainStrings = assetsData->mainStrings;
     sceneSetup->moduleStrings = sceneSetup->assets.mainStrings;
 
-    memcpy(entity->entityText, "  usil24", 9);
-
-    viewer->yaw = 0;
-    viewer->roll = 0;
-    viewer->pos[0] = 0;
-    viewer->pos[1] = 0;
-    viewer->pos[2] = 0;
-    viewer->renderDetail = 2;
-    viewer->planetDetail = 1;
+    memcpy(entity->entityText, "  REXLA", 8);
 }
 
 void ModelViewer_Free(ModelViewer* viewer) {
@@ -172,9 +150,9 @@ bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
     } else if (rScale < 0) {
         offsetZ >>= -rScale;
     }
-    entity->objectPosView[0] = x;
-    entity->objectPosView[1] = y;
-    entity->objectPosView[2] = z + offsetZ;
+    entity->entityPos[0] = x;
+    entity->entityPos[1] = y;
+    entity->entityPos[2] = z + offsetZ;
 
     Matrix3x3i16 m;
     i16 sinA = 0;

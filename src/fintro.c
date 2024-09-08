@@ -32,24 +32,21 @@ static IntroScene Intro_SceneList[] = {
         { 0x800, 0x400, 0, 1728 }, // Rotate courier
 };
 
-static void SetupSceneFromRenderData(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, u32 renderDataOffset) {
+static void SetupEntityFromRenderData(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, u32 renderDataOffset) {
     u8* renderData = (u8*) (intro->sceneSetupData + renderDataOffset);
 #ifdef FINTRO_INSPECTOR
-    sceneSetup->renderDataOffset = renderDataOffset;
-#endif
-    u16* data = (u16*)(renderData);
-    entity->modelIndex = data[0x2d] >> 1;
-
-#ifdef FINTRO_INSPECTOR
     sceneSetup->modelDataFileStartAddress = intro->sceneSetupData;
+    sceneSetup->renderDataOffset = renderDataOffset;
+    sceneSetup->renderData = renderData;
 #endif
-
+    memcpy(entity->viewMatrix, renderData, sizeof(entity->viewMatrix));
+    memcpy(entity->entityPos, renderData + 0x14, sizeof(entity->entityPos));
+    u16* u16data = (u16*)(renderData);
+    entity->modelIndex = u16data[0x2d] >> 1;
     memcpy(entity->entityVars, renderData + 0x72, sizeof(entity->entityVars));
-    memcpy(entity->entityText, renderData + 0xf6, sizeof(entity->entityText));
-    memcpy(entity->viewMatrix, renderData, 0x20);
 }
 
-void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, AssetsDataPC* assetsData) {
+void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData) {
     u8* introFileData = assetsData->introModuleData + 0x200;
     u8* gameFileData = assetsData->gameMenuModuleData + 0x200;
 
@@ -69,16 +66,9 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, As
 
     sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
 
+    intro->lastScene = -1;
     sceneSetup->renderPlanetAtmos = 0xfff;
-
-    entity->shadeRamp[0] = 0x0777;
-    entity->shadeRamp[1] = 0x0777;
-    entity->shadeRamp[2] = 0x0666;
-    entity->shadeRamp[3] = 0x0555;
-    entity->shadeRamp[4] = 0x0444;
-    entity->shadeRamp[5] = 0x0333;
-    entity->shadeRamp[6] = 0x0222;
-    entity->shadeRamp[7] = 0x0111;
+    SceneSetup_InitDefaultShadeRamp(sceneSetup);
 
     intro->scenes = Intro_SceneList;
 
@@ -122,19 +112,11 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, As
     intro->drawFrontierLogo = 0;
 }
 
-void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, AssetsDataAmiga* assetsData) {
+void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* assetsData) {
     intro->sceneSetupData = assetsData->mainExeData;
-
+    intro->lastScene = -1;
     sceneSetup->renderPlanetAtmos = 0xfff;
-
-    entity->shadeRamp[1] = 0x0777;
-    entity->shadeRamp[2] = 0x0666;
-    entity->shadeRamp[3] = 0x0555;
-    entity->shadeRamp[0] = 0x0777;
-    entity->shadeRamp[4] = 0x0444;
-    entity->shadeRamp[5] = 0x0333;
-    entity->shadeRamp[6] = 0x0222;
-    entity->shadeRamp[7] = 0x0111;
+    SceneSetup_InitDefaultShadeRamp(sceneSetup);
 
     u8* fileData = assetsData->mainExeData;
 
@@ -328,7 +310,10 @@ void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, RenderEn
         scenePos.offset = 0;
     }
 
-    SetupSceneFromRenderData(intro, sceneSetup, entity, intro->scenes[scenePos.scene].dataOffset);
+    if (intro->lastScene != scenePos.scene) {
+        SetupEntityFromRenderData(intro, sceneSetup, entity, intro->scenes[scenePos.scene].dataOffset);
+        intro->lastScene = scenePos.scene;
+    }
     entity->entityVars[0] = scenePos.offset + intro->scenes[scenePos.scene].frameStart;
 
     if (scenePos.scene == 1) {
@@ -348,13 +333,13 @@ void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, RenderEn
         u16 angle = (lightAngle & 0xffff);
         LookupSineAndCosine(angle, &sine, &cosine);
 
-        entity->lightDirView[0] = (i16)((0x5a82 * sine) >> 16);
-        entity->lightDirView[1] = (i16)0xa57e;
-        entity->lightDirView[2] = (i16)((0x5a82 * cosine) >> 16);
+        sceneSetup->lightDirView[0] = (i16)((0x5a82 * sine) >> 16);
+        sceneSetup->lightDirView[1] = (i16)0xa57e;
+        sceneSetup->lightDirView[2] = (i16)((0x5a82 * cosine) >> 16);
     } else {
-        entity->lightDirView[0] = (i16)0xb619;
-        entity->lightDirView[1] = (i16)0xb619;
-        entity->lightDirView[2] = (i16)0x49e7;
+        sceneSetup->lightDirView[0] = (i16)0xb619;
+        sceneSetup->lightDirView[1] = (i16)0xb619;
+        sceneSetup->lightDirView[2] = (i16)0x49e7;
 
         switch (scenePos.scene) {
             case 10: {
@@ -367,8 +352,8 @@ void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, RenderEn
                 Matrix3x3i16RotateAxisAngle(rotation, RotateAxis_Y, rot);
 
                 Vec3i16 lightVec;
-                MatrixMult_Vec3i16(entity->lightDirView, rotation, lightVec);
-                Vec3i16Copy(lightVec, entity->lightDirView);
+                MatrixMult_Vec3i16(sceneSetup->lightDirView, rotation, lightVec);
+                Vec3i16Copy(lightVec, sceneSetup->lightDirView);
                 break;
             }
             case 12: {
@@ -380,8 +365,8 @@ void Intro_SetSceneForFrameOffset(Intro* intro, SceneSetup* sceneSetup, RenderEn
                 Matrix3x3i16RotateAxisAngle(rotation, RotateAxis_X, (rot - 2048));
 
                 Vec3i16 lightVec;
-                MatrixMult_Vec3i16(entity->lightDirView, rotation, lightVec);
-                Vec3i16Copy(lightVec, entity->lightDirView);
+                MatrixMult_Vec3i16(sceneSetup->lightDirView, rotation, lightVec);
+                Vec3i16Copy(lightVec, sceneSetup->lightDirView);
                 break;
             }
             default:

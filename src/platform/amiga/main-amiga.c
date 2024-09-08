@@ -96,7 +96,7 @@ static AudioContext sAudioContext;
 static u64 sStartTime;
 static u64 sCurrentClock;
 
-static u16 sModToPlay = Audio_ModEnum_FRONTIER_THEME_INTRO;
+static u16 sModToPlay = Audio_ModEnum_SILENCE;
 static const char* sFrontierExePath = NULL;
 static b32 sProfile;
 static b32 sProfileFrame;
@@ -661,13 +661,11 @@ __stdargs int main(int argc, char** argv) {
     u64 prevClock = AOS_GetClockCountAndInterval(&sClockTickInterval);
     sStartTime = prevClock;
 
-    AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub;
+    AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub2;
 
     Surface surface;
     surface.pixels = 0;
     Surface_Init(&surface, SURFACE_WIDTH, SURFACE_HEIGHT);
-
-    FMath_BuildLookupTables();
 
     RasterContext raster;
     raster.surface = &surface;
@@ -675,7 +673,9 @@ __stdargs int main(int argc, char** argv) {
     Raster_Init(&raster);
 
     RenderEntity introEntity;
+    memset(&introEntity, 0, sizeof(introEntity));
     SceneSetup introSceneSetup;
+    memset(&introSceneSetup, 0, sizeof(introEntity));
     Render_Init(&introSceneSetup, &raster);
 
     AssetsDataAmiga assetsDataAmiga;
@@ -688,7 +688,7 @@ __stdargs int main(int argc, char** argv) {
         Audio_ModStart(&sAudioContext, sModToPlay);
     }
 
-    Intro_InitAmiga(&sIntro, &introSceneSetup, &introEntity, &assetsDataAmiga);
+    Intro_InitAmiga(&sIntro, &introSceneSetup, &assetsDataAmiga);
 
     // Read model overrides if exists
     ModelsArray overrideModels;
@@ -716,13 +716,13 @@ __stdargs int main(int argc, char** argv) {
         MLogf("Profiling frame %d [samples x%d]...", sFrameOffset, SAMPLES);
         for (int i = 0; i < WARMUP_SAMPLES; i++) {
             sCurrentClock = AOS_GetClockCount();
-            RenderIntroAtTime(&sIntro, &introSceneSetup, sFrameOffset, FALSE, sCurrentClock);
+            RenderIntroAtTime(&sIntro, &introSceneSetup, &introEntity, sFrameOffset, FALSE, sCurrentClock);
         }
         u32 rasterTimes[SAMPLES];
         u32 renderTimes[SAMPLES];
         for (int i = 0; i < SAMPLES; i++) {
             sCurrentClock = AOS_GetClockCount();
-            RenderIntroAtTime(&sIntro, &introSceneSetup, sFrameOffset, FALSE, sCurrentClock);
+            RenderIntroAtTime(&sIntro, &introSceneSetup, &introEntity, sFrameOffset, FALSE, sCurrentClock);
             rasterTimes[i] = sRasterTime;
             renderTimes[i] = sRenderTime;
         }

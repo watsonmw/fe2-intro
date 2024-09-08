@@ -208,7 +208,7 @@ int setup(void) {
     AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub2;
     Assets_LoadAmigaFiles(&sLoopContext.assetsDataAmiga, &sLoopContext.gameExeFile, assetsRead);
     sLoopContext.intro.drawFrontierLogo = 0;
-    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &sLoopContext.entity, &sLoopContext.assetsDataAmiga);
+    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &sLoopContext.assetsDataAmiga);
 
     MArrayInit(sLoopContext.overrideModels);
     sLoopContext.overridesFile =

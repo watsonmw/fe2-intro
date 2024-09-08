@@ -481,7 +481,7 @@ int main(int argc, char**argv) {
     AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub2;
     Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExe, assetsRead);
     sLoopContext.intro.drawFrontierLogo = 1;
-    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &sLoopContext.entity, &assetsDataAmiga);
+    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &assetsDataAmiga);
 
     if (sDumpIntroModels) {
         WriteAllModels(&sLoopContext.introScene.assets.models, assetsDataAmiga.mainExeData);

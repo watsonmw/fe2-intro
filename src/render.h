@@ -243,6 +243,12 @@ typedef struct sSceneSetup {
 
     AssetsData assets;
 
+    // Light direction in viewspace
+    Vec3i16 lightDirView;
+
+    // Shading map, added to model base colours based on facing towards light
+    i16 shadeRamp[8];
+
     u8 bitmapFontColours[16];
 
     RasterContext* raster;
@@ -259,16 +265,17 @@ typedef struct sSceneSetup {
     u8* modelDataFileStartAddress;
     u8* galmapModelDataFileStartAddress;
     u8* fontModelDataFileStartAddress;
-    u32 renderDataOffset;
+    u32 renderDataOffset; // entity/scene setup from exe
+    u8* renderData; // entity/scene setup from exe
 #endif
 } SceneSetup;
 
 typedef struct sRenderEntity {
-    // Viewspace
+    // Matrix to rotate entity directly to view space (rotate is done first, then re-positions)
     Matrix3x3i16 viewMatrix;
 
-    // Object pos in view space
-    Vec3i32 objectPosView;
+    // Entity pos in view space (rotate is done first, then re-positions)
+    Vec3i32 entityPos;
 
     // Model to render (this model can render sub models)
     u16 modelIndex;
@@ -276,22 +283,14 @@ typedef struct sRenderEntity {
     // Entity variables used by model code
     u16 entityVars[0x80];
 
-    // Entity text (e.g. ship name / base name / platform name)
-    i8 entityText[40];
-
-    // Light direction in viewspace
-    Vec3i16 lightDirView;
-
-    // Shading map, added to model base colours based on facing towards light
-    i16 shadeRamp[8];
-
-    // Random seed vars, mutated everytime a new random is generated
-    u32 random1;
-    u32 random2;
-
     i16 depthScale;
+
+    // Entity text (e.g. ship name / base name / platform name)
+    i8* entityText;
 } RenderEntity;
 
+void Entity_Init(RenderEntity* entity);
+void SceneSetup_InitDefaultShadeRamp(SceneSetup* sceneSetup);
 
 // Model renderer
 void Render_Init(SceneSetup* sceneSetup, RasterContext* raster);

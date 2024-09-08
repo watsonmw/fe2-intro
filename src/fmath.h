@@ -41,7 +41,14 @@ typedef struct sFloat32 {
 extern i16 FMath_sine[4096];
 extern i16 FMath_arccos[128];
 
+#ifndef AMIGA
+#define FMATH_USE_FLOAT_SIN_ACOS 1
+#endif
+
+#ifdef FMATH_USE_FLOAT_SIN_ACOS
 void FMath_BuildLookupTables(void);
+#endif
+
 void FMath_Test(void);
 
 // Returns fixed point 16.8
