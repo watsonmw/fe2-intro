@@ -232,7 +232,7 @@ typedef struct sSceneSetup {
     u32 random1;
     u32 random2;
 
-    i16 renderPlanetAtmos;
+    i16 planetMinAtmosBandWidth;
     i16 renderDetail;
     i16 planetDetail;
     int planetRender;

@@ -468,6 +468,7 @@ MINLINE i16 FloatRebase(i16* bits, i16 paramIn) {
     return (i16) param;
 }
 
+// Rebase positive number, so msb is set
 MINLINE Float16 Float16uRebase(Float16 val) {
     u16 param = (u16) val.v;
     if (param) {

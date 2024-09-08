@@ -17,6 +17,7 @@ void ModelViewer_InitCommon(ModelViewer* viewer) {
     viewer->pos[0] = 0;
     viewer->pos[1] = 0;
     viewer->pos[2] = 0;
+    viewer->planetMinAtmosBandWidth = 0x4000;
 }
 
 void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData) {
@@ -181,6 +182,7 @@ bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
 
     Matrix3i16Copy(m, entity->viewMatrix);
 
+    sceneSetup->planetMinAtmosBandWidth = viewer->planetMinAtmosBandWidth;
     return true;
 }
 

@@ -12,6 +12,7 @@ typedef struct sModelViewer {
     int depthScale;
     int renderDetail;
     int planetDetail;
+    int planetMinAtmosBandWidth;
     Vec3i32 pos;
 } ModelViewer;
 

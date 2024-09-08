@@ -310,7 +310,7 @@ int main(int, char**) {
     Raster_Init(&raster);
 
     Intro intro;
-    SceneSetup introSceneSetup;
+    SceneSetup introSceneSetup{};
     RenderEntity introEntity;
     Entity_Init(&introEntity);
     Render_Init(&introSceneSetup, &raster);
@@ -327,7 +327,7 @@ int main(int, char**) {
     AssetsDataPC assetsDataPc;
 
     AssetsDataAmiga assetsDataAmiga;
-    ModelViewer modelViewer;
+    ModelViewer modelViewer{};
 
     // Load intro file data
     if (assetsRead == AssetsRead_PC_EliteClub) {
@@ -422,7 +422,7 @@ int main(int, char**) {
     RenderEntity* curEntity = &introEntity;
     DebugModelParams debugModelParams{};
     int imageOffset = 0;
-    int frameOffset = 2631;
+    int frameOffset = 0;
     MemoryEditor hexEditor;
     int sceneTab = 0;
     int modelTab = 0;
@@ -1006,6 +1006,9 @@ int main(int, char**) {
                         renderScene = true;
                     }
                     if (ImGui::SliderInt("Planet Detail ", &modelViewer.planetDetail, -2, 4)) {
+                        renderScene = true;
+                    }
+                    if (ImGui::SliderInt("Planet Min Atmos Width", &modelViewer.planetMinAtmosBandWidth, 0x4000, 0x4400)) {
                         renderScene = true;
                     }
                     if (ImGui::Button("Planet - Normal")) {
