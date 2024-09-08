@@ -22,7 +22,7 @@ MFileInfo MGetFileInfo(const char* filePath) {
     MFileInfo fileInfo;
     memset(&fileInfo, 0, sizeof(fileInfo));
 #if defined(__APPLE__)
-    stat status;
+    struct stat status;
     if (stat(filePath, &status) == -1) {
 #else
     struct _stat64 status;
