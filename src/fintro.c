@@ -67,7 +67,7 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData
     sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
 
     intro->lastScene = -1;
-    sceneSetup->renderPlanetAtmos = 0xfff;
+    sceneSetup->planetMinAtmosBandWidth = 0x0;
     SceneSetup_InitDefaultShadeRamp(sceneSetup);
 
     intro->scenes = Intro_SceneList;
@@ -115,7 +115,7 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData
 void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* assetsData) {
     intro->sceneSetupData = assetsData->mainExeData;
     intro->lastScene = -1;
-    sceneSetup->renderPlanetAtmos = 0xfff;
+    sceneSetup->planetMinAtmosBandWidth = 0x0;
     SceneSetup_InitDefaultShadeRamp(sceneSetup);
 
     u8* fileData = assetsData->mainExeData;
