@@ -1201,7 +1201,7 @@ code:
   done
 
 
-; Planet while landed
+; Planet while landing/landed
 model: 114
   scale1: 23,
   scale2: 0,

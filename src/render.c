@@ -2122,6 +2122,8 @@ void Raster_Free(RasterContext* raster) {
 
 MINTERNAL void DoRasterTree(RasterContext* raster, u8* mem, RasterOpNode* drawNode);
 
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
+
 MINTERNAL int DoDrawFunc(RasterContext *context, DrawFunc *drawFunc) {
     switch (drawFunc->func) {
         // Spans
@@ -2136,13 +2138,11 @@ MINTERNAL int DoDrawFunc(RasterContext *context, DrawFunc *drawFunc) {
         case DRAW_FUNC_SPANS_LINE: {
             DrawParamsLine *params = (DrawParamsLine *) (&drawFunc->params);
             SpanRenderer_AddLine(&(context->spanRenderer), params->x1, params->y1, params->x2, params->y2);
-
             return sizeof(DrawParamsLine);
         }
         case DRAW_FUNC_SPANS_LINE_CONT: {
             DrawParamsPoint *param1 = (DrawParamsPoint *) (((u8 *) &drawFunc->func) - sizeof(DrawParamsPoint));
             DrawParamsPoint *param2 = (DrawParamsPoint *) (&drawFunc->params);
-
             SpanRenderer_AddLine(&(context->spanRenderer), param1->x, param1->y, param2->x, param2->y);
             return sizeof(DrawParamsPoint);
         }
@@ -2352,6 +2352,8 @@ MINTERNAL int DoDrawFunc(RasterContext *context, DrawFunc *drawFunc) {
             return -1;
     }
 }
+
+#pragma GCC diagnostic pop
 
 MINTERNAL int DrawBatch(RasterContext* context, RasterOpNode* drawNode) {
     u8* currentFunc = (u8*)&drawNode->func;
@@ -8210,7 +8212,7 @@ void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace* workspace
                             // Special check to control inside-out-ness
                             i16 dist = ((i16) ByteCodeRead8i(rf)) << 8;
                             BodyPoint bodyPoint;
-                            PlanetProjectPoint(&workspace, vecProjected, &bodyPoint);
+                            PlanetProjectPoint(workspace, vecProjected, &bodyPoint);
                             MLogf("---- %d %d", bodyPoint.pt.x, bodyPoint.pt.y);
                             if (workspace->radiusScaled >= 0x1000) {
                                 Vec3i16 vec2;
@@ -8238,7 +8240,7 @@ void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace* workspace
                     }
                 } while (paramX);
 
-                PlanetArcEnd(renderContext, rf, &workspace);
+                PlanetArcEnd(renderContext, rf, workspace);
             }
             doneArc:
             featureCtrl = ByteCodeRead8i(rf);
@@ -9026,6 +9028,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     }
 
     if (renderContext->sceneSetup->planetRender == 0) {
+#pragma GCC diagnostic ignored "-Waddress-of-packed-member"
         if (workspace.colourMode & 0x8) {
             DrawParamsColour16 *drawParams = BatchBodyDraw2(renderContext->depthTree);
             PlanetWriteColourToPalette(renderContext, &workspace, 0, drawParams->colour);
@@ -9034,6 +9037,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
             DrawParamsColour8 *drawParams = BatchBodyDraw3(renderContext->depthTree);
             PlanetWriteColourToPalette(renderContext, &workspace, 0, drawParams->colour);
         }
+#pragma GCC diagnostic pop
     } else if (renderContext->sceneSetup->planetRender != 0) {
         WriteDrawFunc(renderContext->depthTree, DRAW_FUNC_BATCH_END);
     }

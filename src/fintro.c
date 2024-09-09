@@ -39,6 +39,7 @@ static void SetupEntityFromRenderData(Intro* intro, SceneSetup* sceneSetup, Rend
     sceneSetup->renderDataOffset = renderDataOffset;
     sceneSetup->renderData = renderData;
 #endif
+    Entity_Init(entity);
     memcpy(entity->viewMatrix, renderData, sizeof(entity->viewMatrix));
     memcpy(entity->entityPos, renderData + 0x14, sizeof(entity->entityPos));
     u16* u16data = (u16*)(renderData);

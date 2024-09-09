@@ -571,6 +571,7 @@ int main(int argc, char**argv) {
     }
 
     MArrayFree(sOrigModels);
+    MMemFree(&sModelOverrides);
 
     Render_Free(&sLoopContext.introScene);
     Raster_Free(&raster);

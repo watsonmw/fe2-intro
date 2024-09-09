@@ -1585,7 +1585,9 @@ void DecompileFontModel(FontModelData* model, u32 modelIndex, DebugModelParams* 
     DumpVerticesAndNormals((ModelData*)model, debugModelParams, modelInfo, strOutput);
 
     FontModelData* fontModel = (FontModelData*) model;
+#pragma GCC diagnostic ignored  "-Waddress-of-packed-member"
     u16* offsets = fontModel->offsets;
+#pragma GCC diagnostic pop
     int i = 0;
     u16 minOffset = 0xffff;
 
@@ -1622,7 +1624,7 @@ void DecompileFontModel(FontModelData* model, u32 modelIndex, DebugModelParams* 
 
 void DecompileModelToConsole(ModelData* modelData, u32 modelIndex, ModelType modelType) {
     MMemIO writer;
-    MMemInitAlloc(&writer, 100);
+    MMemInitAlloc(&writer, 10000);
     DebugModelInfo modelInfo;
     DebugModelParams params;
     memset(&params,  0, sizeof(DebugModelParams));

@@ -37,6 +37,7 @@ void FMath_BuildLookupTables() {
     for (int i = 0; i <  asize / 2; i++) {
         double vin = i / ad;
         double v = acos(vin);
+        // NOTE: In clib/math.h M_PI_2 is pi/2
         i32 s = (i32)((v / M_PI_2) * 0x7fff);
         FMath_arccos[i] = (i16)s;
     }
@@ -44,6 +45,7 @@ void FMath_BuildLookupTables() {
     for (int i = 1; i <= (asize / 2); i++) {
         double vin = -i / ad;
         double v = acos(vin);
+        // NOTE: In clib/math.h M_PI_2 is pi/2
         i32 s = (i32)((v / M_PI_2) * 0x7fff);
         FMath_arccos[asize - i] = (i16)s;
     }

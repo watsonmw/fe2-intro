@@ -312,7 +312,6 @@ int main(int, char**) {
     Intro intro;
     SceneSetup introSceneSetup{};
     RenderEntity introEntity;
-    Entity_Init(&introEntity);
     Render_Init(&introSceneSetup, &raster);
 
     // Enabled debug render tracing
