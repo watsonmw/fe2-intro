@@ -141,6 +141,7 @@ MINTERNAL void UpdateSurfaceTexture(GLuint glTextureId, Surface* surface, RGB* p
 MINTERNAL void RenderIntroAtTime(GLuint surfaceTexture, Surface* surface, Intro* intro, SceneSetup* sceneSetup,
                                  RenderEntity* entity, int frameOffset, bool* resetPalette) {
     sModelRendered = true;
+    sceneSetup->debugPlanetUpdate = 0;
 
     Intro_SetSceneForFrameOffset(intro, sceneSetup, entity, frameOffset);
 
@@ -159,6 +160,7 @@ MINTERNAL void RenderIntroAtTime(GLuint surfaceTexture, Surface* surface, Intro*
 MINTERNAL void RenderModelViewer(GLuint surfaceTexture, Surface* surface, ModelViewer* modelViewer, u16 modelIndex,
                                  bool resetPalette) {
     sModelRendered = true;
+    modelViewer->sceneSetup.debugPlanetUpdate = 0;
 
     if (ModelViewer_SetSceneForModel(modelViewer, modelIndex)) {
         Render_RenderAndDrawScene(&(modelViewer->sceneSetup), &(modelViewer->entity), resetPalette);
@@ -1212,6 +1214,20 @@ int main(int, char**) {
                                     curEntity->entityPos[0], curEntity->entityPos[0],
                                     curEntity->entityPos[1], curEntity->entityPos[1],
                                     curEntity->entityPos[2], curEntity->entityPos[2]);
+
+                        if (curSceneSetup->debugPlanetUpdate) {
+                            ImGui::Text("Planet: ");
+                            ImGui::SameLine();
+                            ImGui::Text("half: %d surface: %d horizon: %d",
+                                        curSceneSetup->debugPlanetHalfMode, curSceneSetup->debugPlanetCloseToSurface,
+                                        curSceneSetup->debugPlanetHorizonScale);
+                            ImGui::Text("near: %d far: %d",
+                                        curSceneSetup->debugPlanetNearAxisDist, curSceneSetup->debugPlanetFarAxisDist);
+                            ImGui::Text("outline: %gm altitude: %gm radius: %gm",
+                                        Float16ieee(curSceneSetup->debugPlanetOutlineDist)/1000,
+                                        Float16ieee(curSceneSetup->debugPlanetAltitude)/1000,
+                                        Float16ieee(curSceneSetup->debugPlanetRadius)/1000);
+                        }
 
                         ImGui::RadioButton("Entity Ours", &showEntityHexView, 0);
                         ImGui::SameLine();

@@ -1437,7 +1437,7 @@ MINTERNAL void BodySpans_InsertPoint(BodySpan* bodySpan, i16 x1, u16 colour) {
 }
 
 MINTERNAL void BodySpans_AddLine(BodySpanRenderer* spans, i16 x1, i16 y1, i16 x2, i16 y2, u16 colour) {
-    MLogf("%d,%d -> %d,%d", x1, y1, x2, y2);
+    // MLogf("%d,%d -> %d,%d", x1, y1, x2, y2);
     if (!ClipLineY(&x1, &y1, &x2, &y2, spans->height)) {
         return;
     }
@@ -7315,21 +7315,15 @@ typedef struct sBodyPoint {
 } BodyPoint;
 
 typedef struct sBodyWorkspace {
-    u16 colours[16];
-
-    Float16 centerX; // center position of planet / sphere
+    VertexData* vertex;
+    Vec3i16 center;    // View space vector to center of planet (this vector is also scaled via radiusScaled above)
+    Float16 centerX;   // view center position of planet / sphere
     Float16 centerY;
     Float16 centerZ;
 
-    VertexData* v;
-    // View space vector to center of planet (this vector is also scaled via radiusScaled above)
-    Vec3i16 center;
+    i16 radiusScaled; // Radius in view space
 
     Float16 radius; // radius of planet / sphere
-    Float16 minorAxisZ2; // = (view Z)^2 - radius^2
-                         // view Z dist of the minor axis squared - this is the z depth as opposed to outline
-                         // distance from view point which is constant for the ellipse
-                         // If negative near view plane clips the sphere
     Float16 outlineDist; // View space distance to the visible planet outline
 
     // Two end points distances of the major axis along the axis from middle of the screen
@@ -7342,8 +7336,6 @@ typedef struct sBodyWorkspace {
     i16 axisX; // Screen ellipse slope x & y (axis line intersecting origin 0,0)
     i16 axisY;
 
-    i16 radiusScaled; // Radius is view space
-
     i16 arcRadius; // Current arc radius
 
     i16 radiusFeatureDraw;
@@ -7353,7 +7345,8 @@ typedef struct sBodyWorkspace {
     BodyPoint prevPt;
     BodyPoint endPt;
 
-    i16 detailLevel; // renderPolyMode2 + 16
+    u16 relativeScale; // radius to view distance relative scale
+    i16 detailLevel;   // subdivision detail level for arcs / features
 
     i16 detailParam;
 
@@ -7376,7 +7369,8 @@ typedef struct sBodyWorkspace {
     // bit 3 : Apply 1st shade ring - always use 8 shading colours from first 8
     u16 colourMode;
 
-    u16 radiusScale;
+    u16 colours[16];
+
     u8* initialCodeOffset; // after first three words
 
     i16 xLast;
@@ -7384,7 +7378,8 @@ typedef struct sBodyWorkspace {
 
     u16 lastTint;
 
-    i16 distLog2;  // Can't find where this is needed...
+    // radius log2 minus planet outline depth log2, if negative we are more than radius away from the planet outline
+    i16 radiusMinusHorizonDistScale;
 
     i8 isMonoColour;
     u16 startToggleColour; // start colour for first span (bottom, spans are rendered bottom to top)
@@ -7406,11 +7401,18 @@ MINTERNAL void CalcSkyColour(RenderContext* scene, RenderFrame* rf, BodyWorkspac
     } else if (lightFinal > 3) {
         lightFinal = 3;
     }
+
+    workspace->lastTint = rf->shadeRamp[lightFinal + 3];
     if (lightFinal > 0) {
+        // Good night!
         return;
     }
 
-    workspace->lastTint = rf->shadeRamp[lightFinal + 3];
+    if (workspace->radiusMinusHorizonDistScale < 5) {
+        // Too far away from planet, don't change sky color
+        return;
+    }
+
     PaletteContext* palette = scene->palette;
     palette->backgroundColour = skyColour + workspace->lastTint;
 }
@@ -8130,7 +8132,7 @@ MINTERNAL void RenderBody_ReadColours(RenderContext* scene, RenderFrame* rf, Bod
     }
 }
 
-void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace* workspace, RenderFrame* rf) {
+MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace* workspace, RenderFrame* rf) {
     workspace->isMonoColour = 1;
     workspace->startToggleColour = 0;
 
@@ -8182,7 +8184,7 @@ void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace* workspace
                 Vec3i16Zero(workspace->arcCenter);
                 i16 detailLevel = ByteCodeRead8i(rf);
                 if (detailLevel) {
-                    workspace->detailParam = (detailLevel + workspace->radiusScale + 1) << 1;
+                    workspace->detailParam = (detailLevel + workspace->relativeScale + 1) << 1;
                 } else {
                     workspace->detailParam = 0;
                 }
@@ -8253,7 +8255,8 @@ void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace* workspace
 
 // Impl 5th mode - ellipse outline
 
-MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* workspace, RenderFrame* rf, i16 ctrlPtOffset) {
+MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* workspace, RenderFrame* rf,
+                                  Float16 minorAxisZ2, i16 ctrlPtOffset) {
     // Render off center, optionally render atmosphere / halo
     // i32 nearDistScreen = nearestProjectedPoint.v;
 
@@ -8279,7 +8282,7 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
     // r1/2 + r1 * (cos a/2 + k * sin a/2)
     // r2 * (sin a/2 - k * cos a/2) + k/2
 
-    i32 nearDistScreen = workspace->nearMajorAxisDist.v - (3 * SCREEN_SCALE);
+    i32 nearDistScreen = workspace->nearMajorAxisDist.v - 3;
     // Distance from origin along the ellipse major axis to the bezier control points
     i32 ctrlPointDist = nearDistScreen - ctrlPtOffset;
 
@@ -8299,7 +8302,7 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
     Float16 s = Float16Div(q, workspace->radius);
     Float16 u = Float16Mult16(r, s);
 
-    u = Float16Mult16(u, workspace->minorAxisZ2);
+    u = Float16Mult16(u, minorAxisZ2);
     u.p += ZSCALE - 6;
     u = Float16Extract(u);
 
@@ -8431,7 +8434,7 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
     }
 
     if (renderContext->sceneSetup->planetRender == 0) {
-        PlanetWriteBezierNode(renderContext, rf, workspace->v, bezierPt);
+        PlanetWriteBezierNode(renderContext, rf, workspace->vertex, bezierPt);
 
         DrawParamsLineColour *drawLine1 = BatchBodyLine(renderContext->depthTree);
         drawLine1->x1 = bezierPt[0].x;
@@ -8447,7 +8450,7 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
         drawLine2->y2 = bezierPt[3].y;
         drawLine2->colour = 0;
     } else {
-        AddDrawNode(renderContext->depthTree, workspace->v->vVec[0], DRAW_FUNC_BATCH_START);
+        AddDrawNode(renderContext->depthTree, workspace->vertex->vVec[0], DRAW_FUNC_BATCH_START);
 
         DrawParamsBezierColour *drawBezier = BatchBezierLine(renderContext->depthTree);
         drawBezier->pts[0] = bezierPt[0];
@@ -8458,8 +8461,9 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
     }
 }
 
-MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace* workspace, RenderFrame* rf) {
-    Float16 minorAxisZ = Float16Sqrt(workspace->minorAxisZ2);
+MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace* workspace, RenderFrame* rf,
+                                     Float16 minorAxisZ2) {
+    Float16 minorAxisZ = Float16Sqrt(minorAxisZ2);
     Float16 minorAxisProjectedLen = Float16Div(workspace->radius, minorAxisZ);
 
     Float16 twoThirds = {F16_TWO_THIRDS, 1}; // Constant to move control points to approx ellipse with bezier
@@ -8496,7 +8500,7 @@ MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace
             bezierPt[i] = ScreenCoords(bezierPt[i]);
         }
 
-        PlanetWriteBezierNode(renderContext, rf, workspace->v, bezierPt);
+        PlanetWriteBezierNode(renderContext, rf, workspace->vertex, bezierPt);
 
         bezierPt[0].x = pt1x;
         bezierPt[0].y = pt1y;
@@ -8518,7 +8522,7 @@ MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace
         drawBezier->pts[3] = bezierPt[3];
         drawBezier->colour = 0;
     } else if (renderContext->sceneSetup->planetRender == 1) {
-        AddDrawNode(renderContext->depthTree, workspace->v->vVec[0], DRAW_FUNC_BATCH_START);
+        AddDrawNode(renderContext->depthTree, workspace->vertex->vVec[0], DRAW_FUNC_BATCH_START);
 
         i16 pt0x = (workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15;
         i16 pt0y = (workspace->nearMajorAxisDist.v * (i32) workspace->axisY) >> 15;
@@ -8579,7 +8583,7 @@ MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace
         drawLine->y2 = minorAxis.v;
         drawLine->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xfff);
     } else if (renderContext->sceneSetup->planetRender == 2) {
-        AddDrawNode(renderContext->depthTree, workspace->v->vVec[0], DRAW_FUNC_BATCH_START);
+        AddDrawNode(renderContext->depthTree, workspace->vertex->vVec[0], DRAW_FUNC_BATCH_START);
 
         // Nearest point
         i16 pt0x = (workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15;
@@ -8638,7 +8642,7 @@ MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace
         drawBezier->pts[3] = bezierPt[3];
         drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xfff);
     } else if (renderContext->sceneSetup->planetRender == 3) {
-        AddDrawNode(renderContext->depthTree, workspace->v->vVec[0], DRAW_FUNC_BATCH_START);
+        AddDrawNode(renderContext->depthTree, workspace->vertex->vVec[0], DRAW_FUNC_BATCH_START);
 
         // Nearest point
         i16 mj0x = (workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15;
@@ -8817,7 +8821,6 @@ MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace
 // body/planet render
 MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     RenderFrame* rf = GetRenderFrame(renderContext);
-
     BodyWorkspace workspace;
 
     u16 byteCodeSize = (funcParam >> 4) & 0xffe; // Size of data
@@ -8830,44 +8833,43 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     workspace.detailLevel = 16 + renderContext->planetDetail;
 
     // Get center vertex in view space coords
-    u16 vi = param2 & 0xff;
-    workspace.v = TransformAndProjectVertex(renderContext, rf, vi);
+    i16 vertexIndex = (i16)(param2 & 0xff);
+    workspace.vertex = TransformAndProjectVertex(renderContext, rf, vertexIndex);
 
     Vec3i32 centerVec;
-    Vec3i32Copy(workspace.v->vVec, centerVec);
+    Vec3i32Copy(workspace.vertex->vVec, centerVec);
 
     i16 baseScale = rf->scale + 7;
     i16 baseRadius = FloatRebase(&baseScale, radiusParm);
     u16 centerScale = Vec3i16ScaleBelow(centerVec, 0x3f00);
-    u16 radiusScale = baseScale - centerScale;
-    i32 radiusScaled = FloatScaleUp16s32s(baseRadius, &radiusScale);
-
-    if (!radiusScaled) {
+    u16 relativeScale = 31 + centerScale - baseScale;
+    i32 radiusRescaled = (i32)((((u32)((u16) baseRadius)) << 16) >> relativeScale);
+    if (!radiusRescaled) {
+        // Planet too far away to be rendered - skip
         ByteCodeSkipBytes(rf, byteCodeSize);
         return 0;
     }
 
-    workspace.radiusScale = radiusScale;
-    if (radiusScaled > 0x4000) {
+    workspace.relativeScale = relativeScale;
+    if (radiusRescaled > 0x4000) {
         Vec3i32ShiftRight(centerVec, 1);
-        workspace.radiusScale++;
+        workspace.relativeScale++;
     }
 
-    workspace.radiusScaled = radiusScaled;
-    workspace.center[0] = centerVec[0];
-    workspace.center[1] = centerVec[1];
-    workspace.center[2] = centerVec[2];
+    workspace.radiusScaled = (i16)radiusRescaled;
+    workspace.center[0] = (i16)centerVec[0];
+    workspace.center[1] = (i16)centerVec[1];
+    workspace.center[2] = (i16)centerVec[2];
 
     // If sphere is completely behind don't render
-    if (centerVec[2] + radiusScaled < 0) {
+    if (centerVec[2] + radiusRescaled < 0) {
         ByteCodeSkipBytes(rf, byteCodeSize);
         return 0;
     }
 
-    workspace.centerX = Float16Make(workspace.v->vVec[0]);
-    workspace.centerY = Float16Make(workspace.v->vVec[1]);
-    workspace.centerZ = Float16Make(workspace.v->vVec[2]);
-
+    workspace.centerX = Float16Make(workspace.vertex->vVec[0]);
+    workspace.centerY = Float16Make(workspace.vertex->vVec[1]);
+    workspace.centerZ = Float16Make(workspace.vertex->vVec[2]);
     workspace.radius.v = baseRadius;
     workspace.radius.p = baseScale;
 
@@ -8878,66 +8880,82 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
 
     // Get the outline Z depth as if the planet was viewed at x=0,y=0,z=centerZ - this will be the minor axis z-depth
     // (squared - hence the variable name ending in '2')
+    //   = (view Z)^2 - radius^2
+    // view Z dist of the minor axis squared - this is the z depth as opposed to outline distance from view point which
+    // is constant for the ellipse.  If negative near view plane clips the sphere.
     Float32 minorAxisZ2 = Float32Sub(z2, r2);
-    workspace.minorAxisZ2.v = (i16)(minorAxisZ2.v >> 16);
-    workspace.minorAxisZ2.p = minorAxisZ2.p;
 
     // Get the depth of points on the outline of the sphere - constant distance of points on the outline of the planet /
     // sphere from the view origin
-    Float32 xyViewDist2 = Float32Add(x2, y2);
-    Float32 outlineDepth2 = Float32Add(xyViewDist2, minorAxisZ2);
+    Float32 xyOffset2 = Float32Add(x2, y2);
+    Float32 outlineDist2 = Float32Add(xyOffset2, minorAxisZ2);
 
-    // Decide if we need to render the planet whole, side-on or not at all
-    i16 needInsideCalc = FALSE;
+    // Decide if we need to render the planet:
+    //  - whole (ellipse)
+    //  - side-on (half ellipse)
+    //  - close to ground / inside
+    //  - or not at all
+    i16 tooCloseToSurface = FALSE;
     i16 ctrlPtOffset = 42 * SCREEN_SCALE;
-    if (outlineDepth2.v > 0) {
+    if (outlineDist2.v > 0) {
         // Outside sphere, tangent depth is valid (we can sqrt it, to get the actual depth)
-        i16 depthVsRadiusScale = r2.p - outlineDepth2.p;
-        workspace.distLog2 = depthVsRadiusScale;
-        if (depthVsRadiusScale == 7) {
+        i16 horizonScale = r2.p - outlineDist2.p;
+        workspace.radiusMinusHorizonDistScale = horizonScale;
+        if (horizonScale == (ZSCALE - 1)) {
             ctrlPtOffset = 10 * SCREEN_SCALE;
-        } else if (depthVsRadiusScale > 8) {
-            // Close to inside
-            needInsideCalc = TRUE;
+        } else if (horizonScale >= (ZSCALE)) {
+            // Screen clipping planet
+            tooCloseToSurface = TRUE;
         }
-        MLogf("depth: %d %d", needInsideCalc, depthVsRadiusScale);
     } else {
-        // Inside
-        MLog("inside");
-        needInsideCalc = TRUE;
+        // Viewpoint inside planet
+        tooCloseToSurface = TRUE;
     }
 
-    if (needInsideCalc) {
-        workspace.distLog2 = 0x10;
+#ifdef FINTRO_INSPECTOR
+    renderContext->sceneSetup->debugPlanetUpdate = 1;
+    renderContext->sceneSetup->debugPlanetHorizonScale = workspace.radiusMinusHorizonDistScale;
+    renderContext->sceneSetup->debugPlanetCloseToSurface = tooCloseToSurface;
+    renderContext->sceneSetup->debugPlanetOutlineDist = Float32Sqrt(outlineDist2);
+    renderContext->sceneSetup->debugPlanetRadius = workspace.radius;
+    renderContext->sceneSetup->debugPlanetRadius.p += rf->modelData->scale2 + 7;
+    renderContext->sceneSetup->debugPlanetAltitude =
+            Float16Sub(Float32Sqrt(Float32Add(xyOffset2, z2)), workspace.radius);
+    renderContext->sceneSetup->debugPlanetAltitude.p += rf->modelData->scale2 + 7;
+#endif
+
+    if (tooCloseToSurface) {
+        // Eye-point is inside or screen is clipping planet, make the radius smaller so we no longer clipping/inside the
+        // planet.
+        workspace.radiusMinusHorizonDistScale = 0x10; // *1024
         ctrlPtOffset = 5 * SCREEN_SCALE;
 
-        // TODO: figure this out
-        Float32 centerDist2 = Float32Add(xyViewDist2, z2);
-        // centerDist2.v = centerDist2.v - (centerDist2.v / 4096)
-        centerDist2.v -= centerDist2.v >> 12;
-        Float16 centerFloat = Float32Sqrt(centerDist2);
-        workspace.radius = centerFloat;
-        if (workspace.radiusScale) {
-            centerFloat.v >>= workspace.radiusScale - 16;
+        // Resize the sphere to be smaller, so we are a fixed distance above the surface
+        Float32 newRadius2 = Float32Add(xyOffset2, z2);
+        newRadius2.v -= newRadius2.v >> 11;
+        Float16 newRadius = Float32Sqrt(newRadius2);
+        workspace.radius = newRadius;
+        if (workspace.relativeScale) {
+            newRadius.v >>= workspace.relativeScale - 16;
         } else {
-            centerFloat.v = 0;
+            newRadius.v = 0;
         }
-        workspace.radiusScaled = centerFloat.v;
+        workspace.radiusScaled = newRadius.v;
 
-        minorAxisZ2 = Float32Sub(z2, centerDist2);
-        outlineDepth2 = Float32Add(xyViewDist2, minorAxisZ2);
+        // Recalc the minor axis z depth, and outline distance
+        minorAxisZ2 = Float32Sub(z2, newRadius2);
+        outlineDist2 = Float32Add(xyOffset2, minorAxisZ2);
     }
 
-    Float16 xyViewDist = Float32Sqrt(xyViewDist2);
-    if (xyViewDist.v == 0) {
+    Float16 xyOffset = Float32Sqrt(xyOffset2);
+    if (xyOffset.v == 0) {
         workspace.axisX = 0x7fff;
         workspace.axisY = 0;
     } else {
-        Float16 axisX = Float16Div(workspace.centerX, xyViewDist);
+        Float16 axisX = Float16Div(workspace.centerX, xyOffset);
         axisX.p += 15;
         workspace.axisX = Float16Extract(axisX).v;
-
-        Float16 axisY = Float16Div(workspace.centerY, xyViewDist);
+        Float16 axisY = Float16Div(workspace.centerY, xyOffset);
         axisY.p += 15;
         workspace.axisY = Float16Extract(axisY).v;
     }
@@ -8945,16 +8963,14 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     RenderBody_ReadColours(renderContext, rf, &workspace);
 
     // Get distance to nearest projected point from screen center
-    Float16 centerDist = Float16Mult16(xyViewDist, workspace.centerZ);
-    workspace.outlineDist = Float32Sqrt(outlineDepth2);
+    Float16 centerDist = Float16Mult16(xyOffset, workspace.centerZ);
+    workspace.outlineDist = Float32Sqrt(outlineDist2);
     Float16 radiusDist = Float16Mult16(workspace.radius, workspace.outlineDist);
-    Float16 innerAxisDist = Float16Sub(centerDist, radiusDist);
-    workspace.nearMajorAxisDist = Float16Div(innerAxisDist, workspace.minorAxisZ2);
+    Float16 innerVertexDist = Float16Sub(centerDist, radiusDist);
+    Float16 minorAxisZ2_16 = Float32Convert16(minorAxisZ2);
+    workspace.nearMajorAxisDist = Float16Div(innerVertexDist, minorAxisZ2_16);
     workspace.nearMajorAxisDist.p += ZSCALE;
     workspace.nearMajorAxisDist = Float16Extract(workspace.nearMajorAxisDist);
-
-    MLogf("outlineDist: %f", Float16ieee(workspace.outlineDist));
-    MLogf("minorAxisZ2: %f", Float16ieee(Float16Sqrt(workspace.minorAxisZ2)));
 
     if (workspace.nearMajorAxisDist.v > PLANET_SCREENSPACE_ATMOS_DIST) {
         // Planet is off-screen, we are looking at mostly sky, change background colour to planet sky colour, and skip
@@ -8971,13 +8987,13 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     // Normal planet drawing - 'out of atmosphere'
 
     // Get distance to the furthest projected point from screen center
-    Float16 axisXRight = Float16Add(centerDist, radiusDist);
-    workspace.farMajorAxisDist = Float16Div(axisXRight, workspace.minorAxisZ2);
+    Float16 outerVertexDist = Float16Add(centerDist, radiusDist);
+    workspace.farMajorAxisDist = Float16Div(outerVertexDist, minorAxisZ2_16);
     workspace.farMajorAxisDist.p += ZSCALE;
     workspace.farMajorAxisDist = Float16Extract(workspace.farMajorAxisDist);
 
     b32 halfDrawMode = TRUE;
-    if (workspace.minorAxisZ2.v < 0) {
+    if (minorAxisZ2_16.v < 0) {
         // Near z view plane clips the sphere
         workspace.farMajorAxisDist.v = PLANET_SCREENSPACE_MAJOR_AXIS_MAX;
     } else {
@@ -8991,32 +9007,38 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
         // else regular half mode
     }
 
+#ifdef FINTRO_INSPECTOR
+    renderContext->sceneSetup->debugPlanetHalfMode = halfDrawMode;
+    renderContext->sceneSetup->debugPlanetNearAxisDist = workspace.nearMajorAxisDist.v;
+    renderContext->sceneSetup->debugPlanetFarAxisDist = workspace.farMajorAxisDist.v;
+#endif
+
     if (halfDrawMode) {
-        PlanetDrawHalfMode(renderContext, &workspace, rf, ctrlPtOffset);
+        PlanetDrawHalfMode(renderContext, &workspace, rf, minorAxisZ2_16, ctrlPtOffset);
     } else {
-        PlanetDrawFullOutline(renderContext, &workspace, rf);
+        PlanetDrawFullOutline(renderContext, &workspace, rf, minorAxisZ2_16);
     }
 
     // Now render planet terrain / features
-    // PlanetRenderFeatures(renderContext, &workspace, rf);
+    PlanetRenderFeatures(renderContext, &workspace, rf);
 
     // Apply shade bands if the model code requires
     if (workspace.colourMode & 0x8) {
-        i16 ardRadius = workspace.radiusScaled;
+        i16 arcRadius = workspace.radiusScaled;
         workspace.colour = 0x20;
-        PlanetCircle2(renderContext, rf, &workspace, rf->lightDirView, ardRadius, 0);
+        PlanetCircle2(renderContext, rf, &workspace, rf->lightDirView, arcRadius, 0);
 
         if (workspace.colourMode & 0x4) {
             // TODO: Check nearest fractions for these
-            i16 ardRadius1 = (ardRadius * (i32)0x7bef) >> 15;
+            i16 ardRadius1 = (arcRadius * (i32)0x7bef) >> 15;
             if (workspace.colourMode & 0x2) {
                 workspace.colour = 0x20;
-                PlanetCircle2(renderContext, rf, &workspace, rf->lightDirView, ardRadius1, ardRadius >> 2);
+                PlanetCircle2(renderContext, rf, &workspace, rf->lightDirView, ardRadius1, arcRadius >> 2);
             }
 
-            i16 ardRadius2 = (ardRadius * (i32)0x7efe) >> 15;
+            i16 ardRadius2 = (arcRadius * (i32)0x7efe) >> 15;
             workspace.colour = 0x30;
-            PlanetCircle2(renderContext, rf, &workspace, rf->lightDirView, ardRadius2, ardRadius >> 3);
+            PlanetCircle2(renderContext, rf, &workspace, rf->lightDirView, ardRadius2, arcRadius >> 3);
         }
     }
 
@@ -9207,7 +9229,6 @@ void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* entity) {
     Matrix3i16Copy(rf->entity->viewMatrix, rf->entityToView);
     Vec3i32Copy(entity->entityPos, rf->entityPos);
 
-    // Simple draw setup, doesn't work for directly drawing large objects e.g. planets
     rf->scale = modelData->scale1 + modelData->scale2 - entity->depthScale;
     rf->depthScale = entity->depthScale;
 

@@ -267,6 +267,15 @@ typedef struct sSceneSetup {
     u8* fontModelDataFileStartAddress;
     u32 renderDataOffset; // entity/scene setup from exe
     u8* renderData; // entity/scene setup from exe
+    i16 debugPlanetUpdate;
+    i16 debugPlanetHorizonScale;
+    i16 debugPlanetCloseToSurface;
+    b32 debugPlanetHalfMode;
+    i16 debugPlanetNearAxisDist;
+    i16 debugPlanetFarAxisDist;
+    Float16 debugPlanetOutlineDist;
+    Float16 debugPlanetAltitude;
+    Float16 debugPlanetRadius;
 #endif
 } SceneSetup;
 

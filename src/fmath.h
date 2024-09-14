@@ -485,12 +485,6 @@ MINLINE Float16 Float16uRebase(Float16 val) {
     return val;
 }
 
-MINLINE i32 FloatScaleUp16s32s(i16 val, u16* scale) {
-    u32 val2 = ((u32)((u16) val)) << 16;
-    *scale = 0x1f - *scale;
-    return (i32) (val2 >> *scale);
-}
-
 MINLINE Float32 _Float32Rebase(Float32 f32) {
     // count number of leading 0s or 1s (0 for positive numbers, 1 for neg), minus 1 (for the sign bit).
     // this can be achieved in asm quite easily using the overflow and carry flags set by <<
@@ -604,6 +598,13 @@ MINLINE Float32 Float32Sub(Float32 f1, Float32 f2) {
         f32.p = p;
         return _Float32Rebase(f32);
     }
+}
+
+MINLINE Float16 Float32Convert16(Float32 f32) {
+    Float16 f16;
+    f16.v = (i16)(f32.v >> 16);
+    f16.p = f32.p;
+    return f16;
 }
 
 MINLINE Float16 Float16Add(Float16 f1, Float16 f2) {

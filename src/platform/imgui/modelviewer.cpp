@@ -117,8 +117,9 @@ bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
 
     entity->depthScale = viewer->depthScale;
     if (modelData->scale2 > 0) {
-        entity->depthScale = 7 + modelData->scale2;
+        entity->depthScale += 7 + modelData->scale2;
     }
+
     sceneSetup->renderDetail = viewer->renderDetail;
     sceneSetup->planetDetail = viewer->planetDetail;
 
