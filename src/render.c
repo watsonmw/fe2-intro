@@ -8256,9 +8256,9 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
 // Impl 5th mode - ellipse outline
 
 MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* workspace, RenderFrame* rf,
-                                  Float16 minorAxisZ2, i16 ctrlPtOffset) {
+                                  Float16 minorAxisZ2, i16 ctrlPtOffsetMajor) {
     // Render off center, optionally render atmosphere / halo
-    // i32 nearDistScreen = nearestProjectedPoint.v;
+    // i32 nearDistMajor = nearestProjectedPoint.v;
 
     // k = 4/3 tan(a/4)
     // sin(a/2) = √((1 - cos a) / 2)
@@ -8282,25 +8282,21 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
     // r1/2 + r1 * (cos a/2 + k * sin a/2)
     // r2 * (sin a/2 - k * cos a/2) + k/2
 
-    i32 nearDistScreen = workspace->nearMajorAxisDist.v - 3;
+    i32 nearDistMajor = workspace->nearMajorAxisDist.v - 3;
     // Distance from origin along the ellipse major axis to the bezier control points
-    i32 ctrlPointDist = nearDistScreen - ctrlPtOffset;
-
-    i16 ctrlPtOffset3x = ctrlPtOffset * 3;
+    i32 ctrlPtDistMajor = nearDistMajor - ctrlPtOffsetMajor;
 
     // Distance from origin along the ellipse major axis to the bezier end points
-    i32 endPointDist = nearDistScreen + ctrlPtOffset3x;
+    i16 endPointOffset = ctrlPtOffsetMajor * 3;
+    i32 endPointDist = nearDistMajor + endPointOffset;
+    Float16 endPtOffsetViewPlane = {endPointOffset, 18 - ZSCALE};
+    endPtOffsetViewPlane = Float16uRebase(endPtOffsetViewPlane);
 
-    // Fixed distance
-    Float16 ctrlPtOffsetViewSpace = {ctrlPtOffset3x, 18 - ZSCALE};
-    ctrlPtOffsetViewSpace = Float16uRebase(ctrlPtOffsetViewSpace);
+    // Get the tangent lines at endpoints, then calculate Timmer control points
 
-    // Why outline dist, the ellipse is already projected
-    Float16 q = Float16Div(ctrlPtOffsetViewSpace, workspace->outlineDist);
-    Float16 r = Float16Mult16(q, workspace->radius);
-    r = Float16Sqrt(r);
-    Float16 s = Float16Div(q, workspace->radius);
-    Float16 u = Float16Mult16(r, s);
+    Float16 q = Float16Div(endPtOffsetViewPlane, workspace->outlineDist);
+    Float16 r = Float16Sqrt(Float16Mult16(q, workspace->radius));
+    Float16 u = Float16Mult16(r, Float16Div(q, workspace->radius));
 
     u = Float16Mult16(u, minorAxisZ2);
     u.p += ZSCALE - 6;
@@ -8309,6 +8305,7 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
     r.p += ZSCALE - 1;
     r = Float16Extract(r);
 
+    // distances perp to major axis of bezier points
     i32 endPointOffsetDist = u.v - r.v;
     i32 ctrlPointOffsetDist = u.v + ((i32)r.v / 3);
 
@@ -8341,8 +8338,8 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
 
     i32 cptOffsetX = (ctrlPointOffsetDist * (i32)workspace->axisY) >> 15;
     i32 cptOffsetY = (ctrlPointOffsetDist * (i32)workspace->axisX) >> 15;
-    i32 cptCenterX = (ctrlPointDist * (i32)workspace->axisX) >> 15;
-    i32 cptCenterY = (ctrlPointDist * (i32)workspace->axisY) >> 15;
+    i32 cptCenterX = (ctrlPtDistMajor * (i32)workspace->axisX) >> 15;
+    i32 cptCenterY = (ctrlPtDistMajor * (i32)workspace->axisY) >> 15;
     bezierPt[1].x = cptCenterX + cptOffsetX;
     bezierPt[1].y = cptCenterY - cptOffsetY;
     bezierPt[2].x = cptCenterX - cptOffsetX;
@@ -8359,9 +8356,9 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
     u16 skyColour = ByteCodeRead16u(rf);
     if (skyColour) {
         // Draw atmospheric bands and set sky color if it can appear on screen,
-        // if nearDistScreen is negative that means the near point is on the opposite side of the screen to the
+        // if nearDistMajor is negative that means the near point is on the opposite side of the screen to the
         // farMajorAxisDist.
-        if (nearDistScreen > (-PLANET_SCREENSPACE_ATMOS_DIST)) {
+        if (nearDistMajor > (-PLANET_SCREENSPACE_ATMOS_DIST)) {
             // We are near the planet, switch to using the planet sky colour as the background (clear) colour
             CalcSkyColour(renderContext, rf, workspace, skyColour);
 
@@ -8466,8 +8463,8 @@ MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace
     Float16 minorAxisZ = Float16Sqrt(minorAxisZ2);
     Float16 minorAxisProjectedLen = Float16Div(workspace->radius, minorAxisZ);
 
-    Float16 twoThirds = {F16_TWO_THIRDS, 1}; // Constant to move control points to approx ellipse with bezier
-    Float16 cpMinorLen = Float16Mult16(minorAxisProjectedLen, twoThirds);
+    Float16 fourThirds = {F16_TWO_THIRDS, 1}; // Constant to move control points to approx ellipse with bezier
+    Float16 cpMinorLen = Float16Mult16(minorAxisProjectedLen, fourThirds);
     cpMinorLen.p += ZSCALE;
     Float16 cpMinorLenScreenSpace = Float16Extract(cpMinorLen);
     i16 cpMinorScreen = cpMinorLenScreenSpace.v;
@@ -8994,7 +8991,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
 
     b32 halfDrawMode = TRUE;
     if (minorAxisZ2_16.v < 0) {
-        // Near z view plane clips the sphere
+        // Near z view plane clips the sphere, so it's a hyperbola not an ellipse, set the 'far' distance to max
         workspace.farMajorAxisDist.v = PLANET_SCREENSPACE_MAJOR_AXIS_MAX;
     } else {
         i32 ellipseCenterBy2 = (i32)workspace.nearMajorAxisDist.v + workspace.farMajorAxisDist.v;
@@ -9426,3 +9423,20 @@ void Render_RenderAndDrawScene(SceneSetup* sceneSetup, RenderEntity* renderEntit
     Surface_Clear(sceneSetup->raster->surface, BACKGROUND_COLOUR_INDEX);
     Raster_Draw(sceneSetup->raster);
 }
+
+//
+//              P2                            P3
+//              /------------------------------\
+//             /                                \
+//            /---------...............----------\
+//           /  ...                          ...  \
+//          / ..                                .. \
+//         / .                                    . \
+//        /.                                        .\
+//       /--------------------------------------------\
+//      P1                                            P4
+//      [-r--][-------u---------]
+//            [r/3]
+//      P1 = u + r
+//      P2 = u + r/3
+//
