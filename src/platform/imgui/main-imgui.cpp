@@ -162,7 +162,11 @@ MINTERNAL void RenderModelViewer(GLuint surfaceTexture, Surface* surface, ModelV
     sModelRendered = true;
     modelViewer->sceneSetup.debugPlanetUpdate = 0;
 
-    if (ModelViewer_SetSceneForModel(modelViewer, modelIndex)) {
+    if (modelViewer->modelIndex != modelIndex) {
+        ModelViewer_SetModelForScene(modelViewer, modelIndex);
+    }
+
+    if (ModelViewer_UpdateScene(modelViewer)) {
         Render_RenderAndDrawScene(&(modelViewer->sceneSetup), &(modelViewer->entity), resetPalette);
         if (resetPalette) {
             Palette_CopyFixedColoursRGB(&modelViewer->sceneSetup.raster->paletteContext, (RGB*) sDefaultPalette);
@@ -463,6 +467,8 @@ int main(int, char**) {
         MIniReadI32(&ini, "modelViewer.x", &modelViewer.pos[0]);
         MIniReadI32(&ini, "modelViewer.y", &modelViewer.pos[1]);
         MIniReadI32(&ini, "modelViewer.z", &modelViewer.pos[2]);
+        MIniReadI32(&ini, "modelViewer.lightingAngleA", &modelViewer.lightingAngleA);
+        MIniReadI32(&ini, "modelViewer.lightingAngleB", &modelViewer.lightingAngleB);
         MIniReadI32(&ini, "view", &modelRadio);
         MIniFree(&ini);
     }
@@ -861,21 +867,23 @@ int main(int, char**) {
                         renderScene = false;
                     }
                 } else {
+                    bool modelChanged = false;
                     if (ImGui::SliderInt("Model", &modelOffset, 0, numModels)) {
-                        selectedModel = modelOffset;
-                        renderScene = true;
+                        modelChanged = true;
                     }
-
                     ImGui::SameLine();
                     if (ImGui::SmallButton("-")) {
                         modelOffset -= 1;
-                        selectedModel = modelOffset;
-                        renderScene = true;
+                        modelChanged = true;
                     }
                     ImGui::SameLine();
                     if (ImGui::SmallButton("+")) {
                         modelOffset += 1;
+                        modelChanged = true;
+                    }
+                    if (modelChanged) {
                         selectedModel = modelOffset;
+                        ModelViewer_SetModelForScene(&modelViewer, modelOffset);
                         renderScene = true;
                     }
                     ImGui::SameLine();
@@ -885,12 +893,7 @@ int main(int, char**) {
                     ImGui::SameLine();
                     if (ImGui::SmallButton("Reset")) {
                         renderScene = true;
-                        modelViewer.yaw = 0;
-                        modelViewer.pitch = 0;
-                        modelViewer.roll = 0;
-                        modelViewer.pos[0] = 0;
-                        modelViewer.pos[1] = 0;
-                        modelViewer.pos[2] = 0;
+                        ModelViewer_ResetForModel(&modelViewer);
                     }
                     if (ImGui::SliderInt("Yaw", &(modelViewer.yaw), -(1<<15), (1<<15)-1)) {
                         renderScene = true;
@@ -977,7 +980,7 @@ int main(int, char**) {
                         modelViewer.pos[1] += 10;
                         renderScene = true;
                     }
-                    if (ImGui::SliderInt("Pos Z", &(modelViewer.pos[2]), -8000, 200000)) {
+                    if (ImGui::SliderInt("Pos Z", &(modelViewer.pos[2]), -0x7fff, 0x7fff)) {
                         renderScene = true;
                     }
                     ImGui::SameLine();
@@ -1000,7 +1003,21 @@ int main(int, char**) {
                         modelViewer.pos[2] += 10;
                         renderScene = true;
                     }
-                    if (ImGui::SliderInt("Scale", &modelViewer.depthScale, -32, 32)) {
+                    if (ImGui::SliderInt("Pos Scale", &modelViewer.posScale, 0, 63)) {
+                        renderScene = true;
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("Reset Scale")) {
+                        ModelViewer_ResetPosScale(&modelViewer);
+                        renderScene = true;
+                    }
+                    if (ImGui::SliderInt("View Coord Scale", &modelViewer.depthScale, -32, 32)) {
+                        renderScene = true;
+                    }
+                    if (ImGui::SliderInt("Light Angle A", &modelViewer.lightingAngleA, -0x8000, 0x7fff)) {
+                        renderScene = true;
+                    }
+                    if (ImGui::SliderInt("Light Angle B", &modelViewer.lightingAngleB, -0x8000, 0x7fff)) {
                         renderScene = true;
                     }
                     if (ImGui::SliderInt("Render Detail", &modelViewer.renderDetail, -2, 4)) {
@@ -1210,10 +1227,21 @@ int main(int, char**) {
                             renderScene = true;
                         }
 
-                        ImGui::Text("Entity pos x: %x (%d)  y: %x (%d)  z: %x (%d)",
-                                    curEntity->entityPos[0], curEntity->entityPos[0],
-                                    curEntity->entityPos[1], curEntity->entityPos[1],
-                                    curEntity->entityPos[2], curEntity->entityPos[2]);
+                        char distanceBuffer1[64];
+                        char distanceBuffer2[64];
+                        char distanceBuffer3[64];
+                        I64FormatDistance(((u64)curEntity->entityPos[0]) << curEntity->depthScale, distanceBuffer1, sizeof(distanceBuffer1));
+                        I64FormatDistance(((u64)curEntity->entityPos[1]) << curEntity->depthScale, distanceBuffer2, sizeof(distanceBuffer2));
+                        I64FormatDistance(((u64)curEntity->entityPos[2]) << curEntity->depthScale, distanceBuffer3, sizeof(distanceBuffer3));
+
+                        ImGui::Text("Entity pos x: %x (%s)  y: %x (%s)  z: %x (%s)",
+                                    curEntity->entityPos[0], distanceBuffer1,
+                                    curEntity->entityPos[1], distanceBuffer2,
+                                    curEntity->entityPos[2], distanceBuffer3);
+
+                        ImGui::Text("Lighting x: %hx y: %hx z: %hx",
+                                    curSceneSetup->lightDirView[0], curSceneSetup->lightDirView[1],
+                                    curSceneSetup->lightDirView[2]);
 
                         if (curSceneSetup->debugPlanetUpdate) {
                             ImGui::Text("Planet: ");
@@ -1223,10 +1251,13 @@ int main(int, char**) {
                                         curSceneSetup->debugPlanetHorizonScale);
                             ImGui::Text("near: %d far: %d",
                                         curSceneSetup->debugPlanetNearAxisDist, curSceneSetup->debugPlanetFarAxisDist);
-                            ImGui::Text("outline: %gm altitude: %gm radius: %gm",
-                                        Float16ieee(curSceneSetup->debugPlanetOutlineDist)/1000,
-                                        Float16ieee(curSceneSetup->debugPlanetAltitude)/1000,
-                                        Float16ieee(curSceneSetup->debugPlanetRadius)/1000);
+
+                            Float16FormatDistance(curSceneSetup->debugPlanetOutlineDist, distanceBuffer1, sizeof(distanceBuffer1));
+                            Float16FormatDistance(curSceneSetup->debugPlanetAltitude, distanceBuffer2, sizeof(distanceBuffer2));
+                            Float16FormatDistance(curSceneSetup->debugPlanetRadius, distanceBuffer3, sizeof(distanceBuffer3));
+
+                            ImGui::Text("outline: %s altitude: %s radius: %s",
+                                        distanceBuffer1, distanceBuffer2, distanceBuffer3);
                         }
 
                         ImGui::RadioButton("Entity Ours", &showEntityHexView, 0);
@@ -1280,21 +1311,10 @@ int main(int, char**) {
                                 if (model) {
                                     u16 modelSizeScale = model->scale1 + model->scale2;
                                     u64 modelSize = ((u64)model->radius) << modelSizeScale;
-                                    const char* modelSizeUnit = NULL;
-                                    if (modelSize > 1000 * 1000) {
-                                        modelSizeUnit = "km";
-                                        modelSize = modelSize / (1000 * 1000);
-                                    } else if (modelSize > 1000) {
-                                        modelSizeUnit = "m";
-                                        modelSize = modelSize / (1000);
-                                    } else if (modelSize > 100) {
-                                        modelSizeUnit = "cm";
-                                        modelSize = modelSize / (100);
-                                    } else {
-                                        modelSizeUnit = "mm";
-                                        modelSize = modelSize;
-                                    }
-                                    ImGui::Text("Bounding radius: %lld%s", modelSize, modelSizeUnit);
+
+                                    char objectSizeBuffer[64];
+                                    I64FormatDistance(modelSize, objectSizeBuffer, sizeof(objectSizeBuffer));
+                                    ImGui::Text("Bounding radius: %s", objectSizeBuffer);
                                 }
                             }
 
@@ -1471,6 +1491,8 @@ int main(int, char**) {
         MIniMWriteI32(&iniSave, "modelViewer.x", modelViewer.pos[0]);
         MIniMWriteI32(&iniSave, "modelViewer.y", modelViewer.pos[1]);
         MIniMWriteI32(&iniSave, "modelViewer.z", modelViewer.pos[2]);
+        MIniMWriteI32(&iniSave, "modelViewer.lightingAngleA", modelViewer.lightingAngleA);
+        MIniMWriteI32(&iniSave, "modelViewer.lightingAngleB", modelViewer.lightingAngleB);
         MIniMWriteI32(&iniSave, "view", modelRadio);
         MIniSaveFree(&iniSave);
     }

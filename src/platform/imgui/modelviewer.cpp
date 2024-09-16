@@ -8,16 +8,22 @@ void ModelViewer_InitCommon(ModelViewer* viewer) {
     SceneSetup* sceneSetup = &viewer->sceneSetup;
     SceneSetup_InitDefaultShadeRamp(sceneSetup);
 
-    sceneSetup->lightDirView[0] = 0xb619;
-    sceneSetup->lightDirView[1] = 0xb619;
-    sceneSetup->lightDirView[2] = 0x49e7;
-
+    viewer->pitch = 0;
     viewer->yaw = 0;
     viewer->roll = 0;
+
     viewer->pos[0] = 0;
     viewer->pos[1] = 0;
     viewer->pos[2] = 0;
+    viewer->posScale = 0;
+
+    // Light from top right front
+    viewer->lightingAngleA = 7540;
+    viewer->lightingAngleB = 6400;
+
     viewer->planetMinAtmosBandWidth = 0x4000;
+    viewer->renderDetail = 2;
+    viewer->planetDetail = 1;
 }
 
 void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData) {
@@ -92,12 +98,77 @@ void ModelViewer_Free(ModelViewer* viewer) {
     MArrayFree(viewer->sceneSetup.assets.models);
 }
 
-bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
+void ModelViewer_ResetForModel(ModelViewer* viewer) {
+    viewer->pitch = 0;
+    viewer->yaw = 0;
+    viewer->roll = 0;
+
+    // Light from top right front
+    viewer->lightingAngleA = 7540;
+    viewer->lightingAngleB = 6400;
+
+    viewer->planetMinAtmosBandWidth = 0x4000;
+    viewer->renderDetail = 2;
+    viewer->planetDetail = 1;
+
     SceneSetup* sceneSetup = &viewer->sceneSetup;
     RenderEntity* entity = &viewer->entity;
-    entity->modelIndex = modelOffset;
 
-    ModelData* modelData = Render_GetModel(sceneSetup, modelOffset);
+    entity->depthScale = viewer->depthScale;
+    ModelData* modelData = Render_GetModel(sceneSetup, viewer->modelIndex);
+    if (!modelData) {
+        return;
+    }
+
+    ModelViewer_ResetPosScale(viewer);
+
+    i32 modelScale = (i32)modelData->scale1 + modelData->scale2 - entity->depthScale;
+    i32 rScale = modelScale;
+    i32 offsetZ = (modelData->radius * 3);
+    if (rScale > 0) {
+        offsetZ <<= rScale;
+    } else if (rScale < 0) {
+        offsetZ >>= -rScale;
+    }
+    viewer->pos[0] = 0;
+    viewer->pos[1] = 0;
+    viewer->pos[2] = 0;
+    entity->entityPos[0] = 0;
+    entity->entityPos[1] = 0;
+    entity->entityPos[2] = offsetZ;
+}
+
+bool ModelViewer_ResetPosScale(ModelViewer* viewer) {
+    SceneSetup* sceneSetup = &viewer->sceneSetup;
+    RenderEntity* entity = &viewer->entity;
+    ModelData* modelData = Render_GetModel(sceneSetup, viewer->modelIndex);
+    if (!modelData) {
+        return false;
+    }
+
+    entity->depthScale = viewer->depthScale;
+    if (modelData->scale2 > 0) {
+        entity->depthScale += 7 + modelData->scale2;
+    }
+
+    i32 modelScale = (i32)modelData->scale1 + modelData->scale2 - entity->depthScale;
+    viewer->posScale = modelScale;
+
+    return true;
+}
+
+bool ModelViewer_SetModelForScene(ModelViewer* viewer, i32 modelOffset) {
+    RenderEntity* entity = &viewer->entity;
+    viewer->modelIndex = modelOffset;
+    entity->modelIndex = modelOffset;
+    return ModelViewer_ResetPosScale(viewer);
+}
+
+bool ModelViewer_UpdateScene(ModelViewer* viewer) {
+    SceneSetup* sceneSetup = &viewer->sceneSetup;
+    RenderEntity* entity = &viewer->entity;
+
+    ModelData* modelData = Render_GetModel(sceneSetup, viewer->modelIndex);
     if (modelData == NULL) {
         return false;
     }
@@ -115,28 +186,20 @@ bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
         return false;
     }
 
-    entity->depthScale = viewer->depthScale;
-    if (modelData->scale2 > 0) {
-        entity->depthScale += 7 + modelData->scale2;
-    }
-
-    sceneSetup->renderDetail = viewer->renderDetail;
-    sceneSetup->planetDetail = viewer->planetDetail;
-
-    i32 scale = (i32)modelData->scale1 + modelData->scale2 - entity->depthScale;
+    i32 posScale = viewer->posScale;
 
     i32 x = viewer->pos[0];
     i32 y = viewer->pos[1];
     i32 z = viewer->pos[2];
 
-    i32 zScale = scale - 5;
+    i32 zScale = posScale - 5;
     if (zScale > 0) {
         z <<= zScale;
     } else if (zScale < 0) {
         z >>= -zScale;
     }
 
-    i32 pScale = scale - 3;
+    i32 pScale = posScale - 3;
     if (pScale > 0) {
         x <<= pScale;
         y <<= pScale;
@@ -145,7 +208,8 @@ bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
         y >>= -pScale;
     }
 
-    i32 rScale = scale;
+    i32 modelScale = (i32)modelData->scale1 + modelData->scale2 - entity->depthScale;
+    i32 rScale = modelScale;
     i32 offsetZ = (modelData->radius * 3);
     if (rScale > 0) {
         offsetZ <<= rScale;
@@ -155,6 +219,9 @@ bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
     entity->entityPos[0] = x;
     entity->entityPos[1] = y;
     entity->entityPos[2] = z + offsetZ;
+
+    sceneSetup->renderDetail = viewer->renderDetail;
+    sceneSetup->planetDetail = viewer->planetDetail;
 
     Matrix3x3i16 m;
     i16 sinA = 0;
@@ -183,12 +250,18 @@ bool ModelViewer_SetSceneForModel(ModelViewer* viewer, i32 modelOffset) {
 
     Matrix3i16Copy(m, entity->viewMatrix);
 
-    sceneSetup->planetMinAtmosBandWidth = viewer->planetMinAtmosBandWidth;
-    return true;
-}
+    i16 lSinA = 0;
+    i16 lCosA = 0;
+    LookupSineAndCosine(viewer->lightingAngleA & 0xffff, &lSinA, &lCosA);
+    i16 lSinB = 0;
+    i16 lCosB = 0;
+    LookupSineAndCosine(viewer->lightingAngleB & 0xffff, &lSinB, &lCosB);
 
-void ModelViewer_Move(ModelViewer* viewer, Vec3i32 d) {
-    viewer->pos[0] -= d[0];
-    viewer->pos[1] -= d[1];
-    viewer->pos[2] -= d[2];
+    sceneSetup->lightDirView[0] = (i16)(((i32)lCosA * -lCosB) >> 15);
+    sceneSetup->lightDirView[1] = (i16)(((i32)lSinA * -lCosB) >> 15);
+    sceneSetup->lightDirView[2] = (i16)lSinB;
+
+    sceneSetup->planetMinAtmosBandWidth = viewer->planetMinAtmosBandWidth;
+
+    return true;
 }

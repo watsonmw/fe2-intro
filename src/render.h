@@ -296,6 +296,10 @@ typedef struct sRenderEntity {
 
     // Entity text (e.g. ship name / base name / platform name)
     i8* entityText;
+
+#ifdef FINTRO_INSPECTOR
+    i16 modelScale;
+#endif
 } RenderEntity;
 
 void Entity_Init(RenderEntity* entity);

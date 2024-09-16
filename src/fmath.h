@@ -702,7 +702,9 @@ MINLINE Float16 Float16Mult16(Float16 v1, Float16 v2) {
 // Extract whole number
 MINLINE Float16 Float16Extract(Float16 v1) {
     v1.p = 15 - v1.p;
-    if (v1.p < 0) {
+    if (v1.v == 0) {
+        return v1;
+    } else if (v1.p < 0) {
         if (v1.v < 0) {
             return (Float16) {-0x8000, 0};
         } else {
@@ -815,6 +817,10 @@ MINLINE float Float16ieee(Float16 value) {
 
     return *((float*) ((void*) &b));
 }
+
+int I64FormatDistance(i64 distance, char* buffer, u32 bufferSize);
+int Float16FormatDistance(Float16 distance, char* buffer, u32 bufferSize);
+int Float32FormatDistance(Float32 distance, char* buffer, u32 bufferSize);
 
 #ifdef __cplusplus
 }

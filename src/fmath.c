@@ -207,3 +207,122 @@ i16 FMath_arccos[] = {
 };
 
 #endif
+
+
+int I64FormatDistance(i64 distance, char* buffer, u32 bufferSize) {
+    if (bufferSize < 2) {
+        return 0;
+    }
+    bufferSize -= 1;
+    u32 bufferBytesWritten = 0;
+    if (distance < 0) {
+        distance = -distance;
+        buffer[bufferBytesWritten++] = '-';
+        if (bufferBytesWritten == bufferSize) {
+            buffer[bufferBytesWritten++] = 0;
+            return bufferBytesWritten;
+        }
+    }
+    char digits[16];
+    int digitsWritten = 0;
+    const char* sizeUnit = "";
+    i32 distance32 = 0;
+    u32 decimalPos = 0;
+    const i64 ONE_AU = 149597870700000ll;
+    if (distance >= (i64)(ONE_AU/100)) {
+        sizeUnit = "AU";
+        distance /= (i64)(ONE_AU/100);
+        if (distance < 10) {
+            buffer[bufferBytesWritten++] = '0';
+            buffer[bufferBytesWritten++] = '.';
+            buffer[bufferBytesWritten++] = '0';
+        } else if (distance < 100) {
+            buffer[bufferBytesWritten++] = '0';
+            buffer[bufferBytesWritten++] = '.';
+        } else if (distance < 1000) {
+            decimalPos = 1;
+        } else {
+            distance /= 100;
+        }
+        distance32 = (i32) (distance);
+    } else if (distance >= 1000 * 1000 * 1000) {
+        sizeUnit = "km";
+        distance32 = (i32) (distance / (1000 * 1000));
+    } else if (distance >= 100 * 1000 * 1000) {
+        sizeUnit = "km";
+        distance32 = (i32) (distance / (1000 * 100));
+        decimalPos = 1;
+    } else if (distance >= 10 * 1000 * 1000) {
+        sizeUnit = "km";
+        distance32 = (i32)(distance / (1000 * 10));
+        decimalPos = 2;
+    } else if (distance >= 1000 * 1000) {
+        sizeUnit = "km";
+        distance32 = (i32)(distance / (1000));
+        decimalPos = 3;
+    } else if (distance >= 100 * 1000) {
+        sizeUnit = "m";
+        distance32 = (i32)(distance / (100));
+        decimalPos = 1;
+    } else if (distance >= 10000) {
+        sizeUnit = "m";
+        decimalPos = 2;
+        distance32 = (i32)(distance / (10));
+    } else if (distance >= 1000) {
+        sizeUnit = "m";
+        distance32 = (u32)(distance / (10));
+        decimalPos = 2;
+    } else {
+        sizeUnit = "mm";
+        distance32 = (u32)distance;
+    }
+
+    i32 value = distance32;
+    do {
+        int digit = value % 10;
+        value /= 10;
+        digits[digitsWritten++] = digit + '0';
+        if (digitsWritten == decimalPos) {
+            digits[digitsWritten++] = '.';
+        }
+    } while (digitsWritten < 16 && value != 0);
+
+    while (digitsWritten > 0) {
+        buffer[bufferBytesWritten++] = digits[--digitsWritten];
+        if (bufferBytesWritten == bufferSize) {
+            buffer[bufferBytesWritten++] = 0;
+            return bufferBytesWritten;
+        }
+    }
+
+    int i = 0;
+    char c = 0;
+    do {
+        if (bufferBytesWritten >= bufferSize) {
+            buffer[bufferBytesWritten++] = 0;
+            return bufferBytesWritten;
+        }
+        c = sizeUnit[i++];
+        buffer[bufferBytesWritten++] = c;
+    } while (c);
+
+    return bufferBytesWritten;
+}
+
+int Float16FormatDistance(Float16 distance, char* buffer, u32 bufferSize) {
+    i64 distance64 = 0;
+    i16 p = distance.p - 15;
+    if (p > 0) {
+        distance64 = ((i64)distance.v) << p;
+    }
+    return I64FormatDistance(distance64, buffer, bufferSize);
+}
+
+int Float32FormatDistance(Float32 distance, char* buffer, u32 bufferSize) {
+    i64 distance64 = 0;
+    i16 p = distance.p - 15;
+    if (p > 0) {
+        distance64 = ((i64)distance.v) << p;
+    }
+    return I64FormatDistance(distance64, buffer, bufferSize);
+}
