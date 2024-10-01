@@ -281,17 +281,6 @@ code:
   t3 = t1
   model index:114 v:0 flip:xyz
 ztree push v:0
-  if !bit(t3, 4) loc:82b44
-  batch begin vertex:8
-  complex colour:#008 loc:82b3e
-  cbezier 10, 22, 22, 62
-  cbezierc 16, 16, 20
-  cbezierc 12, 12, 60
-  cbezierc 24, 24, 14
-  cbezierc 26, 28, 30
-  cbezierc 18, 18, 32
-  cbezierc 34, 36, 10
-  cdone
 82b3e: model index:67 v:8 light flip:zy-x scale:4 colour:#444
 82b44: batch begin z:obj
   if !bit(t3, 2) loc:82b50
@@ -1201,18 +1190,18 @@ code:
   done
 
 
-; Planet while landing/landed
+; Planet while landing / landed
 model: 114
   scale1: 23,
   scale2: 0,
-  radius: 102,
+  radius: 127,
   colour: #000
 
 vertices: ; 1
-  0, -100, 0                      ;   0
+  0, -127, 0                      ;   0
 
 normals: ; 0
 
 code:
-  planet v:0 size:25636 colours:[#140, #004, #444, #444] atmosColour:#008 atmosBands:[#1.0074 #646, #1.00b #536, #1.022 #426, #1.01a #416]
+  planet v:0 size:32512 colours:[#373, #004, #444, #444] atmosColour:#008 atmosBands:[#1.0074 #646, #1.00b #536, #1.022 #426, #1.01a #416]
   done

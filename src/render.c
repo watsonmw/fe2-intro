@@ -1547,16 +1547,13 @@ MINTERNAL void BodySpans_DrawOutline(BodySpanRenderer* spans, Surface* surface) 
         u16 nSpansRow = bodySpan->num;
         for (u16 i = 0; i < bodySpan->num; ++i) {
             Span* span = bodySpan->s + i;
-//            DrawPixel(surface, span->x, y, span->colour);
-            DrawPixel(surface, span->x, y, 15);
+            DrawPixel(surface, span->x, y, span->colour);
         }
         bodySpan++;
     }
 }
 
 MINTERNAL void BodySpans_Draw(BodySpanRenderer* spans, Surface* surface) {
-    BodySpans_DrawOutline(spans, surface);
-    return;
     // BodySpans_Print(spans);
     int cSpansY = spans->spanEnd;
     if (cSpansY <= 0) {
@@ -1633,7 +1630,7 @@ MINTERNAL void BodySpans_Draw(BodySpanRenderer* spans, Surface* surface) {
 }
 
 void Surface_DrawLine(Surface* surface, int x1, int y1, int x2, int y2, u8 colour) {
-    MLogf("%d,%d -> %d,%d", x1, y1, x2, y2);
+    // MLogf("%d,%d -> %d,%d", x1, y1, x2, y2);
 
     if (y1 > y2) {
         MSWAP(y1, y2, int);
@@ -2832,8 +2829,8 @@ MINTERNAL Vec2i16 ZProject(i32 x, i32 y, i32 z) {
     i32 y1;
 
     if (z < (1 << ZSCALE)) {
-        x1 = x << ZSCALE;
-        y1 = y << ZSCALE;
+        x1 = x << 8;
+        y1 = y << 8;
     } else {
         i32 max = 0xffffffffu >> (ZSCALE + 1);
         i32 min = -max - 1;
@@ -3559,16 +3556,16 @@ MINTERNAL u16 CalcNormalLightTint(RenderFrame* rf, u8 normalIndex) {
 }
 
 #ifdef NON_TRICKY_POINT_CHECK
-MINTERNAL bool IsPointVisible(i16 x, i16 y, u16 w, u16 h) {
-    return (x < w && x >= 0 && y < h && y >= 0);
+MINTERNAL bool IsPointVisible(i16 x, i16 y) {
+    return (x < SURFACE_WIDTH && x >= 0 && y < SURFACE_HEIGHT && y >= 0);
 }
 #else
-MINTERNAL b32 IsPointVisible(i16 x, i16 y, u16 w, u16 h) {
-    return ((u16)x) < w && ((u16)y) < h;
+MINTERNAL b32 IsPointVisible(i16 x, i16 y) {
+    return ((u16)x) < SURFACE_WIDTH && ((u16)y) < SURFACE_HEIGHT;
 }
 #endif
 
-MINTERNAL b32 IsCircleVisible(i16 x, i16 y, i16 r, u16 width, u16 height) {
+MINTERNAL b32 IsCircleVisible(i16 x, i16 y, i16 r) {
     if (x + r < 0) {
         return FALSE;
     }
@@ -3577,14 +3574,14 @@ MINTERNAL b32 IsCircleVisible(i16 x, i16 y, i16 r, u16 width, u16 height) {
         return FALSE;
     }
 
-    if (x - r >= width) {
+    if (x - r >= SURFACE_WIDTH) {
         return FALSE;
     }
 
-    return (y - r) < height;
+    return (y - r) < SURFACE_HEIGHT;
 }
 
-MINTERNAL Vec2i16 ClipLineZVec3i32(const Vec3i32 v1, const Vec3i32 v2, u16 width, u16 height) {
+MINTERNAL Vec2i16 ClipLineZVec3i32(const Vec3i32 v1, const Vec3i32 v2) {
     i32 x1 = v1[0];
     i32 y1 = v1[1];
     i32 z1 = v1[2];
@@ -3595,12 +3592,12 @@ MINTERNAL Vec2i16 ClipLineZVec3i32(const Vec3i32 v1, const Vec3i32 v2, u16 width
 
     i64 d = ZCLIPNEAR - z1;
     i64 x3, y3;
-    if (dz != 0) {
-        x3 = x1 + ((dx * d) / dz);
-        y3 = y1 + ((dy * d) / dz);
-    } else {
+    if (dz == 0) {
         x3 = 0;
         y3 = 0;
+    } else {
+        x3 = x1 + ((dx * d) / dz);
+        y3 = y1 + ((dy * d) / dz);
     }
 
     if (x3 > 0x3fff) {
@@ -3620,17 +3617,13 @@ MINTERNAL Vec2i16 ClipLineZVec3i32(const Vec3i32 v1, const Vec3i32 v2, u16 width
     }
 
     Vec2i16 pos;
-    pos.x = x3;
-    pos.y = y3;
-
-    pos.x = ((i16)pos.x) + (width >> 1);
-    pos.y = (height >> 1) - ((i16)pos.y);
-
+    pos.x = ((i16)x3) + (SURFACE_WIDTH >> 1);
+    pos.y = (SURFACE_HEIGHT >> 1) - ((i16)y3);
     return pos;
 }
 
-MINTERNAL Vec2i16 ClipLineZ(VertexData* v1, VertexData* v2, u16 width, u16 height) {
-    return ClipLineZVec3i32(v1->vVec, v2->vVec, width, height);
+MINTERNAL Vec2i16 ClipLineZ(VertexData* v1, VertexData* v2) {
+    return ClipLineZVec3i32(v1->vVec, v2->vVec);
 }
 
 static u16 sMatrixAxisSwaps[] = {
@@ -3887,7 +3880,7 @@ MINTERNAL i32 ClipSpanLine(RenderContext* renderContext, VertexData* v1, VertexD
                 rf->complexJoinToBeginning = 0;
                 rf->complexCurrentlyZClipped = 1;
             } else {
-                Vec2i16 v1Clip = ClipLineZ(v2, v1, renderContext->width, renderContext->height);
+                Vec2i16 v1Clip = ClipLineZ(v2, v1);
                 rf->complexLastZClipPt = v1Clip;
                 DrawParamsLine* drawLine = BatchSpanLine(renderContext->depthTree);
                 drawLine->x1 = v1Clip.x;
@@ -3897,7 +3890,7 @@ MINTERNAL i32 ClipSpanLine(RenderContext* renderContext, VertexData* v1, VertexD
             }
         }
     } else if (v2->vVec[2] < ZCLIPNEAR) {
-        Vec2i16 v2Clip = ClipLineZ(v1, v2, renderContext->width, renderContext->height);
+        Vec2i16 v2Clip = ClipLineZ(v1, v2);
         rf->complexCurrentlyZClipped = 1;
         DrawParamsLine* drawLine = BatchSpanLine(renderContext->depthTree);
         drawLine->x1 = v1->sVec.x;
@@ -4049,8 +4042,8 @@ static void RenderLineWithVerts(RenderContext* scene, RenderFrame* rf, VertexDat
     Vec2i16 v1Clipped = v1->sVec;
     Vec2i16 v2Clipped = v2->sVec;
 
-    if (!IsPointVisible(v1->sVec.x, v1->sVec.y, scene->width, scene->height)) {
-        if (!IsPointVisible(v2->sVec.x, v2->sVec.y, scene->width, scene->height)) {
+    if (!IsPointVisible(v1->sVec.x, v1->sVec.y)) {
+        if (!IsPointVisible(v2->sVec.x, v2->sVec.y)) {
 
             u8 clipBits = 0;
 
@@ -4075,21 +4068,21 @@ static void RenderLineWithVerts(RenderContext* scene, RenderFrame* rf, VertexDat
         // rasterizer will get that case anyway.
         if (v2->vVec[2] < ZCLIPNEAR) {
             if (v1->vVec[2] >= ZCLIPNEAR) {
-                v2Clipped = ClipLineZ(v2, v1, scene->width, scene->height);
+                v2Clipped = ClipLineZ(v2, v1);
             } else {
                 // both points behind z clip plane
                 return;
             }
         } else {
             if (v1->vVec[2] < ZCLIPNEAR) {
-                v1Clipped = ClipLineZ(v1, v2, scene->width, scene->height);
+                v1Clipped = ClipLineZ(v1, v2);
             }
         }
     } else {
-        if (!IsPointVisible(v2->sVec.x, v2->sVec.y, scene->width, scene->height)) {
+        if (!IsPointVisible(v2->sVec.x, v2->sVec.y)) {
             // In this case only v2 can be z-clipped
             if (v2->vVec[2] < ZCLIPNEAR) {
-                v2Clipped = ClipLineZ(v2, v1, scene->width, scene->height);
+                v2Clipped = ClipLineZ(v2, v1);
             }
         }
     }
@@ -4128,9 +4121,9 @@ static void RenderLineParams(RenderContext* renderContext, RenderFrame* rf, u16 
 MINTERNAL void RenderTriVerts(RenderContext* scene, RenderFrame* rf, VertexData* v1, VertexData* v2, VertexData* v3, u16 colour) {
     b32 doClip;
 
-    if (!IsPointVisible(v1->sVec.x, v1->sVec.y, scene->width, scene->height)) {
-        if (!IsPointVisible(v2->sVec.x, v2->sVec.y, scene->width, scene->height) &&
-            !IsPointVisible(v3->sVec.x, v3->sVec.y, scene->width, scene->height)) {
+    if (!IsPointVisible(v1->sVec.x, v1->sVec.y)) {
+        if (!IsPointVisible(v2->sVec.x, v2->sVec.y) &&
+            !IsPointVisible(v3->sVec.x, v3->sVec.y)) {
 
             u8 clipBits = 0;
 
@@ -4154,8 +4147,8 @@ MINTERNAL void RenderTriVerts(RenderContext* scene, RenderFrame* rf, VertexData*
         }
         doClip = TRUE;
     } else {
-        doClip = (!IsPointVisible(v2->sVec.x, v2->sVec.y, scene->width, scene->height) ||
-                  !IsPointVisible(v3->sVec.x, v3->sVec.y, scene->width, scene->height));
+        doClip = (!IsPointVisible(v2->sVec.x, v2->sVec.y) ||
+                  !IsPointVisible(v3->sVec.x, v3->sVec.y));
     }
 
     if (doClip) {
@@ -4178,12 +4171,12 @@ MINTERNAL void RenderTriVerts(RenderContext* scene, RenderFrame* rf, VertexData*
             spanDraw->x1 = v1->sVec.x;
             spanDraw->y1 = v1->sVec.y;
 
-            Vec2i16 pos = ClipLineZ(v1, v2, scene->width, scene->height);
+            Vec2i16 pos = ClipLineZ(v1, v2);
             spanDraw->x2 = pos.x;
             spanDraw->y2 = pos.y;
 
             DrawParamsPoint* spanNextPt = BatchSpanLineCont(scene->depthTree);
-            pos = ClipLineZ(v1, v3, scene->width, scene->height);
+            pos = ClipLineZ(v1, v3);
             spanNextPt->x = pos.x;
             spanNextPt->y = pos.y;
         } else {
@@ -4194,12 +4187,12 @@ MINTERNAL void RenderTriVerts(RenderContext* scene, RenderFrame* rf, VertexData*
 
             if (v3->vVec[2] < ZCLIPNEAR) {
                 DrawParamsPoint* spanNextPt = BatchSpanLineCont(scene->depthTree);
-                Vec2i16 pos = ClipLineZ(v2, v3, scene->width, scene->height);
+                Vec2i16 pos = ClipLineZ(v2, v3);
                 spanNextPt->x = pos.x;
                 spanNextPt->y = pos.y;
 
                 spanNextPt = BatchSpanLineCont(scene->depthTree);
-                pos = ClipLineZ(v1, v3, scene->width, scene->height);
+                pos = ClipLineZ(v1, v3);
                 spanNextPt->x = pos.x;
                 spanNextPt->y = pos.y;
             } else {
@@ -4252,10 +4245,10 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
                                VertexData* v4, VertexData* v3, u16 colour) {
     b32 doClip;
 
-    if (!IsPointVisible(v1->sVec.x, v1->sVec.y, renderContext->width, renderContext->height)) {
-        if (!IsPointVisible(v2->sVec.x, v2->sVec.y, renderContext->width, renderContext->height) &&
-            !IsPointVisible(v4->sVec.x, v4->sVec.y, renderContext->width, renderContext->height) &&
-            !IsPointVisible(v3->sVec.x, v3->sVec.y, renderContext->width, renderContext->height)) {
+    if (!IsPointVisible(v1->sVec.x, v1->sVec.y)) {
+        if (!IsPointVisible(v2->sVec.x, v2->sVec.y) &&
+            !IsPointVisible(v4->sVec.x, v4->sVec.y) &&
+            !IsPointVisible(v3->sVec.x, v3->sVec.y)) {
 
             u8 clipBits = 0;
 
@@ -4281,9 +4274,9 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
         }
         doClip = TRUE;
     } else {
-        doClip = (!IsPointVisible(v2->sVec.x, v2->sVec.y, renderContext->width, renderContext->height) ||
-                  !IsPointVisible(v4->sVec.x, v4->sVec.y, renderContext->width, renderContext->height) ||
-                  !IsPointVisible(v3->sVec.x, v3->sVec.y, renderContext->width, renderContext->height));
+        doClip = (!IsPointVisible(v2->sVec.x, v2->sVec.y) ||
+                  !IsPointVisible(v4->sVec.x, v4->sVec.y) ||
+                  !IsPointVisible(v3->sVec.x, v3->sVec.y));
     }
 
     if (doClip) {
@@ -4307,12 +4300,12 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
             spanDraw->x1 = v1->sVec.x;
             spanDraw->y1 = v1->sVec.y;
 
-            Vec2i16 pos = ClipLineZ(v1, v2, renderContext->width, renderContext->height);
+            Vec2i16 pos = ClipLineZ(v1, v2);
             spanDraw->x2 = pos.x;
             spanDraw->y2 = pos.y;
 
             if (v3->vVec[2] >= ZCLIPNEAR) {
-                pos = ClipLineZ(v3, v2, renderContext->width, renderContext->height);
+                pos = ClipLineZ(v3, v2);
                 DrawParamsPoint* spanNextPt = BatchSpanLineCont(renderContext->depthTree);
                 spanNextPt->x = pos.x;
                 spanNextPt->y = pos.y;
@@ -4323,12 +4316,12 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
 
                 if (v4->vVec[2] < ZCLIPNEAR) {
                     spanNextPt = BatchSpanLineCont(renderContext->depthTree);
-                    pos = ClipLineZ(v3, v4, renderContext->width, renderContext->height);
+                    pos = ClipLineZ(v3, v4);
                     spanNextPt->x = pos.x;
                     spanNextPt->y = pos.y;
 
                     spanNextPt = BatchSpanLineCont(renderContext->depthTree);
-                    pos = ClipLineZ(v1, v4, renderContext->width, renderContext->height);
+                    pos = ClipLineZ(v1, v4);
                     spanNextPt->x = pos.x;
                     spanNextPt->y = pos.y;
                 } else {
@@ -4339,7 +4332,7 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
             } else {
                 if (v4->vVec[2] >= ZCLIPNEAR) {
                     DrawParamsPoint* spanNextPt = BatchSpanLineCont(renderContext->depthTree);
-                    pos = ClipLineZ(v4, v3, renderContext->width, renderContext->height);
+                    pos = ClipLineZ(v4, v3);
                     spanNextPt->x = pos.x;
                     spanNextPt->y = pos.y;
 
@@ -4348,7 +4341,7 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
                     spanNextPt->y = v4->sVec.y;
                 } else {
                     DrawParamsPoint* spanNextPt = BatchSpanLineCont(renderContext->depthTree);
-                    pos = ClipLineZ(v1, v4, renderContext->width, renderContext->height);
+                    pos = ClipLineZ(v1, v4);
                     spanNextPt->x = pos.x;
                     spanNextPt->y = pos.y;
                 }
@@ -4360,14 +4353,14 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
             spanDraw->y2 = v2->sVec.y;
 
             if (v3->vVec[2] < ZCLIPNEAR) {
-                Vec2i16 pos = ClipLineZ(v3, v2, renderContext->width, renderContext->height);
+                Vec2i16 pos = ClipLineZ(v3, v2);
                 DrawParamsPoint* spanNextPt = BatchSpanLineCont(renderContext->depthTree);
                 spanNextPt->x = pos.x;
                 spanNextPt->y = pos.y;
 
                 if (v4->vVec[2] >= ZCLIPNEAR) {
                     spanNextPt = BatchSpanLineCont(renderContext->depthTree);
-                    pos = ClipLineZ(v4, v3, renderContext->width, renderContext->height);
+                    pos = ClipLineZ(v4, v3);
                     spanNextPt->x = pos.x;
                     spanNextPt->y = pos.y;
 
@@ -4376,7 +4369,7 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
                     spanNextPt->y = v4->sVec.y;
                 } else {
                     spanNextPt = BatchSpanLineCont(renderContext->depthTree);
-                    pos = ClipLineZ(v1, v4, renderContext->width, renderContext->height);
+                    pos = ClipLineZ(v1, v4);
                     spanNextPt->x = pos.x;
                     spanNextPt->y = pos.y;
                 }
@@ -4387,12 +4380,12 @@ MINTERNAL void RenderQuadVerts(RenderContext* renderContext, RenderFrame* rf, Ve
 
                 if (v4->vVec[2] < ZCLIPNEAR) {
                     spanNextPt = BatchSpanLineCont(renderContext->depthTree);
-                    Vec2i16 pos = ClipLineZ(v3, v4, renderContext->width, renderContext->height);
+                    Vec2i16 pos = ClipLineZ(v3, v4);
                     spanNextPt->x = pos.x;
                     spanNextPt->y = pos.y;
 
                     spanNextPt = BatchSpanLineCont(renderContext->depthTree);
-                    pos = ClipLineZ(v1, v4, renderContext->width, renderContext->height);
+                    pos = ClipLineZ(v1, v4);
                     spanNextPt->x = pos.x;
                     spanNextPt->y = pos.y;
                 } else {
@@ -4734,7 +4727,7 @@ MINTERNAL i32 AddSpanLineCont(RenderContext* renderContext, RenderFrame* rf, i16
             }
 
             VertexData* v1 = rf->vertexTrans + rf->complexLastVertexIx;
-            Vec2i16 v2Clip = ClipLineZ(v1, v2, renderContext->width, renderContext->height);
+            Vec2i16 v2Clip = ClipLineZ(v1, v2);
             x = v2Clip.x;
             y = v2Clip.y;
             rf->complexCurrentlyZClipped = 1;
@@ -4748,7 +4741,7 @@ MINTERNAL i32 AddSpanLineCont(RenderContext* renderContext, RenderFrame* rf, i16
 
         rf->complexCurrentlyZClipped = 0;
 
-        Vec2i16 v1Clip = ClipLineZ(v2, v1, renderContext->width, renderContext->height);
+        Vec2i16 v1Clip = ClipLineZ(v2, v1);
 
         if (rf->complexJoinToBeginning == 0) {
             rf->complexJoinToBeginning = 1;
@@ -4853,7 +4846,7 @@ MINTERNAL i32 RComplexBezier(RenderContext* renderContext, u16 funcParam) {
                         rf->complexJoinToBeginning = 0;
                         rf->complexCurrentlyZClipped = 1;
                     } else {
-                        Vec2i16 p5Clip = ClipLineZVec3i32(v1->vVec, p5, renderContext->width, renderContext->height);
+                        Vec2i16 p5Clip = ClipLineZVec3i32(v1->vVec, p5);
                         rf->complexLastZClipPt = p5Clip;
                         DrawParamsLine* drawLine = BatchSpanLine(renderContext->depthTree);
                         drawLine->x1 = p5Clip.x;
@@ -4863,7 +4856,7 @@ MINTERNAL i32 RComplexBezier(RenderContext* renderContext, u16 funcParam) {
                     }
                 }
             } else if (v1->vVec[2] < ZCLIPNEAR) {
-                Vec2i16 v1Clip = ClipLineZVec3i32(p5, v1->vVec, renderContext->width, renderContext->height);
+                Vec2i16 v1Clip = ClipLineZVec3i32(p5, v1->vVec);
                 rf->complexCurrentlyZClipped = 1;
                 DrawParamsLine* drawLine = BatchSpanLine(renderContext->depthTree);
                 Vec2i16 pts = ZProjectPoint(p5);
@@ -4897,7 +4890,7 @@ MINTERNAL i32 RComplexBezier(RenderContext* renderContext, u16 funcParam) {
                         rf->complexJoinToBeginning = 0;
                         rf->complexCurrentlyZClipped = 1;
                     } else {
-                        Vec2i16 v4Clip = ClipLineZVec3i32(p5, v4->vVec, renderContext->width, renderContext->height);
+                        Vec2i16 v4Clip = ClipLineZVec3i32(p5, v4->vVec);
                         rf->complexLastZClipPt = v4Clip;
                         Vec2i16 pts = ZProjectPoint(p5);
                         DrawParamsLine* drawLine = BatchSpanLine(renderContext->depthTree);
@@ -4908,7 +4901,7 @@ MINTERNAL i32 RComplexBezier(RenderContext* renderContext, u16 funcParam) {
                     }
                 }
             } else if (p5[2] < ZCLIPNEAR) {
-                Vec2i16 p5Clip = ClipLineZVec3i32(v4->vVec, p5, renderContext->width, renderContext->height);
+                Vec2i16 p5Clip = ClipLineZVec3i32(v4->vVec, p5);
                 rf->complexJoinToBeginning = 0;
                 rf->complexCurrentlyZClipped = 1;
                 DrawParamsLine* drawLine = BatchSpanLine(renderContext->depthTree);
@@ -5007,7 +5000,7 @@ MINTERNAL i32 RComplexBezierCont(RenderContext* renderContext, u16 funcParam) {
         if (v4->vVec[2] >= ZCLIPNEAR) {
             rf->complexCurrentlyZClipped = 0;
 
-            Vec2i16 v1Clip = ClipLineZ(v4, v1, renderContext->width, renderContext->height);
+            Vec2i16 v1Clip = ClipLineZ(v4, v1);
 
             if (rf->complexJoinToBeginning == 0) {
                 rf->complexJoinToBeginning = 1;
@@ -5365,7 +5358,7 @@ MINTERNAL void RenderCircleParams(RenderContext* renderContext, RenderFrame* rf,
 
     i32 radius = diameter >> 1;
 
-    b32 isVisible = IsCircleVisible(screenX, screenY, radius, renderContext->width, renderContext->height);
+    b32 isVisible = IsCircleVisible(screenX, screenY, radius);
     if (!isVisible) {
         return;
     }
@@ -5673,26 +5666,26 @@ MINTERNAL int RenderCircle(RenderContext* renderContext, u16 funcParam) {
         radius >>= scale;
     }
 
-    i32 centerZ = v1->vVec[2];
-    if (centerZ < ZCLIPNEAR) {
+    i32 centreZ = v1->vVec[2];
+    if (centreZ < ZCLIPNEAR) {
         return 0;
     }
 
-    i32 nearestZ = (centerZ >> 3) - radius;
+    i32 nearestZ = (centreZ >> 3) - radius;
 
     if (nearestZ >= 0) {
         u32 radius1 = radius;
-        while (centerZ > 0x8000) {
+        while (centreZ > 0x8000) {
             radius1 >>= 1;
-            centerZ >>= 1;
+            centreZ >>= 1;
         }
 
-        i16 diameter = (radius1 << ZSCALE) / centerZ;
+        i16 diameter = (radius1 << ZSCALE) / centreZ;
 
         RenderCircleParams(renderContext, rf, v1, diameter, radius, v1->sVec.x, v1->sVec.y, colourParam, extraColour, lightSource);
     } else {
         u32 radius1 = radius >> 1;
-        if (centerZ < radius1) {
+        if (centreZ < radius1) {
             return 0;
         }
 
@@ -6524,17 +6517,20 @@ MINTERNAL int RenderAudioCue(RenderContext* renderContext, u16 funcParam) {
 }
 
 MINTERNAL int ProjectBasicConePoints(RenderContext* renderContext, VertexData* v, i32 radius, Vec3i32 nOut, Vec2i16* ptOut) {
-    i32 r2 = (F16_FOUR_THIRDS * radius) >> 15;
+    i32 controlPtDist = (F16_FOUR_THIRDS * radius) >> 15;
     Vec3i32 axis1 = {radius, 0, 0};
     nOut[0] = axis1[0];
     nOut[1] = axis1[1];
     nOut[2] = axis1[2];
-    Vec3i32 axis2 = {0, r2, 0};
+    Vec3i32 axis2 = {0, controlPtDist, 0};
     return ProjectCircleBezierPoints(renderContext, v, axis1, axis2, ptOut);
 }
 
 MINTERNAL int ProjectConePoints(RenderContext* renderContext, VertexData* v, Vec3i32 normal, i32 radius, Vec3i32 nOut, Vec2i16* ptOut) {
-    // Normalise view vector
+    // Get object view vector, and cross product with the cap normal
+    // This gives us an approx axis for the ellipse, note that this code deesn't render the ellipse directly like we do
+    // in the planet renderer, instead it picks 2 points on the circle and then projective project them, connecting them
+    // with 2 Beziers.
     Vec3i32 vx;
     CopyVertexView(v, vx);
 
@@ -6551,23 +6547,26 @@ MINTERNAL int ProjectConePoints(RenderContext* renderContext, VertexData* v, Vec
     nOut[2] = axis1[2];
 
     i32 d = Vec3i32Length(axis1);
-
     if (d == 0) {
+        // Cap is pointing to the origin - render a circle (perspective correction is done after this, so it may not
+        // actually be a circle on the screen).
         return ProjectBasicConePoints(renderContext, v, radius, nOut, ptOut);
     }
 
+    // Normalize axis and multiply axis by radius, to get a vector for the end points of the bezier
     i32 s = (radius << 15) + (d >> 1);
-    i32 x1 = s / d;
-
-    Vec3i32FractMult(axis1, x1, axis1);
+    i32 endpointDist = s / d;
+    Vec3i32FractMult(axis1, endpointDist, axis1);
 
     nOut[0] = axis1[0];
     nOut[1] = axis1[1];
     nOut[2] = axis1[2];
 
+    // Get the axis for the control points
     Vec3i32 axis2;
     Vec3i32CrossProd(normal, axis1, axis2);
 
+    // Calculate the control points - 4/3 along the circle tangents at the start & end points of the two beziers.
     axis2[0] = - (axis2[0] * F16_FOUR_THIRDS) >> 15;
     axis2[1] = -(axis2[1] * F16_FOUR_THIRDS) >> 15;
     axis2[2] = -(axis2[2] * F16_FOUR_THIRDS) >> 15;
@@ -7114,7 +7113,7 @@ MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
             i16 x = v1->sVec.x - 1;
             i16 y = v1->sVec.y - 1;
 
-            if (IsCircleVisible(x, y, width / 2, renderContext->width, renderContext->height)) {
+            if (IsCircleVisible(x, y, width / 2)) {
                 drawParams->pos[i++] = x;
                 drawParams->pos[i++] = y;
             }
@@ -7131,7 +7130,7 @@ MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
             i16 x = v2->sVec.x - 1;
             i16 y = v2->sVec.y - 1;
 
-            if (IsCircleVisible(x, y, width / 2, renderContext->width, renderContext->height)) {
+            if (IsCircleVisible(x, y, width / 2)) {
                 drawParams->pos[i++] = x;
                 drawParams->pos[i++] = y;
             }
@@ -7316,21 +7315,22 @@ typedef struct sBodyPoint {
 
 typedef struct sBodyWorkspace {
     VertexData* vertex;
-    Vec3i16 center;    // View space vector to center of planet (this vector is also scaled via radiusScaled above)
-    Float16 centerX;   // view center position of planet / sphere
-    Float16 centerY;
-    Float16 centerZ;
+    Vec3i16 centre;    // View space vector to centre of planet (this vector is also scaled via radiusScaled above)
+    Float16 centreX;   // view centre position of planet / sphere
+    Float16 centreY;
+    Float16 centreZ;
 
     i16 radiusScaled; // Radius in view space
 
     Float16 radius; // radius of planet / sphere
-    Float16 outlineDist; // View space distance to the visible planet outline
+    Float16 horizonDist; // View space distance to the visible planet outline / horizon.  Horizon is same distance in
+                         // all directions (natch).
 
     // Two end points distances of the major axis along the axis from middle of the screen
-    // Planet ellipse is always orientated so that its major axis passes through the center point of the screen
-    Float16 nearMajorAxisDist; // point nearest the center point, is negative if the ellipse spans across the center
+    // Planet ellipse is always orientated so that its major axis passes through the centre point of the screen
+    Float16 nearMajorAxisDist; // point nearest the centre point, is negative if the ellipse spans across the centre
                                // of the screen
-    Float16 farMajorAxisDist; // point furthest away from the center point, can be negative but then nearMajorAxisDist
+    Float16 farMajorAxisDist; // point furthest away from the centre point, can be negative but then nearMajorAxisDist
                               // must be negative
 
     i16 axisX; // Screen ellipse slope x & y (axis line intersecting origin 0,0)
@@ -7340,7 +7340,7 @@ typedef struct sBodyWorkspace {
 
     i16 radiusFeatureDraw;
 
-    Vec3i16 arcCenter;
+    Vec3i16 arccentre;
 
     BodyPoint prevPt;
     BodyPoint endPt;
@@ -7389,11 +7389,11 @@ typedef struct sBodyWorkspace {
 } BodyWorkspace;
 
 MINTERNAL void CalcSkyColour(RenderContext* scene, RenderFrame* rf, BodyWorkspace* workspace, u16 skyColour) {
-    // Normalising center vector is expensive and not done in the original
-    Vec3i16 normalisedCenter;
-    Vec3i16Normalise(workspace->center, normalisedCenter);
+    // Normalising centre vector is expensive and not done in the original
+    Vec3i16 normalisedCentre;
+    Vec3i16Normalise(workspace->centre, normalisedCentre);
 
-    i32 light = Vec3i16DotProd(rf->lightDirView, normalisedCenter);
+    i32 light = Vec3i16DotProd(rf->lightDirView, normalisedCentre);
 
     i32 lightFinal = -(light >> 26);
     if (lightFinal < -3) {
@@ -7475,13 +7475,13 @@ MINTERNAL void PlanetProjectPoint(BodyWorkspace* workspace, Vec3i16 vec, BodyPoi
 
     // If add circle on sphere add its offset
     Vec3i16 sVec;
-    sVec[0] = wVec[0] + workspace->arcCenter[0];
-    sVec[1] = wVec[1] + workspace->arcCenter[1];
-    sVec[2] = wVec[2] + workspace->arcCenter[2];
+    sVec[0] = wVec[0] + workspace->arccentre[0];
+    sVec[1] = wVec[1] + workspace->arccentre[1];
+    sVec[2] = wVec[2] + workspace->arccentre[2];
 
     // Get vector offset to viewport
     Vec3i16 pVec;
-    Vec3i16Add(sVec, workspace->center, pVec);
+    Vec3i16Add(sVec, workspace->centre, pVec);
 
     // Check if point on sphere faces camera
     i32 s = Vec3i16DotProd(sVec, pVec);
@@ -7501,8 +7501,6 @@ MINTERNAL void PlanetProjectPoint(BodyWorkspace* workspace, Vec3i16 vec, BodyPoi
             result->pt.x = wVec[0];
             result->pt.y = wVec[1];
 
-//            MLogf("    vec %d %d %d, %d %d, clip %x s >= 0", vec[0], vec[1], vec[2],
-//                  result->pt.x, result->pt.y, result->clip);
             return;
         }
     }
@@ -7516,8 +7514,6 @@ MINTERNAL void PlanetProjectPoint(BodyWorkspace* workspace, Vec3i16 vec, BodyPoi
         result->pt.x = wVec[0];
         result->pt.y = wVec[1];
 
-//        MLogf("    vec %d %d %d, %d %d, clip %x < 0", vec[0], vec[1], vec[2],
-//              result->pt.x, result->pt.y, result->clip);
         return;
     }
 
@@ -7536,14 +7532,9 @@ MINTERNAL void PlanetProjectPoint(BodyWorkspace* workspace, Vec3i16 vec, BodyPoi
     }
 
     Vec3i16Copy32(wVec, result->pos);
-
-//    MLogf("    vec %d %d %d, %d %d, clip %x", vec[0], vec[1], vec[2],
-//          result->pt.x, result->pt.y, result->clip);
 }
 
 MINTERNAL void PlanetArcStart(BodyWorkspace* workspace, Vec3i16 vec) {
-//    MLogf("Arc start %d %d %d", vec[0], vec[1], vec[2]);
-
     workspace->y1Last = -(PLANET_CLIP_BORDER / 2);
     workspace->leftArcClipped = 0;
     workspace->colorFlips = 0;
@@ -7567,29 +7558,12 @@ MINTERNAL void PlanetArcProject(RenderContext* scene, RenderFrame* rf, BodyWorks
 MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, BodyWorkspace* workspace, BodyPoint* spokeVec);
 
 MINTERNAL void PlanetAddLine(RenderContext* rc, BodyWorkspace* workspace, BodyPoint* spoke) {
-    if (rc->sceneSetup->planetRender == 0) {
-        DrawParamsLineColour *drawLine = BatchBodyLine(rc->depthTree);
-        drawLine->x1 = workspace->prevPt.pt.x;
-        drawLine->y1 = workspace->prevPt.pt.y;
-        drawLine->x2 = spoke->pt.x;
-        drawLine->y2 = spoke->pt.y;
-        drawLine->colour = workspace->colour;
-        MLogf("    Add line %d,%d -> %d,%d %d ",
-              drawLine->x1,
-              drawLine->y1,
-              drawLine->x2,
-              drawLine->y2,
-              drawLine->colour
-        );
-    } else if (rc->sceneSetup->planetRender != 0) {
-        DrawParamsLineColour *drawLine = BatchLine(rc->depthTree);
-        drawLine->x1 = workspace->prevPt.pt.x;
-        drawLine->y1 = workspace->prevPt.pt.y;
-        drawLine->x2 = spoke->pt.x;
-        drawLine->y2 = spoke->pt.y;
-//        drawLine->colour = workspace->colour;
-        drawLine->colour = 15;
-    }
+    DrawParamsLineColour *drawLine = BatchBodyLine(rc->depthTree);
+    drawLine->x1 = workspace->prevPt.pt.x;
+    drawLine->y1 = workspace->prevPt.pt.y;
+    drawLine->x2 = spoke->pt.x;
+    drawLine->y2 = spoke->pt.y;
+    drawLine->colour = workspace->colour;
 
     workspace->prevPt = *spoke;
     workspace->outsideSphere = 0;
@@ -7669,14 +7643,7 @@ MINTERNAL void PlanetFeatureAddLineSeg(RenderContext* rc, RenderFrame* rf, BodyW
 }
 
 MINTERNAL void PlanetArcEnd(RenderContext* scene, RenderFrame* rf, BodyWorkspace* workspace) {
-    MLogf("Arc end leftArcClipped: %d ydir2: %d yMaxHit: %d colorFlips: %d done features: %d", workspace->leftArcClipped,
-          workspace->rightArcClipped, workspace->yMaxHit, workspace->colorFlips, workspace->doneRenderFeatures);
-    MLogf("     %d %d %d", workspace->prevPt.pt.x, workspace->prevPt.pt.y, workspace->prevPt.clip);
     PlanetFeatureAddLineSeg(scene, rf, workspace, &workspace->endPt);
-
-    MLogf("-Arc end leftArcClipped: %d ydir2: %d yMaxHit: %d colorFlips: %d done features: %d", workspace->leftArcClipped,
-          workspace->rightArcClipped, workspace->yMaxHit, workspace->colorFlips, workspace->doneRenderFeatures);
-    MLogf("-     %d %d %d", workspace->prevPt.pt.x, workspace->prevPt.pt.y, workspace->prevPt.clip);
 
     workspace->isMonoColour = 0;
     if (workspace->leftArcClipped == 0) {
@@ -7742,23 +7709,15 @@ MINTERNAL void PlanetCircle3(RenderContext* scene, RenderFrame* rf, BodyWorkspac
 
 MINTERNAL void PlanetCircle2(RenderContext* scene, RenderFrame* rf, BodyWorkspace* workspace, Vec3i16 spokeVec,
                              i16 arcRadius, i16 arcOffset) {
-    i32 s = Vec3i16DotProd(workspace->center, spokeVec) >> 15;
-    i16 arcCenterPointsAway = -1;
+    i32 s = Vec3i16DotProd(workspace->centre, spokeVec) >> 15;
+    i16 arcCentrePointsAway = -1;
     if (s <= arcOffset) {
-        arcCenterPointsAway = 0;
+        arcCentrePointsAway = 0;
     }
 
-    Vec3i16Multi16(spokeVec, -arcOffset, workspace->arcCenter);
-    PlanetCircle3(scene, rf, workspace, spokeVec, arcRadius, arcCenterPointsAway);
+    Vec3i16Multi16(spokeVec, -arcOffset, workspace->arccentre);
+    PlanetCircle3(scene, rf, workspace, spokeVec, arcRadius, arcCentrePointsAway);
 }
-
-//    |-w-|
-//      ___
-//    /__|  \     _
-//   /   |   \    |
-//  |    |    |   q
-// |     |     |  |
-//       |        -
 
 MINTERNAL void PlanetCircle(RenderContext* scene, RenderFrame* rf, BodyWorkspace* workspace, Vec3i16 spokeVec,
                             i16 arcRadius, i16 arcOffset) {
@@ -7766,23 +7725,23 @@ MINTERNAL void PlanetCircle(RenderContext* scene, RenderFrame* rf, BodyWorkspace
         // covers less than half a hemisphere
         PlanetCircle2(scene, rf, workspace, spokeVec, arcRadius, arcOffset);
     } else if (workspace->radiusScaled < 0x1000) {
-        Vec3i16Multi16(spokeVec, -arcOffset, workspace->arcCenter);
+        Vec3i16Multi16(spokeVec, -arcOffset, workspace->arccentre);
 
         PlanetCircle3(scene, rf, workspace, spokeVec, arcRadius, 0);
     } else {
-        Vec3i16Multi16(spokeVec, -arcOffset, workspace->arcCenter);
+        Vec3i16Multi16(spokeVec, -arcOffset, workspace->arccentre);
 
         Vec3i16 vec2;
         Vec3i16Copy(spokeVec, vec2);
-        vec2[0] += workspace->center[0];
+        vec2[0] += workspace->centre[0];
         if (vec2[0] < 0) {
             vec2[0] = -vec2[0];
         }
-        vec2[1] += workspace->center[1];
+        vec2[1] += workspace->centre[1];
         if (vec2[1] < 0) {
             vec2[1] = -vec2[1];
         }
-        vec2[2] += workspace->center[2] + 0x200;
+        vec2[2] += workspace->centre[2] + 0x200;
         if (vec2[2] < 0) {
             vec2[2] = -vec2[2];
         }
@@ -7818,7 +7777,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
     if (workspace->detailLevel >= 0) {
         i16 detailParam = workspace->detailParam;
         if (detailParam == 0) {
-            // Add prev point to current point, giving a vector who's direction bisects the arc between the two points
+            // Add prev point to current point, giving a vector whose direction bisects the arc between the two points
             // (both prev and current point are already on the sphere).
             // That is, the sum of two vectors is equal to the diagonal of the parallelogram spanned by the vectors.
             // Since both vectors are the same length, the resulting vector bisects the angle between them (it will
@@ -7826,7 +7785,6 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
             Vec3i16 nextSpoke;
             Vec3i16Add(spoke->pos, workspace->prevPt.pos, nextSpoke);
 
-            MLogf("  Arc project %d %d %d d:0", nextSpoke[0], nextSpoke[1], nextSpoke[2]);
             PlanetArcProject2(rc, rf, workspace, nextSpoke, spoke);
 
             workspace->random = random;
@@ -7884,8 +7842,6 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
                     Vec3i16Add(vec3, vec2, vec2);
                 }
 
-                MLogf("  Arc project %d %d %d d:%d", vec2[0], vec2[1], vec2[2], detailParam);
-
                 PlanetArcProject2(rc, rf, workspace, vec2, spoke);
 
                 workspace->random = random;
@@ -7935,7 +7891,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
             return;
         } else {
             // Prev not clipped, current clipped
-//            workspace->prevPt.clip = spoke->clip;
+            // workspace->prevPt.clip = spoke->clip;
             spokeX = workspace->prevPt.pos[0];
             pt = workspace->prevPt.pt;
             workspace->prevPt = *spoke;
@@ -7973,7 +7929,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
             workspace->yMaxHit++;
             return;
         } else if (pt.x >= 0) {
-            spokeX += workspace->arcCenter[0];
+            spokeX += workspace->arccentre[0];
             if (spokeX >= 0) {
                 // Right side, no need to add a colour flip
                 if (pt.y < workspace->y2Last) {
@@ -7996,11 +7952,9 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
             return;
         }
 
-        if (rc->sceneSetup->planetRender == 0) {
-            DrawParamsBodyToggleColour* toggleCol = BatchBodyToggleColour(rc->depthTree);
-            toggleCol->offset = pt.y;
-            toggleCol->colour = workspace->colour;
-        }
+        DrawParamsBodyToggleColour* toggleCol = BatchBodyToggleColour(rc->depthTree);
+        toggleCol->offset = pt.y;
+        toggleCol->colour = workspace->colour;
 
         workspace->leftArcClipped = arcClipped;
         workspace->colorFlips++;
@@ -8181,7 +8135,7 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
                 workspace->outsideSphere = 0;
                 workspace->colour = featureCtrl;
                 workspace->arcRadius = workspace->radiusScaled;
-                Vec3i16Zero(workspace->arcCenter);
+                Vec3i16Zero(workspace->arccentre);
                 i16 detailLevel = ByteCodeRead8i(rf);
                 if (detailLevel) {
                     workspace->detailParam = (detailLevel + workspace->relativeScale + 1) << 1;
@@ -8202,7 +8156,6 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
 
                     if (arcStarted) {
                         paramX = ByteCodeRead8i(rf);
-                        MLogf("Arc project %d %d %d", vecProjected[0], vecProjected[1], vecProjected[2]);
                         PlanetArcProject(renderContext, rf, workspace, vecProjected);
                         if (!paramX) {
                             PlanetArcEnd(renderContext, rf, workspace);
@@ -8215,10 +8168,9 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
                             i16 dist = ((i16) ByteCodeRead8i(rf)) << 8;
                             BodyPoint bodyPoint;
                             PlanetProjectPoint(workspace, vecProjected, &bodyPoint);
-                            MLogf("---- %d %d", bodyPoint.pt.x, bodyPoint.pt.y);
                             if (workspace->radiusScaled >= 0x1000) {
                                 Vec3i16 vec2;
-                                Vec3i16Add(workspace->center, bodyPoint.pos, vec2);
+                                Vec3i16Add(workspace->centre, bodyPoint.pos, vec2);
                                 if (vec2[0] < 0) {
                                     vec2[0] = -vec2[0];
                                 }
@@ -8244,7 +8196,7 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
 
                 PlanetArcEnd(renderContext, rf, workspace);
             }
-            doneArc:
+doneArc:
             featureCtrl = ByteCodeRead8i(rf);
         }
     }
@@ -8253,80 +8205,84 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
     workspace->doneRenderFeatures = -1;
 }
 
-// Impl 5th mode - ellipse outline
-
 MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* workspace, RenderFrame* rf,
-                                  Float16 minorAxisZ2, i16 offsetMajor) {
-    // Render off center, optionally render atmosphere / halo
-    // i32 nearDistMajor = nearestProjectedPoint.v;
+                                  Float16 minorAxisZ2, i16 ctrlPointMajorOffset) {
+    // Render half ellipse or less, optionally render atmosphere / halo
 
-    // k = 4/3 tan(a/4)
-    // sin(a/2) = √((1 - cos a) / 2)
-    // tan(a/4) = (2 - √(2 + 2cos a)) / (√2 * sin(a/2))
-    // tan(a/4) = (2 - √(2 + 2cos a)) / (2 * √(1 - cos a))
-    // k = 4/3 (2 - √(2 + 2cos a)) / (2 * √(1 - cos a))
+    // Half ellipse (or less) is rendered by finding points on the ellipse outline, at distance ctrlPointMajorOffset * 3
+    // from the top of the ellipse (N).  This point, N, is a vertex on the major axis of the ellipse, nearest the centre
+    // of screen.
+    // A Bezier with control points ctrlPointMajorOffset above the vertex is calculated.  The control points can be
+    // found by finding the intersection between the tangents at the end points and the line parallel to the minor
+    // axis ctrlPointMajorOffset distance above N.  This control points at (4 * tangent / 3) is an approximation that
+    // works for any conic arc (related to Timmer control points).
+    //
+    //      4/3 = (1 * ctrlPointMajorOffset) + (3 * ctrlPointMajorOffset) /
+    //                        ctrlPointMajorOffset * 3
+    //
+    //              P2                            P3
+    //              /------------------------------\            |
+    //             /                                \  ctrlPointMajorOffset
+    //            /---------.......N.......----------\          |
+    //           /  ...            |             ...  \              |
+    //          / ..               |                .. \             |
+    //         / .                 |                  . \   3 *ctrlPointMajorOffset
+    //        /.                   |                    .\           |
+    //       /---------------------|----------------------\          |
+    //      P1                     |                       P4
+    //    [u]
+    //    [------------p-----------]
+    //        P2_x = -(u + p/3)             P3_x = u + p/3
+    //          P1_x = p - u                 P4_x = u - p
 
-    // start - r, 0
-    // c1    - r, k
-    // c2    - r * (cos a + k * sin a), r * (sin a - k * cos a)
-    // end   - r * cos a, r * sin a
-
-    // k = 4 / 3 * √((1 - cos(a/2)) / (1 + cos(a/2)))
-    // start - r1 * cos a / 2, - r2 * sin a / 2
-    // c1    - r1/2 + r1 * (cos a/2 + k * sin a/2), - r2 * (sin a/2 - k * cos a/2) + k/2
-    // c2    - r1/2 + r1 * (cos a/2 + k * sin a/2), r2 * (sin a/2 - k * cos a/2) + k/2
-    // end   - r1 * cos a / 2, r2 * sin a / 2
-
-    // 4 / 3 * √((1 - cos(a/2)) / (1 + cos(a/2)))
-    // (4 * sin(a/2) / (1 + √(1 - sin²(a/2)))) / 3
-    // r1/2 + r1 * (cos a/2 + k * sin a/2)
-    // r2 * (sin a/2 - k * cos a/2) + k/2
-
-    i32 nearDistMajor = workspace->nearMajorAxisDist.v - 3;
+    i32 nearDistMajor = workspace->nearMajorAxisDist.v;
     // Distance from origin along the ellipse major axis to the bezier control points
-    i32 ctrlPtDistMajor = nearDistMajor - offsetMajor;
+    i32 ctrlPtDistMajor = nearDistMajor - ctrlPointMajorOffset;
 
     // Distance from origin along the ellipse major axis to the bezier end points
-    i16 endPointOffset = offsetMajor * 3;
-    i32 endPointDist = nearDistMajor + endPointOffset;
+    i16 endPointOffset = ctrlPointMajorOffset * 3;
+    i32 endPointDist = nearDistMajor + endPointOffset + 3;
 
-    Float16 endPtOffsetViewPlane = {endPointOffset + 40, 18 - ZSCALE};
+    // Multiply by 8 (2 ^ 3) divide by 2 ^ zscale
+    Float16 endPtOffsetViewPlane = {endPointOffset, F16_FRAC_BITS + 3 - ZSCALE};
     endPtOffsetViewPlane = Float16uRebase(endPtOffsetViewPlane);
 
-    // Get the tangent lines at endpoints, then calculate Timmer control points
-    Float16 q = Float16Div(endPtOffsetViewPlane, workspace->outlineDist);
-    Float16 r = Float16Sqrt(Float16Mult16(q, workspace->radius));
-    Float16 u = Float16Mult16(r, Float16Div(q, workspace->radius));
+    Float16 w = Float16Div(endPtOffsetViewPlane, workspace->horizonDist);
+    Float16 p = Float16Sqrt(Float16Mult16(w, workspace->radius));
+    Float16 u = Float16Mult16(p, Float16Div(w, workspace->radius));
 
     u = Float16Mult16(u, minorAxisZ2);
+
+    // Multiply by 2 ^ zscale and divide by 64 (2 ^ 6)
     u.p += ZSCALE - 6;
     u = Float16Extract(u);
 
-    r.p += ZSCALE - 1;
-    r = Float16Extract(r);
+    // Multiply by 2 ^ zscale and divide by 2
+    p.p += ZSCALE - 1;
+    p = Float16Extract(p);
 
-    // distances perp to major axis of bezier points
-    i32 endPointOffsetDist = u.v - r.v;
-    i32 ctrlPointOffsetDist = u.v + ((i32)r.v / 3);
+    // Distances perp to major axis of bezier points
+    i32 endPointOffsetDist = u.v - p.v;
+    i32 ctrlPointOffsetDist = u.v + ((i32)p.v / 3);
 
     i32 eptOffsetX = (endPointOffsetDist * (i32)workspace->axisY) >> 15;
     i32 eptOffsetY = (endPointOffsetDist * (i32)workspace->axisX) >> 15;
-    i32 eptCenterX = (endPointDist * (i32)workspace->axisX) >> 15;
-    i32 eptCenterY = (endPointDist * (i32)workspace->axisY) >> 15;
+    i32 eptcentreX = (endPointDist * (i32)workspace->axisX) >> 15;
+    i32 eptcentreY = (endPointDist * (i32)workspace->axisY) >> 15;
     Vec2i16 bezierPt[4];
-    bezierPt[0].x = eptCenterX - eptOffsetX;
-    bezierPt[0].y = eptCenterY + eptOffsetY;
-    bezierPt[3].x = eptCenterX + eptOffsetX;
-    bezierPt[3].y = eptCenterY - eptOffsetY;
+    bezierPt[0].x = eptcentreX - eptOffsetX;
+    bezierPt[0].y = eptcentreY + eptOffsetY;
+    bezierPt[3].x = eptcentreX + eptOffsetX;
+    bezierPt[3].y = eptcentreY - eptOffsetY;
 
     i32 cptOffsetX = (ctrlPointOffsetDist * (i32)workspace->axisY) >> 15;
     i32 cptOffsetY = (ctrlPointOffsetDist * (i32)workspace->axisX) >> 15;
-    i32 cptCenterX = (ctrlPtDistMajor * (i32)workspace->axisX) >> 15;
-    i32 cptCenterY = (ctrlPtDistMajor * (i32)workspace->axisY) >> 15;
-    bezierPt[1].x = cptCenterX + cptOffsetX;
-    bezierPt[1].y = cptCenterY - cptOffsetY;
-    bezierPt[2].x = cptCenterX - cptOffsetX;
-    bezierPt[2].y = cptCenterY + cptOffsetY;
+    i32 cptcentreX = (ctrlPtDistMajor * (i32)workspace->axisX) >> 15;
+    i32 cptcentreY = (ctrlPtDistMajor * (i32)workspace->axisY) >> 15;
+    bezierPt[1].x = cptcentreX + cptOffsetX;
+    bezierPt[1].y = cptcentreY - cptOffsetY;
+    bezierPt[2].x = cptcentreX - cptOffsetX;
+    bezierPt[2].y = cptcentreY + cptOffsetY;
 
     for (int i = 0; i < 4; i++) {
         bezierPt[i] = ScreenCoords(bezierPt[i]);
@@ -8397,8 +8353,6 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
 
                     colour += workspace->lastTint;
 
-                    MLogf("band width %d (%x) colour %x", bandWidth, bandWidth, colour);
-
                     DrawParamsColour *drawEnd = BatchSpanEnd(renderContext->depthTree);
                     drawEnd->colour = Palette_GetIndexFor12bitColour(renderContext->palette, colour);
                 }
@@ -8413,32 +8367,21 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
         }
     }
 
-    if (renderContext->sceneSetup->planetRender == 0) {
-        PlanetWriteBezierNode(renderContext, rf, workspace->vertex, bezierPt);
+    PlanetWriteBezierNode(renderContext, rf, workspace->vertex, bezierPt);
 
-        DrawParamsLineColour *drawLine1 = BatchBodyLine(renderContext->depthTree);
-        drawLine1->x1 = bezierPt[0].x;
-        drawLine1->y1 = bezierPt[0].y;
-        drawLine1->x2 = screenSpaceFarX;
-        drawLine1->y2 = screenSpaceFarY;
-        drawLine1->colour = 0;
+    DrawParamsLineColour *drawLine1 = BatchBodyLine(renderContext->depthTree);
+    drawLine1->x1 = bezierPt[0].x;
+    drawLine1->y1 = bezierPt[0].y;
+    drawLine1->x2 = screenSpaceFarX;
+    drawLine1->y2 = screenSpaceFarY;
+    drawLine1->colour = 0;
 
-        DrawParamsLineColour *drawLine2 = BatchBodyLine(renderContext->depthTree);
-        drawLine2->x1 = screenSpaceFarX;
-        drawLine2->y1 = screenSpaceFarY;
-        drawLine2->x2 = bezierPt[3].x;
-        drawLine2->y2 = bezierPt[3].y;
-        drawLine2->colour = 0;
-    } else {
-        AddDrawNode(renderContext->depthTree, workspace->vertex->vVec[0], DRAW_FUNC_BATCH_START);
-
-        DrawParamsBezierColour *drawBezier = BatchBezierLine(renderContext->depthTree);
-        drawBezier->pts[0] = bezierPt[0];
-        drawBezier->pts[1] = bezierPt[1];
-        drawBezier->pts[2] = bezierPt[2];
-        drawBezier->pts[3] = bezierPt[3];
-        drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xfff);
-    }
+    DrawParamsLineColour *drawLine2 = BatchBodyLine(renderContext->depthTree);
+    drawLine2->x1 = screenSpaceFarX;
+    drawLine2->y1 = screenSpaceFarY;
+    drawLine2->x2 = bezierPt[3].x;
+    drawLine2->y2 = bezierPt[3].y;
+    drawLine2->colour = 0;
 }
 
 MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace* workspace, RenderFrame* rf,
@@ -8452,340 +8395,222 @@ MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace
     Float16 cpMinorLenScreenSpace = Float16Extract(cpMinorLen);
     i16 cpMinorScreen = cpMinorLenScreenSpace.v;
 
-    if (renderContext->sceneSetup->planetRender == 0) {
-        i16 pt0x = (workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15;
-        i16 pt0y = (workspace->nearMajorAxisDist.v * (i32) workspace->axisY) >> 15;
-        i16 pt1x = (workspace->farMajorAxisDist.v * (i32) workspace->axisX) >> 15;
-        i16 pt1y = (workspace->farMajorAxisDist.v * (i32) workspace->axisY) >> 15;
+#ifndef PLANET_4_BEZIER_OUTLINE
+    i16 pt0x = (workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15;
+    i16 pt0y = (workspace->nearMajorAxisDist.v * (i32) workspace->axisY) >> 15;
+    i16 pt1x = (workspace->farMajorAxisDist.v * (i32) workspace->axisX) >> 15;
+    i16 pt1y = (workspace->farMajorAxisDist.v * (i32) workspace->axisY) >> 15;
 
-        i16 cpAxisW = (cpMinorScreen * (i32) workspace->axisY) >> 15;
-        i16 cpAxisH = (cpMinorScreen * (i32) workspace->axisX) >> 15;
+    i16 cpAxisW = (cpMinorScreen * (i32) workspace->axisY) >> 15;
+    i16 cpAxisH = (cpMinorScreen * (i32) workspace->axisX) >> 15;
 
-        i16 cpt0x = pt0x - cpAxisW;
-        i16 cpt0y = pt0y + cpAxisH;
-        i16 cpt1x = pt1x - cpAxisW;
-        i16 cpt1y = pt1y + cpAxisH;
+    i16 cpt0x = pt0x - cpAxisW;
+    i16 cpt0y = pt0y + cpAxisH;
+    i16 cpt1x = pt1x - cpAxisW;
+    i16 cpt1y = pt1y + cpAxisH;
 
-        Vec2i16 bezierPt[4];
-        bezierPt[0].x = pt0x;
-        bezierPt[0].y = pt0y;
-        bezierPt[1].x = cpt0x;
-        bezierPt[1].y = cpt0y;
-        bezierPt[2].x = cpt1x;
-        bezierPt[2].y = cpt1y;
-        bezierPt[3].x = pt1x;
-        bezierPt[3].y = pt1y;
+    Vec2i16 bezierPt[4];
+    bezierPt[0].x = pt0x;
+    bezierPt[0].y = pt0y;
+    bezierPt[1].x = cpt0x;
+    bezierPt[1].y = cpt0y;
+    bezierPt[2].x = cpt1x;
+    bezierPt[2].y = cpt1y;
+    bezierPt[3].x = pt1x;
+    bezierPt[3].y = pt1y;
 
-        for (int i = 0; i < 4; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-
-        PlanetWriteBezierNode(renderContext, rf, workspace->vertex, bezierPt);
-
-        bezierPt[0].x = pt1x;
-        bezierPt[0].y = pt1y;
-        bezierPt[1].x = (pt1x << 1) - cpt1x;
-        bezierPt[1].y = (pt1y << 1) - cpt1y;
-        bezierPt[2].x = (pt0x << 1) - cpt0x;
-        bezierPt[2].y = (pt0y << 1) - cpt0y;
-        bezierPt[3].x = pt0x;
-        bezierPt[3].y = pt0y;
-
-        for (int i = 0; i < 4; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-
-        DrawParamsBezierColour *drawBezier = BatchBodyBezier(renderContext->depthTree);
-        drawBezier->pts[0] = bezierPt[0];
-        drawBezier->pts[1] = bezierPt[1];
-        drawBezier->pts[2] = bezierPt[2];
-        drawBezier->pts[3] = bezierPt[3];
-        drawBezier->colour = 0;
-    } else if (renderContext->sceneSetup->planetRender == 1) {
-        AddDrawNode(renderContext->depthTree, workspace->vertex->vVec[0], DRAW_FUNC_BATCH_START);
-
-        i16 pt0x = (workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15;
-        i16 pt0y = (workspace->nearMajorAxisDist.v * (i32) workspace->axisY) >> 15;
-        i16 pt1x = (workspace->farMajorAxisDist.v * (i32) workspace->axisX) >> 15;
-        i16 pt1y = (workspace->farMajorAxisDist.v * (i32) workspace->axisY) >> 15;
-
-        Vec2i16 bezierPt[2];
-        bezierPt[0].x = pt0x;
-        bezierPt[0].y = pt0y;
-        bezierPt[1].x = pt1x;
-        bezierPt[1].y = pt1y;
-
-        for (int i = 0; i < 2; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-
-        DrawParamsLineColour *drawLine = BatchLine(renderContext->depthTree);
-        drawLine->x1 = bezierPt[0].x;
-        drawLine->y1 = bezierPt[0].y;
-        drawLine->x2 = bezierPt[1].x;
-        drawLine->y2 = bezierPt[1].y;
-        drawLine->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xfff);
-
-        Float16 minorAxis = minorAxisProjectedLen;
-        minorAxis.p += ZSCALE;
-        minorAxis = Float16Extract(minorAxis);
-
-        i16 axisW = (minorAxis.v * (i32) workspace->axisY) >> 15;
-        i16 axisH = (minorAxis.v * (i32) workspace->axisX) >> 15;
-
-        i16 cx = (pt0x + pt1x) / 2;
-        i16 cy = (pt0y + pt1y) / 2;
-
-        bezierPt[0].x = cx + axisW;
-        bezierPt[0].y = cy - axisH;
-        bezierPt[1].x = cx - axisW;
-        bezierPt[1].y = cy + axisH;
-
-        for (int i = 0; i < 2; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-
-        drawLine = BatchLine(renderContext->depthTree);
-        drawLine->x1 = bezierPt[0].x;
-        drawLine->y1 = bezierPt[0].y;
-        drawLine->x2 = bezierPt[1].x;
-        drawLine->y2 = bezierPt[1].y;
-        drawLine->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xfff);
-
-        bezierPt[0].x = cx;
-        bezierPt[0].y = cy;
-        bezierPt[0] = ScreenCoords(bezierPt[0]);
-
-        drawLine = BatchEllipse(renderContext->depthTree);
-        drawLine->x1 = bezierPt[0].x;
-        drawLine->y1 = bezierPt[0].y;
-        drawLine->x2 = (workspace->farMajorAxisDist.v - workspace->nearMajorAxisDist.v) / 2;
-        drawLine->y2 = minorAxis.v;
-        drawLine->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xfff);
-    } else if (renderContext->sceneSetup->planetRender == 2) {
-        AddDrawNode(renderContext->depthTree, workspace->vertex->vVec[0], DRAW_FUNC_BATCH_START);
-
-        // Nearest point
-        i16 pt0x = (workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15;
-        i16 pt0y = (workspace->nearMajorAxisDist.v * (i32) workspace->axisY) >> 15;
-
-        // Furthest point
-        i16 pt1x = (workspace->farMajorAxisDist.v * (i32) workspace->axisX) >> 15;
-        i16 pt1y = (workspace->farMajorAxisDist.v * (i32) workspace->axisY) >> 15;
-
-        i16 cpAxisW = (cpMinorScreen * (i32) workspace->axisY) >> 15;
-        i16 cpAxisH = (cpMinorScreen * (i32) workspace->axisX) >> 15;
-
-        i16 cpt0x = pt0x - cpAxisW;
-        i16 cpt0y = pt0y + cpAxisH;
-        i16 cpt1x = pt1x - cpAxisW;
-        i16 cpt1y = pt1y + cpAxisH;
-
-        Vec2i16 bezierPt[4];
-        bezierPt[0].x = pt0x;
-        bezierPt[0].y = pt0y;
-        bezierPt[1].x = cpt0x;
-        bezierPt[1].y = cpt0y;
-        bezierPt[2].x = cpt1x;
-        bezierPt[2].y = cpt1y;
-        bezierPt[3].x = pt1x;
-        bezierPt[3].y = pt1y;
-
-        for (int i = 0; i < 4; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-
-        DrawParamsBezierColour *drawBezier = BatchBezierLine(renderContext->depthTree);
-        drawBezier->pts[0] = bezierPt[0];
-        drawBezier->pts[1] = bezierPt[1];
-        drawBezier->pts[2] = bezierPt[2];
-        drawBezier->pts[3] = bezierPt[3];
-        drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xfff);
-
-        bezierPt[0].x = pt1x;
-        bezierPt[0].y = pt1y;
-        bezierPt[1].x = (pt1x << 1) - cpt1x;
-        bezierPt[1].y = (pt1y << 1) - cpt1y;
-        bezierPt[2].x = (pt0x << 1) - cpt0x;
-        bezierPt[2].y = (pt0y << 1) - cpt0y;
-        bezierPt[3].x = pt0x;
-        bezierPt[3].y = pt0y;
-
-        for (int i = 0; i < 4; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-
-        drawBezier = BatchBezierLine(renderContext->depthTree);
-        drawBezier->pts[0] = bezierPt[0];
-        drawBezier->pts[1] = bezierPt[1];
-        drawBezier->pts[2] = bezierPt[2];
-        drawBezier->pts[3] = bezierPt[3];
-        drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xfff);
-    } else if (renderContext->sceneSetup->planetRender == 3) {
-        AddDrawNode(renderContext->depthTree, workspace->vertex->vVec[0], DRAW_FUNC_BATCH_START);
-
-        // Nearest point
-        i16 mj0x = (workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15;
-        i16 mj0y = (workspace->nearMajorAxisDist.v * (i32) workspace->axisY) >> 15;
-        // Furthest point
-        i16 mj1x = (workspace->farMajorAxisDist.v * (i32) workspace->axisX) >> 15;
-        i16 mj1y = (workspace->farMajorAxisDist.v * (i32) workspace->axisY) >> 15;
-
-        Float16 QUARTER_CONST = {0x46a0, 1}; // Constant to move control points to approx ellipse with bezier
-        Float16 cp4MinorLen = Float16Mult16(minorAxisProjectedLen, QUARTER_CONST);
-        cp4MinorLen.p += ZSCALE;
-        Float16 cp4MinorLenScreenSpace = Float16Extract(cp4MinorLen);
-        i16 cp4MinorScreen = cp4MinorLenScreenSpace.v;
-        MLogf("   %d %f", cpMinorScreen, Float16ieee(minorAxisProjectedLen));
-
-        minorAxisProjectedLen.p += ZSCALE;
-        Float16 minorAxisProjectedLenScreenSpace = Float16Extract(minorAxisProjectedLen);
-        i16 minorAxis = minorAxisProjectedLenScreenSpace.v;
-
-        i16 cp4MajorScreen = (((workspace->farMajorAxisDist.v - workspace->nearMajorAxisDist.v) / 2) * (i32) 0x46a0) >> 15;
-
-        i16 minorAxisW = (minorAxis * (i32) workspace->axisY) >> 15;
-        i16 minorAxisH = (minorAxis * (i32) workspace->axisX) >> 15;
-        i16 cpMinorAxisW = (cp4MinorScreen * (i32) workspace->axisY) >> 15;
-        i16 cpMinorAxisH = (cp4MinorScreen * (i32) workspace->axisX) >> 15;
-        i16 cpMajorAxisW = (cp4MajorScreen * (i32) workspace->axisY) >> 15;
-        i16 cpMajorAxisH = (cp4MajorScreen * (i32) workspace->axisX) >> 15;
-
-        i16 mn0x = (mj0x + mj1x) / 2 - minorAxisW;
-        i16 mn0y = (mj0y + mj1y) / 2 + minorAxisH;
-        i16 mn1x = (mj0x + mj1x) / 2 + minorAxisW;
-        i16 mn1y = (mj0y + mj1y) / 2 - minorAxisH;
-
-        Vec2i16 bezierPt[4];
-//                bezierPt[0].x = mj0x;
-//                bezierPt[0].y = mj0y;
-//                bezierPt[1].x = mn0x;
-//                bezierPt[1].y = mn0y;
-//                bezierPt[2].x = mn1x;
-//                bezierPt[2].y = mn1y;
-//                bezierPt[3].x = mj1x;
-//                bezierPt[3].y = mj1y;
-//
-//                i16 colors[] = {0xfff, 0xf00, 0x0f0, 0xff0};
-//                for (int i = 0; i < 4; i++) {
-//                    bezierPt[i] = ScreenCoords(bezierPt[i]);
-//                    DrawParamsCircle* draw = BatchCircle(entity->depthTree);
-//                    draw->x = bezierPt[i].x;
-//                    draw->y = bezierPt[i].y;
-//                    draw->diameter = 7;
-//                    draw->colour = Palette_GetIndexFor12bitColour(entity->palette, colors[i]);
-//                }
-        DrawParamsBezierColour * drawBezier = NULL;
-        cpMinorAxisW /= 2;
-        cpMinorAxisH /= 2;
-//                cpMajorAxisW /= 2;
-//                cpMajorAxisH /= 2;
-        bezierPt[0].x = mj0x;
-        bezierPt[0].y = mj0y;
-        bezierPt[1].x = mj0x - cpMinorAxisW;
-        bezierPt[1].y = mj0y + cpMinorAxisH;
-        bezierPt[2].x = mn0x - cpMajorAxisH;
-        bezierPt[2].y = mn0y - cpMajorAxisW;
-        bezierPt[3].x = mn0x;
-        bezierPt[3].y = mn0y;
-        for (int i = 0; i < 4; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-        drawBezier = BatchBezierLine(renderContext->depthTree);
-        drawBezier->pts[0] = bezierPt[0];
-        drawBezier->pts[1] = bezierPt[1];
-        drawBezier->pts[2] = bezierPt[2];
-        drawBezier->pts[3] = bezierPt[3];
-        drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xf00);
-
-        DrawParamsCircle * drawPt = BatchCircle(renderContext->depthTree);
-        drawPt->x = bezierPt[1].x;
-        drawPt->y = bezierPt[1].y;
-        drawPt->diameter = 4;
-        drawPt->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xf0f);
-
-        drawPt = BatchCircle(renderContext->depthTree);
-        drawPt->x = bezierPt[2].x;
-        drawPt->y = bezierPt[2].y;
-        drawPt->diameter = 4;
-        drawPt->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xf0f);
-
-        bezierPt[1].x = mj0x - minorAxisW;
-        bezierPt[1].y = mj0y + minorAxisH;
-        bezierPt[2].x = mj1x + minorAxisW;
-        bezierPt[2].y = mj1y - minorAxisH;
-        for (int i = 1; i < 3; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-
-        DrawParamsLineColour* drawLine = BatchLine(renderContext->depthTree);
-        drawLine->x1 = bezierPt[0].x;
-        drawLine->y1 = bezierPt[0].y;
-        drawLine->x2 = bezierPt[1].x;
-        drawLine->y2 = bezierPt[1].y;
-        drawLine->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xff0);
-
-        drawLine = BatchLine(renderContext->depthTree);
-        drawLine->x1 = bezierPt[1].x;
-        drawLine->y1 = bezierPt[1].y;
-        drawLine->x2 = bezierPt[3].x;
-        drawLine->y2 = bezierPt[3].y;
-        drawLine->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xff0);
-
-        bezierPt[0].x = mn0x;
-        bezierPt[0].y = mn0y;
-        bezierPt[1].x = mn0x + cpMajorAxisH;
-        bezierPt[1].y = mn0y + cpMajorAxisW;
-        bezierPt[2].x = mj1x - cpMinorAxisW;
-        bezierPt[2].y = mj1y + cpMinorAxisH;
-        bezierPt[3].x = mj1x;
-        bezierPt[3].y = mj1y;
-        for (int i = 0; i < 4; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-        drawBezier = BatchBezierLine(renderContext->depthTree);
-        drawBezier->pts[0] = bezierPt[0];
-        drawBezier->pts[1] = bezierPt[1];
-        drawBezier->pts[2] = bezierPt[2];
-        drawBezier->pts[3] = bezierPt[3];
-        drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0x0f0);
-
-        bezierPt[0].x = mj1x;
-        bezierPt[0].y = mj1y;
-        bezierPt[1].x = mj1x + cpMinorAxisW;
-        bezierPt[1].y = mj1y - cpMinorAxisH;
-        bezierPt[2].x = mn1x + cpMajorAxisH;
-        bezierPt[2].y = mn1y + cpMajorAxisW;
-        bezierPt[3].x = mn1x;
-        bezierPt[3].y = mn1y;
-        for (int i = 0; i < 4; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-        drawBezier = BatchBezierLine(renderContext->depthTree);
-        drawBezier->pts[0] = bezierPt[0];
-        drawBezier->pts[1] = bezierPt[1];
-        drawBezier->pts[2] = bezierPt[2];
-        drawBezier->pts[3] = bezierPt[3];
-        drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0x00f);
-
-        bezierPt[0].x = mn1x;
-        bezierPt[0].y = mn1y;
-        bezierPt[1].x = mn1x - cpMajorAxisH;
-        bezierPt[1].y = mn1y - cpMajorAxisW;
-        bezierPt[2].x = mj0x + cpMinorAxisW;
-        bezierPt[2].y = mj0y - cpMinorAxisH;
-        bezierPt[3].x = mj0x;
-        bezierPt[3].y = mj0y;
-        for (int i = 0; i < 4; i++) {
-            bezierPt[i] = ScreenCoords(bezierPt[i]);
-        }
-        drawBezier = BatchBezierLine(renderContext->depthTree);
-        drawBezier->pts[0] = bezierPt[0];
-        drawBezier->pts[1] = bezierPt[1];
-        drawBezier->pts[2] = bezierPt[2];
-        drawBezier->pts[3] = bezierPt[3];
-        drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xfff);
+    for (int i = 0; i < 4; i++) {
+        bezierPt[i] = ScreenCoords(bezierPt[i]);
     }
+
+    PlanetWriteBezierNode(renderContext, rf, workspace->vertex, bezierPt);
+
+    bezierPt[0].x = pt1x;
+    bezierPt[0].y = pt1y;
+    bezierPt[1].x = (pt1x << 1) - cpt1x;
+    bezierPt[1].y = (pt1y << 1) - cpt1y;
+    bezierPt[2].x = (pt0x << 1) - cpt0x;
+    bezierPt[2].y = (pt0y << 1) - cpt0y;
+    bezierPt[3].x = pt0x;
+    bezierPt[3].y = pt0y;
+
+    for (int i = 0; i < 4; i++) {
+        bezierPt[i] = ScreenCoords(bezierPt[i]);
+    }
+
+    DrawParamsBezierColour *drawBezier = BatchBodyBezier(renderContext->depthTree);
+    drawBezier->pts[0] = bezierPt[0];
+    drawBezier->pts[1] = bezierPt[1];
+    drawBezier->pts[2] = bezierPt[2];
+    drawBezier->pts[3] = bezierPt[3];
+    drawBezier->colour = 0;
+#else
+    // Some debug rendering for switching to using 4 beziers for a more accurate planet outline,
+    // - it works - but the problem is we need to implement this for the half render mode as well
+
+    AddDrawNode(renderContext->depthTree, workspace->vertex->vVec[0], DRAW_FUNC_BATCH_START);
+
+    // Nearest point
+    i16 mj0x = (workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15;
+    i16 mj0y = (workspace->nearMajorAxisDist.v * (i32) workspace->axisY) >> 15;
+    // Furthest point
+    i16 mj1x = (workspace->farMajorAxisDist.v * (i32) workspace->axisX) >> 15;
+    i16 mj1y = (workspace->farMajorAxisDist.v * (i32) workspace->axisY) >> 15;
+
+    Float16 QUARTER_CONST = {0x46a0, 1}; // Constant to move control points to approx ellipse with bezier
+    Float16 cp4MinorLen = Float16Mult16(minorAxisProjectedLen, QUARTER_CONST);
+    cp4MinorLen.p += ZSCALE;
+    Float16 cp4MinorLenScreenSpace = Float16Extract(cp4MinorLen);
+    i16 cp4MinorScreen = cp4MinorLenScreenSpace.v;
+
+    minorAxisProjectedLen.p += ZSCALE;
+    Float16 minorAxisProjectedLenScreenSpace = Float16Extract(minorAxisProjectedLen);
+    i16 minorAxis = minorAxisProjectedLenScreenSpace.v;
+
+    i16 cp4MajorScreen = (((workspace->farMajorAxisDist.v - workspace->nearMajorAxisDist.v) / 2) * (i32) 0x46a0) >> 15;
+
+    i16 minorAxisW = (minorAxis * (i32) workspace->axisY) >> 15;
+    i16 minorAxisH = (minorAxis * (i32) workspace->axisX) >> 15;
+    i16 cpMinorAxisW = (cp4MinorScreen * (i32) workspace->axisY) >> 15;
+    i16 cpMinorAxisH = (cp4MinorScreen * (i32) workspace->axisX) >> 15;
+    i16 cpMajorAxisW = (cp4MajorScreen * (i32) workspace->axisY) >> 15;
+    i16 cpMajorAxisH = (cp4MajorScreen * (i32) workspace->axisX) >> 15;
+
+    i16 mn0x = (mj0x + mj1x) / 2 - minorAxisW;
+    i16 mn0y = (mj0y + mj1y) / 2 + minorAxisH;
+    i16 mn1x = (mj0x + mj1x) / 2 + minorAxisW;
+    i16 mn1y = (mj0y + mj1y) / 2 - minorAxisH;
+
+    Vec2i16 bezierPt[4];
+    // bezierPt[0].x = mj0x;
+    // bezierPt[0].y = mj0y;
+    // bezierPt[1].x = mn0x;
+    // bezierPt[1].y = mn0y;
+    // bezierPt[2].x = mn1x;
+    // bezierPt[2].y = mn1y;
+    // bezierPt[3].x = mj1x;
+    // bezierPt[3].y = mj1y;
+    //
+    // i16 colors[] = {0xfff, 0xf00, 0x0f0, 0xff0};
+    // for (int i = 0; i < 4; i++) {
+    //     bezierPt[i] = ScreenCoords(bezierPt[i]);
+    //     DrawParamsCircle* draw = BatchCircle(entity->depthTree);
+    //     draw->x = bezierPt[i].x;
+    //     draw->y = bezierPt[i].y;
+    //     draw->diameter = 7;
+    //     draw->colour = Palette_GetIndexFor12bitColour(entity->palette, colors[i]);
+    // }
+    DrawParamsBezierColour * drawBezier = NULL;
+    cpMinorAxisW /= 2;
+    cpMinorAxisH /= 2;
+    // cpMajorAxisW /= 2;
+    // cpMajorAxisH /= 2;
+    bezierPt[0].x = mj0x;
+    bezierPt[0].y = mj0y;
+    bezierPt[1].x = mj0x - cpMinorAxisW;
+    bezierPt[1].y = mj0y + cpMinorAxisH;
+    bezierPt[2].x = mn0x - cpMajorAxisH;
+    bezierPt[2].y = mn0y - cpMajorAxisW;
+    bezierPt[3].x = mn0x;
+    bezierPt[3].y = mn0y;
+    for (int i = 0; i < 4; i++) {
+        bezierPt[i] = ScreenCoords(bezierPt[i]);
+    }
+    drawBezier = BatchBezierLine(renderContext->depthTree);
+    drawBezier->pts[0] = bezierPt[0];
+    drawBezier->pts[1] = bezierPt[1];
+    drawBezier->pts[2] = bezierPt[2];
+    drawBezier->pts[3] = bezierPt[3];
+    drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xf00);
+
+    DrawParamsCircle * drawPt = BatchCircle(renderContext->depthTree);
+    drawPt->x = bezierPt[1].x;
+    drawPt->y = bezierPt[1].y;
+    drawPt->diameter = 4;
+    drawPt->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xf0f);
+
+    drawPt = BatchCircle(renderContext->depthTree);
+    drawPt->x = bezierPt[2].x;
+    drawPt->y = bezierPt[2].y;
+    drawPt->diameter = 4;
+    drawPt->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xf0f);
+
+    bezierPt[1].x = mj0x - minorAxisW;
+    bezierPt[1].y = mj0y + minorAxisH;
+    bezierPt[2].x = mj1x + minorAxisW;
+    bezierPt[2].y = mj1y - minorAxisH;
+    for (int i = 1; i < 3; i++) {
+        bezierPt[i] = ScreenCoords(bezierPt[i]);
+    }
+
+    DrawParamsLineColour* drawLine = BatchLine(renderContext->depthTree);
+    drawLine->x1 = bezierPt[0].x;
+    drawLine->y1 = bezierPt[0].y;
+    drawLine->x2 = bezierPt[1].x;
+    drawLine->y2 = bezierPt[1].y;
+    drawLine->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xff0);
+
+    drawLine = BatchLine(renderContext->depthTree);
+    drawLine->x1 = bezierPt[1].x;
+    drawLine->y1 = bezierPt[1].y;
+    drawLine->x2 = bezierPt[3].x;
+    drawLine->y2 = bezierPt[3].y;
+    drawLine->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xff0);
+
+    bezierPt[0].x = mn0x;
+    bezierPt[0].y = mn0y;
+    bezierPt[1].x = mn0x + cpMajorAxisH;
+    bezierPt[1].y = mn0y + cpMajorAxisW;
+    bezierPt[2].x = mj1x - cpMinorAxisW;
+    bezierPt[2].y = mj1y + cpMinorAxisH;
+    bezierPt[3].x = mj1x;
+    bezierPt[3].y = mj1y;
+    for (int i = 0; i < 4; i++) {
+        bezierPt[i] = ScreenCoords(bezierPt[i]);
+    }
+    drawBezier = BatchBezierLine(renderContext->depthTree);
+    drawBezier->pts[0] = bezierPt[0];
+    drawBezier->pts[1] = bezierPt[1];
+    drawBezier->pts[2] = bezierPt[2];
+    drawBezier->pts[3] = bezierPt[3];
+    drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0x0f0);
+
+    bezierPt[0].x = mj1x;
+    bezierPt[0].y = mj1y;
+    bezierPt[1].x = mj1x + cpMinorAxisW;
+    bezierPt[1].y = mj1y - cpMinorAxisH;
+    bezierPt[2].x = mn1x + cpMajorAxisH;
+    bezierPt[2].y = mn1y + cpMajorAxisW;
+    bezierPt[3].x = mn1x;
+    bezierPt[3].y = mn1y;
+    for (int i = 0; i < 4; i++) {
+        bezierPt[i] = ScreenCoords(bezierPt[i]);
+    }
+    drawBezier = BatchBezierLine(renderContext->depthTree);
+    drawBezier->pts[0] = bezierPt[0];
+    drawBezier->pts[1] = bezierPt[1];
+    drawBezier->pts[2] = bezierPt[2];
+    drawBezier->pts[3] = bezierPt[3];
+    drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0x00f);
+
+    bezierPt[0].x = mn1x;
+    bezierPt[0].y = mn1y;
+    bezierPt[1].x = mn1x - cpMajorAxisH;
+    bezierPt[1].y = mn1y - cpMajorAxisW;
+    bezierPt[2].x = mj0x + cpMinorAxisW;
+    bezierPt[2].y = mj0y - cpMinorAxisH;
+    bezierPt[3].x = mj0x;
+    bezierPt[3].y = mj0y;
+    for (int i = 0; i < 4; i++) {
+        bezierPt[i] = ScreenCoords(bezierPt[i]);
+    }
+    drawBezier = BatchBezierLine(renderContext->depthTree);
+    drawBezier->pts[0] = bezierPt[0];
+    drawBezier->pts[1] = bezierPt[1];
+    drawBezier->pts[2] = bezierPt[2];
+    drawBezier->pts[3] = bezierPt[3];
+    drawBezier->colour = Palette_GetIndexFor12bitColour(renderContext->palette, 0xfff);
+#endif
 
     // Skip atmosphere colours
     u16 bandWidth = ByteCodeRead16u(rf);
@@ -8812,17 +8637,17 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     workspace.initialCodeOffset = rf->byteCodePos;
     workspace.detailLevel = 16 + renderContext->planetDetail;
 
-    // Get center vertex in view space coords
+    // Get centre vertex in view space coords
     i16 vertexIndex = (i16)(param2 & 0xff);
     workspace.vertex = TransformAndProjectVertex(renderContext, rf, vertexIndex);
 
-    Vec3i32 centerVec;
-    Vec3i32Copy(workspace.vertex->vVec, centerVec);
+    Vec3i32 centreVec;
+    Vec3i32Copy(workspace.vertex->vVec, centreVec);
 
     i16 baseScale = rf->scale + 7;
     i16 baseRadius = FloatRebase(&baseScale, radiusParm);
-    u16 centerScale = Vec3i16ScaleBelow(centerVec, 0x3f00);
-    u16 relativeScale = 31 + centerScale - baseScale;
+    u16 centreScale = Vec3i16ScaleBelow(centreVec, 0x3f00);
+    u16 relativeScale = 31 + centreScale - baseScale;
     i32 radiusRescaled = (i32)((((u32)((u16) baseRadius)) << 16) >> relativeScale);
     if (!radiusRescaled) {
         // Planet too far away to be rendered - skip
@@ -8832,43 +8657,53 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
 
     workspace.relativeScale = relativeScale;
     if (radiusRescaled > 0x4000) {
-        Vec3i32ShiftRight(centerVec, 1);
+        Vec3i32ShiftRight(centreVec, 1);
         workspace.relativeScale++;
     }
 
     workspace.radiusScaled = (i16)radiusRescaled;
-    workspace.center[0] = (i16)centerVec[0];
-    workspace.center[1] = (i16)centerVec[1];
-    workspace.center[2] = (i16)centerVec[2];
+    workspace.centre[0] = (i16)centreVec[0];
+    workspace.centre[1] = (i16)centreVec[1];
+    workspace.centre[2] = (i16)centreVec[2];
 
     // If sphere is completely behind don't render
-    if (centerVec[2] + radiusRescaled < 0) {
+    if (centreVec[2] + radiusRescaled < 0) {
         ByteCodeSkipBytes(rf, byteCodeSize);
         return 0;
     }
 
-    workspace.centerX = Float16Make(workspace.vertex->vVec[0]);
-    workspace.centerY = Float16Make(workspace.vertex->vVec[1]);
-    workspace.centerZ = Float16Make(workspace.vertex->vVec[2]);
+    workspace.centreX = Float16MakeFromInt(workspace.vertex->vVec[0]);
+    workspace.centreY = Float16MakeFromInt(workspace.vertex->vVec[1]);
+    workspace.centreZ = Float16MakeFromInt(workspace.vertex->vVec[2]);
     workspace.radius.v = baseRadius;
     workspace.radius.p = baseScale;
 
-    Float32 x2 = Float32Rebase(Float16Mult32(workspace.centerX, workspace.centerX));
-    Float32 y2 = Float32Rebase(Float16Mult32(workspace.centerY, workspace.centerY));
-    Float32 z2 = Float32Rebase(Float16Mult32(workspace.centerZ, workspace.centerZ));
+    Float32 x2 = Float32Rebase(Float16Mult32(workspace.centreX, workspace.centreX));
+    Float32 y2 = Float32Rebase(Float16Mult32(workspace.centreY, workspace.centreY));
+    Float32 z2 = Float32Rebase(Float16Mult32(workspace.centreZ, workspace.centreZ));
     Float32 r2 = Float32Rebase(Float16Mult32(workspace.radius, workspace.radius));
 
-    // Get the outline Z depth as if the planet was viewed at x=0,y=0,z=centerZ - this will be the minor axis z-depth
-    // (squared - hence the variable name ending in '2')
+    // A sphere when projected onto the view plane is a conic (conceptually the sphere can be enclosed in cone from the
+    // view point, and where the view plane intersects this cone is the conic).
+    // The code below finds this conic and renders it as connected Beziers.
+    // Due to the perspective view, the conic axis have some features we can use to find them:
+    // - The major axis stretches with distance from centre of screen
+    // - The major axis passes through the centre of the screen and the centre of the sphere.
+    // - The minor axis is parallel to this.
+    // - The minor axis does not stretch with distance from the centre of the screen, it only varies with sphere depth
+    //   or radius.
+
+    // Get the outline dist as if the planet was viewed at x=0,y=0,z=centreZ - this will be used to calculate the
+    // horizon dist and the minor axis length later (or used in equations that implicitly calculate it).
     //   = (view Z)^2 - radius^2
-    // view Z dist of the minor axis squared - this is the z depth as opposed to outline distance from view point which
-    // is constant for the ellipse.  If negative near view plane clips the sphere.
+    // If this is negative, the near view plane clips the sphere, and we cannot render the conic as an ellipse (it would
+    // be a hyperbola).
     Float32 minorAxisZ2 = Float32Sub(z2, r2);
 
     // Get the depth of points on the outline of the sphere - constant distance of points on the outline of the planet /
     // sphere from the view origin
     Float32 xyOffset2 = Float32Add(x2, y2);
-    Float32 outlineDist2 = Float32Add(xyOffset2, minorAxisZ2);
+    Float32 horizonDist2 = Float32Add(xyOffset2, minorAxisZ2);
 
     // Decide if we need to render the planet:
     //  - whole (ellipse)
@@ -8876,16 +8711,17 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     //  - close to ground / inside
     //  - or not at all
     i16 tooCloseToSurface = FALSE;
-    i16 yOffsetHalfMode = 42 * SCREEN_SCALE;
-    if (outlineDist2.v > 0) {
+    i16 yOffsetHalfMode = 42 * SCREEN_SCALE;  // Control point major axis offset when rendered in half mode
+    if (horizonDist2.v > 0) {
         // Outside sphere, tangent depth is valid (we can sqrt it, to get the actual depth)
-        i16 horizonScale = r2.p - outlineDist2.p;
+        i16 horizonScale = r2.p - horizonDist2.p;
         workspace.radiusMinusHorizonDistScale = horizonScale;
         if (horizonScale == (ZSCALE - 1)) {
             yOffsetHalfMode = 10 * SCREEN_SCALE;
         } else if (horizonScale >= (ZSCALE)) {
-            // Screen clipping planet
-            tooCloseToSurface = TRUE;
+            // Screen potentially clipping planet
+            // tmp disabled to make the intro render better!
+            // tooCloseToSurface = TRUE;
         }
     } else {
         // Viewpoint inside planet
@@ -8899,17 +8735,16 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     renderContext->sceneSetup->debugPlanetUpdate = 1;
     renderContext->sceneSetup->debugPlanetHorizonScale = workspace.radiusMinusHorizonDistScale;
     renderContext->sceneSetup->debugPlanetCloseToSurface = tooCloseToSurface;
-    renderContext->sceneSetup->debugPlanetOutlineDist = Float32Sqrt(outlineDist2);
-    renderContext->sceneSetup->debugPlanetOutlineDist.p += rf->modelData->scale2 + 7;
+    renderContext->sceneSetup->debugPlanetOutlineDist = Float32Sqrt(horizonDist2);
     renderContext->sceneSetup->debugPlanetRadius = workspace.radius;
-    renderContext->sceneSetup->debugPlanetRadius.p += rf->modelData->scale2 + 7;
-    renderContext->sceneSetup->debugPlanetAltitude =
-            Float16Sub(Float32Sqrt(Float32Add(xyOffset2, z2)), workspace.radius);
+    renderContext->sceneSetup->debugPlanetAltitude = Float16Sub(Float32Sqrt(Float32Add(xyOffset2, z2)), workspace.radius);
 
-    // renderContext->sceneSetup->debugPlanetAltitude =
-    //        Float32Sqrt( (Float32Add(xyOffset2, z2)) -  workspace.radius^2) / (1 + 2 * workspace.radius))
-
-    renderContext->sceneSetup->debugPlanetAltitude.p += rf->modelData->scale2 + 7;
+    if (rf->modelData->scale2) {
+        i16 add = rf->modelData->scale2 + 7;
+        renderContext->sceneSetup->debugPlanetAltitude.p += add;
+        renderContext->sceneSetup->debugPlanetOutlineDist.p += add;
+        renderContext->sceneSetup->debugPlanetRadius.p += add;
+    }
 #endif
 
     if (tooCloseToSurface) {
@@ -8930,9 +8765,9 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
         }
         workspace.radiusScaled = newRadius.v;
 
-        // Recalc the minor axis z depth, and outline distance
+        // Re-calc the minor axis z depth, and outline distance
         minorAxisZ2 = Float32Sub(z2, newRadius2);
-        outlineDist2 = Float32Add(xyOffset2, minorAxisZ2);
+        horizonDist2 = Float32Add(xyOffset2, minorAxisZ2);
     }
 
     Float16 xyOffset = Float32Sqrt(xyOffset2);
@@ -8940,21 +8775,41 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
         workspace.axisX = 0x7fff;
         workspace.axisY = 0;
     } else {
-        Float16 axisX = Float16Div(workspace.centerX, xyOffset);
+        Float16 axisX = Float16Div(workspace.centreX, xyOffset);
         axisX.p += 15;
         workspace.axisX = Float16Extract(axisX).v;
-        Float16 axisY = Float16Div(workspace.centerY, xyOffset);
+        Float16 axisY = Float16Div(workspace.centreY, xyOffset);
         axisY.p += 15;
         workspace.axisY = Float16Extract(axisY).v;
     }
 
     RenderBody_ReadColours(renderContext, rf, &workspace);
 
-    // Get distance to nearest projected point from screen center
-    Float16 centerDist = Float16Mult16(xyOffset, workspace.centerZ);
-    workspace.outlineDist = Float32Sqrt(outlineDist2);
-    Float16 radiusDist = Float16Mult16(workspace.radius, workspace.outlineDist);
-    Float16 innerVertexDist = Float16Sub(centerDist, radiusDist);
+    // Get distance to nearest projected point from screen centre.
+    // The projected outline of the planet is an ellipse at horizonDist, aligned (rotated) by axisX / axisY.
+    // By working in the plane of this axis and the view space z axis, we can turn this into a 2d problem:
+    //
+    //    Find the slope of the tangent lines to the planet circle in the plane of the axisX/axiY,z.
+    //    The tangent lines intersect the circle at horizonDist from the origin, so this can be formulated as the
+    //    intersection of two circles.  Since we are only interested in the perspective projected points we only need
+    //    to find the slope (m) of the lines, we don't really care about the view space coordinates, just the ratio
+    //    between them (xy_dist/z).
+    //
+    //    The formula for the near tangent is as follows:
+    //          m = (a*b - r2*r) / (b^2 - r^2)
+    //       Or:
+    //          m = ((xyOffset * centreZ) - (radius * horizonDist)) / minorAxisZ2
+    //
+    //    The formula for the other tangent is:
+    //          m_far = (a*b + r2*r) / (b^2 - r^2)
+    //       Or:
+    //          m_far = ((xyOffset * centreZ) + (radius * horizonDist)) / minorAxisZ2
+    //
+    // Given the slopes, the coordinates are then m << ZSCALE when projected to the view plane.
+    workspace.horizonDist = Float32Sqrt(horizonDist2);
+    Float16 centreDist = Float16Mult16(xyOffset, workspace.centreZ);
+    Float16 radiusDist = Float16Mult16(workspace.radius, workspace.horizonDist);
+    Float16 innerVertexDist = Float16Sub(centreDist, radiusDist);
     Float16 minorAxisZ2_16 = Float32Convert16(minorAxisZ2);
     workspace.nearMajorAxisDist = Float16Div(innerVertexDist, minorAxisZ2_16);
     workspace.nearMajorAxisDist.p += ZSCALE;
@@ -8975,10 +8830,8 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
         return 0;
     }
 
-    // Normal planet drawing - 'out of atmosphere'
-
-    // Get distance to the furthest projected point from screen center
-    Float16 outerVertexDist = Float16Add(centerDist, radiusDist);
+    // Get distance to the furthest projected point from screen centre
+    Float16 outerVertexDist = Float16Add(centreDist, radiusDist);
     workspace.farMajorAxisDist = Float16Div(outerVertexDist, minorAxisZ2_16);
     workspace.farMajorAxisDist.p += ZSCALE;
     workspace.farMajorAxisDist = Float16Extract(workspace.farMajorAxisDist);
@@ -8987,19 +8840,24 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     renderContext->sceneSetup->debugPlanetFarAxisDist = workspace.farMajorAxisDist.v;
 #endif
 
-    b32 halfDrawMode = TRUE;
-    if (minorAxisZ2_16.v < 0) {
-        // Near z view plane clips the sphere, so it's a hyperbola not an ellipse, set the 'far' distance to max
+    b32 halfDrawMode;
+    if (minorAxisZ2_16.v <= 0) {
+        // View plane clips the sphere, so it's a hyperbola not an ellipse, set the 'far' distance to max
         workspace.farMajorAxisDist.v = PLANET_SCREENSPACE_MAJOR_AXIS_MAX;
+        halfDrawMode = TRUE;
     } else {
-        i32 ellipseCenterBy2 = (i32)workspace.nearMajorAxisDist.v + workspace.farMajorAxisDist.v;
-        if (ellipseCenterBy2 < PLANET_SCREENSPACE_HALF_RENDER) {
+        i32 ellipseCentreBy2 = (i32)workspace.nearMajorAxisDist.v + workspace.farMajorAxisDist.v;
+        if (ellipseCentreBy2 < PLANET_SCREENSPACE_HALF_RENDER) {
             // Whole ellipse may be needed, don't just draw one side
             halfDrawMode = FALSE;
-        } else if (ellipseCenterBy2 > PLANET_SCREENSPACE_MAJOR_AXIS_MAX) {
+        } else if (ellipseCentreBy2 > PLANET_SCREENSPACE_MAJOR_AXIS_MAX) {
+            // At least half the ellipse is outside the viewport
             workspace.farMajorAxisDist.v = PLANET_SCREENSPACE_MAJOR_AXIS_MAX;
+            halfDrawMode = TRUE;
+        } else {
+            // else regular half mode
+            halfDrawMode = TRUE;
         }
-        // else regular half mode
     }
 
 #ifdef FINTRO_INSPECTOR
@@ -9044,20 +8902,16 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
         bodyXor->colour = workspace.startToggleColour;
     }
 
-    if (renderContext->sceneSetup->planetRender == 0) {
 #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
-        if (workspace.colourMode & 0x8) {
-            DrawParamsColour16 *drawParams = BatchBodyDraw2(renderContext->depthTree);
-            PlanetWriteColourToPalette(renderContext, &workspace, 0, drawParams->colour);
-            PlanetWriteColourToPalette(renderContext, &workspace, 8, drawParams->colour + 8);
-        } else {
-            DrawParamsColour8 *drawParams = BatchBodyDraw3(renderContext->depthTree);
-            PlanetWriteColourToPalette(renderContext, &workspace, 0, drawParams->colour);
-        }
-#pragma GCC diagnostic pop
-    } else if (renderContext->sceneSetup->planetRender != 0) {
-        WriteDrawFunc(renderContext->depthTree, DRAW_FUNC_BATCH_END);
+    if (workspace.colourMode & 0x8) {
+        DrawParamsColour16 *drawParams = BatchBodyDraw2(renderContext->depthTree);
+        PlanetWriteColourToPalette(renderContext, &workspace, 0, drawParams->colour);
+        PlanetWriteColourToPalette(renderContext, &workspace, 8, drawParams->colour + 8);
+    } else {
+        DrawParamsColour8 *drawParams = BatchBodyDraw3(renderContext->depthTree);
+        PlanetWriteColourToPalette(renderContext, &workspace, 0, drawParams->colour);
     }
+#pragma GCC diagnostic pop
 
     rf->byteCodePos = workspace.initialCodeOffset;
     ByteCodeSkipBytes(rf, byteCodeSize);
@@ -9425,20 +9279,3 @@ void Render_RenderAndDrawScene(SceneSetup* sceneSetup, RenderEntity* renderEntit
     Surface_Clear(sceneSetup->raster->surface, BACKGROUND_COLOUR_INDEX);
     Raster_Draw(sceneSetup->raster);
 }
-
-//
-//              P2                            P3
-//              /------------------------------\
-//             /                                \
-//            /---------...............----------\
-//           /  ...                          ...  \
-//          / ..                                .. \
-//         / .                                    . \
-//        /.                                        .\
-//       /--------------------------------------------\
-//      P1                                            P4
-//      [-r--][-------u---------]
-//            [r/3]
-//      P1 = u + r
-//      P2 = u + r/3
-//

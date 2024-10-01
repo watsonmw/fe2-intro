@@ -293,6 +293,17 @@ MINTERNAL int CountModels(SceneSetup* sceneSetup) {
 int main(int, char**) {
     MMemDebugInit();
 
+//    Float16 f1 = Float16MakeFromInt(-0x3000);
+//    Float16 f2 = Float16MakeFromInt(0x7fff);
+//    MLogf("%e", Float16ieee(f1));
+//    MLogf("%e", Float16ieee(f2));
+//
+//    Float32 f3 = Float16Mult32(f1, f2);
+//    MLogf("%e", Float32ieee(f3));
+//
+//    Float16 f4 = Float16Mult(f1, f2);
+//    MLogf("%e", Float16ieee(f4));
+
     AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub2;
 
     Surface surface;
@@ -1029,30 +1040,6 @@ int main(int, char**) {
                     if (ImGui::SliderInt("Planet Min Atmos Width", &modelViewer.planetMinAtmosBandWidth, 0x4000, 0x4400)) {
                         renderScene = true;
                     }
-                    if (ImGui::Button("Planet - Normal")) {
-                        curSceneSetup->planetRender = 0;
-                        renderScene = true;
-                    }
-                    ImGui::SameLine();
-                    if (ImGui::Button("Planet - 2d Ellipse")) {
-                        curSceneSetup->planetRender = 1;
-                        renderScene = true;
-                    }
-                    ImGui::SameLine();
-                    if (ImGui::Button("Planet - Outline")) {
-                        curSceneSetup->planetRender = 2;
-                        renderScene = true;
-                    }
-                    ImGui::SameLine();
-                    if (ImGui::Button("Planet - 4 Bezier")) {
-                        curSceneSetup->planetRender = 3;
-                        renderScene = true;
-                    }
-                    ImGui::SameLine();
-                    if (ImGui::Button("Planet - Ellipse")) {
-                        curSceneSetup->planetRender = 4;
-                        renderScene = true;
-                    }
                     if (ImGui::Button("Bad Planet1")) {
                         modelViewer.pos[0] = -1070;
                         modelViewer.pos[1] = 382;
@@ -1111,9 +1098,9 @@ int main(int, char**) {
                 if (mouseX >= 0 && mouseY >= 0 && mouseX < SURFACE_WIDTH && mouseY < SURFACE_HEIGHT) {
                     i32 o = mouseY * SURFACE_WIDTH + mouseX;
                     u32 tmp = surface.insOffset[o];
-                    ImGui::Text("%d %d : %05x", mouseX, mouseY, tmp);
+                    ImGui::Text("%d,%d (%d, %d) : %05x", mouseX, mouseY, mouseX-SURFACE_WIDTH/2, mouseY-SURFACE_HEIGHT/2, tmp);
                 } else {
-                    ImGui::Text("%d %d : n/a", mouseX, mouseY);
+                    ImGui::Text("%d,%d (%d, %d) : n/a", mouseX, mouseY, mouseX-SURFACE_WIDTH/2, mouseY-SURFACE_HEIGHT/2);
                 }
 
                 if (modelRadio == 0) {

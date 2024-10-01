@@ -235,7 +235,6 @@ typedef struct sSceneSetup {
     i16 planetMinAtmosBandWidth;
     i16 renderDetail;
     i16 planetDetail;
-    int planetRender;
 
     // List of strings available for rendering
     u8** moduleStrings;

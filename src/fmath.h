@@ -14,8 +14,13 @@
 extern "C" {
 #endif
 
+// Some fixed point fraction constants, these are used when calculating Beziers control points for an arc.
 #define F16_FOUR_THIRDS 0xaaaa
 #define F16_TWO_THIRDS 0x5554
+
+// Fractional bits of frontier floats (this is the 'significand' in ieee floats, also referred to as mantissa)
+#define F16_FRAC_BITS 15
+#define F32_FRAC_BITS 31
 
 // Matrices are by convention m[row][column]
 typedef i16 Matrix3x3i16[3][3];
@@ -29,27 +34,25 @@ typedef struct sVec2_16 {
 } Vec2i16;
 
 typedef struct sFloat16 {
-    i16 v;
-    i16 p;
+    i16 v; // value - fractional part / significand
+    i16 p; // precision - power of two exponent
 } Float16;
 
 typedef struct sFloat32 {
-    i32 v;
-    i16 p;
+    i32 v; // value - fractional part / significand
+    i16 p; // precision - power of two exponent
 } Float32;
 
 extern i16 FMath_sine[4096];
 extern i16 FMath_arccos[128];
 
-#ifndef AMIGA
-#define FMATH_USE_FLOAT_SIN_ACOS 1
+#ifdef AMIGA
+#define FMATH_USE_INLINE_TABLES
 #endif
 
-#ifdef FMATH_USE_FLOAT_SIN_ACOS
+#ifndef FMATH_USE_INLINE_TABLES
 void FMath_BuildLookupTables(void);
 #endif
-
-void FMath_Test(void);
 
 // Returns fixed point 16.8
 MINLINE u32 FMath_SqrtFunc16x8(u32 num) {
@@ -435,13 +438,15 @@ MINLINE i16 Vec3i16ScaleBelow(Vec3i32 v, i32 max) {
     return scale;
 }
 
-MINLINE Float16 Float16Make(i32 val) {
+// Converts a 32bit integer to a Float16
+// 15bits are kept, exponents the rest
+MINLINE Float16 Float16MakeFromInt(i32 val) {
     Float16 f16 = {0, 0};
     if (!val) {
         f16.v = 0;
         f16.p = -0x7;
     } else {
-        f16.p = 0x1f;
+        f16.p = F32_FRAC_BITS; // *input* is 32 bits
         // count number of leading 0s or 1s (0 for positive numbers, 1 for neg), minus 1 (for the sign bit).
         while (val > 0 == !(val & 0x40000000)) {
             val <<= 1;
@@ -451,6 +456,24 @@ MINLINE Float16 Float16Make(i32 val) {
     }
 
     return f16;
+}
+
+MINLINE Float32 Float32MakeFromInt(i32 val) {
+    Float32 f32 = {0, 0};
+    if (!val) {
+        f32.v = 0;
+        f32.p = -0x7;
+    } else {
+        f32.p = F16_FRAC_BITS; // input size matches internal value size
+        // count number of leading 0s or 1s (0 for positive numbers, 1 for neg), minus 1 (for the sign bit).
+        while (val > 0 == !(val & 0x40000000)) {
+            val <<= 1;
+            f32.p--;
+        }
+        f32.v = val;
+    }
+
+    return f32;
 }
 
 MINLINE i16 FloatRebase(i16* bits, i16 paramIn) {
@@ -515,19 +538,31 @@ MINLINE Float32 Float32Rebase(Float32 f32) {
 
 MINLINE Float16 Float16Mult(Float16 f1, Float16 f2) {
     Float16 f16;
+    f16.p = f1.p + f2.p;
     i32 v1 = f1.v;
     i32 v2 = f2.v;
-    f16.v = (i16) ((v1 * v2) >> 16);
-    f16.p = f1.p + f2.p;
+    i16 x = (i16) ((v1 * v2) >> 16);
+    if (x < 0x4000) {
+        f16.v = x << 1;
+    } else {
+        f16.v = x;
+        f16.p += 1;
+    }
     return f16;
 }
 
 MINLINE Float32 Float16Mult32(Float16 f1, Float16 f2) {
     Float32 f32;
-    i32 v1 = f1.v;
-    i32 v2 = f2.v;
-    f32.v = (v1 * v2) << 1;
     f32.p = f1.p + f2.p;
+    i16 v1 = f1.v;
+    i16 v2 = f2.v;
+    i32 x = ((i32)v1 * v2);
+    if (x < 0x40000000) {
+        f32.v = x << 1;
+    } else {
+        f32.v = x;
+        f32.p += 1;
+    }
     return f32;
 }
 
@@ -536,7 +571,7 @@ MINLINE Float32 Float32Add(Float32 f1, Float32 f2) {
     i16 dp = f1.p - f2.p;
     i16 p;
     if (dp > 0) {
-        if (dp >= 0x1f) {
+        if (dp >= F32_FRAC_BITS) {
             return f1;
         }
         f2.v >>= dp;
@@ -544,7 +579,7 @@ MINLINE Float32 Float32Add(Float32 f1, Float32 f2) {
     } else if (dp < 0) {
         dp = -dp;
         p = f2.p;
-        if (dp >= 0x1f) {
+        if (dp >= F32_FRAC_BITS) {
             return f2;
         }
         f1.v >>= dp;
@@ -570,7 +605,7 @@ MINLINE Float32 Float32Sub(Float32 f1, Float32 f2) {
     i16 dp = f1.p - f2.p;
     i16 p;
     if (dp > 0) {
-        if (dp >= 0x1f) {
+        if (dp >= F32_FRAC_BITS) {
             return f1;
         }
         f2.v >>= dp;
@@ -578,7 +613,7 @@ MINLINE Float32 Float32Sub(Float32 f1, Float32 f2) {
     } else if (dp < 0) {
         dp = -dp;
         p = f2.p;
-        if (dp >= 0x1f) {
+        if (dp >= F32_FRAC_BITS) {
             f1.v = 0;
         } else {
             f1.v >>= dp;
@@ -605,6 +640,13 @@ MINLINE Float16 Float32Convert16(Float32 f32) {
     f16.v = (i16)(f32.v >> 16);
     f16.p = f32.p;
     return f16;
+}
+
+MINLINE Float32 Float16Convert32(Float16 f16) {
+    Float32 f32;
+    f32.v = ((i32)f16.v) << 15;
+    f32.p = f16.p;
+    return f32;
 }
 
 MINLINE Float16 Float16Add(Float16 f1, Float16 f2) {
@@ -755,7 +797,6 @@ MINLINE double Float32ieee(Float32 value) {
     }
 
     u32 v = 0;
-
     if (value.v < 0) {
         b = 1;
         b <<= 11;
@@ -768,13 +809,9 @@ MINLINE double Float32ieee(Float32 value) {
     }
 
     v &= 0x3fffffff;
-
     b |= e;
-
     b <<= 30;
-
     b |= v;
-
     b <<= 22;
 
     return *((double*) ((void*) &b));
@@ -793,7 +830,6 @@ MINLINE float Float16ieee(Float16 value) {
     }
 
     u32 v = 0;
-
     if (value.v < 0) {
         b = 1;
         b <<= 8;
@@ -806,13 +842,9 @@ MINLINE float Float16ieee(Float16 value) {
     }
 
     v &= 0x3fff;
-
     v <<= 9;
-
     b |= e;
-
     b <<= 23;
-
     b |= v;
 
     return *((float*) ((void*) &b));
