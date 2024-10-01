@@ -53,51 +53,45 @@ Building
 Amiga:
 
 Built for Amiga using Bebbo's GCC compiler, once installed the bash script
-'amiga/build-ami-gcc.sh' can be used to cross compile from Linux.
+'scripts/build-amiga-gcc.sh' can be used to cross compile from Linux.
 
 
 SDL:
 
-Other platforms use SDL for platform support and CMake for compiling.  A CMake
-file is included that works on Mac with Xcode, Windows with Mingw, and 
-Emscripten for Web.
+An SDL version is available to build on Linux, Windows (MinGW), and OSX:
 
     cmake .  -B cmake-build-release -DCMAKE_BUILD_TYPE=Release
     make -C cmake-build-release fintro
 
 
-Emscripten:
+Dear ImGui + SDL:
+
+This version allows you to debug the intro and other Frontier models, useful
+for reverse engineering efforts.
+
+    cmake .  -B cmake-build-release -DCMAKE_BUILD_TYPE=Release
+    make -C cmake-build-release fintro-imgui
 
 
-Emscripten uses its own version of libraries and build toolchain.  Detailed instructions
-can be found on the emscripten.org website.  The process for getting the latest emscripten
-is currently:
+WASM:
 
-    git clone https://github.com/emscripten-core/emsdk.git
-    cd emsdk
-    # Fetch the latest version of the emsdk (not needed the first time you clone)
-    git pull
-    # Download and install the latest SDK tools.
-    ./emsdk install latest
-    # Make the "latest" SDK "active" for the current user. (writes .emscripten file)
-    ./emsdk activate latest
-    # Activate PATH and other environment variables in the current terminal
-    source ./emsdk_env.sh
+To build WASM install a version of clang with WASM support, then run the
+following script:
 
-A special wrapper for CMake is included with Emscripten, which sets up the toolchain.
-Use that to build this project:
+    scripts/build-wasm.sh
 
-    emcmake cmake . -B emscripten-release -DCMAKE_BUILD_TYPE=Release
-    make -C emscripten-release fintro
+The Clang path may need to be changed to match yours.
 
-A Python 2.7 script for serving up the Emscripten compiled version locally is provided.
+    CLANG=clang-15
 
-    python scripts/wasmserver.py
+A Python3 script is provided for serving up the WASM code locally:
 
-You can then open in your favourite WASM supporting browser (basically any Chromium
-or WebKit based browser since 2018):
+    python3 scripts/wasmserver.py
 
-    http://localhost:8000/emscripten-release/fe2-intro.html
+You can then open in your favourite WASM supporting browser (basically any
+Chromium or WebKit based browser since 2018):
+
+    http://localhost:8000/build-wasm/fe2-intro.html
 
 
 Why?

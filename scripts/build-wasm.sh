@@ -7,7 +7,7 @@ CLANG=clang-15
 # support)
 #CLANG=/opt/homebrew/opt/llvm/bin/clang
 
-BUILD_DIR=build_wasm
+BUILD_DIR=build-wasm
 
 DEFINES="-DM_MEM_DEBUG -DM_LOG_ALLOCATIONS -DWASM_DIRECT -DFINTRO_SCREEN_RES=3 -DM_CLIB_DISABLE"
 INCLUDES="-Isrc -Isrc/platform/wasm"
