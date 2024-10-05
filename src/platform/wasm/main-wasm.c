@@ -336,7 +336,7 @@ void render(u32 currentTimestampMs) {
             snprintf(frameRateString, sizeof(frameRateString), "FPS: %d Frame: %d", sLoopContext.fps, sLoopContext.frameOffset);
 
             Vec2i16 pos = { 2, 2 };
-            Render_DrawBitmapText(&sLoopContext.introScene, frameRateString, pos, 0x3, TRUE);
+            Render_DrawBitmapText(&sLoopContext.introScene, frameRateString, pos, 0x6, TRUE);
         }
     }
     RenderToRGASurface();

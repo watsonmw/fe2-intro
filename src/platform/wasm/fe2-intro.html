@@ -354,6 +354,14 @@
                 wasm_app.instance.exports.set_debug_mode(debug);
             }
 
+            function volumeUp() {
+                wasm_app.instance.exports.audio_volume_up();
+            }
+
+            function volumeDown() {
+                wasm_app.instance.exports.audio_volume_down();
+            }
+
             return {
                 fetchFiles: fetchFiles,
                 loadWasm: loadWasm,
@@ -364,6 +372,8 @@
                 resume: resume,
                 isPaused: () => { return paused; },
                 toggleDebug: toggleDebug,
+                volumeUp: volumeUp,
+                volumeDown: volumeDown
             };
         });
 
@@ -514,6 +524,12 @@
                         userPaused = false;
                         mainApp.pause();
                     }
+                    break;
+                case '9':
+                    mainApp.volumeUp();
+                    break;
+                case '0':
+                    mainApp.volumeDown();
                     break;
             }
         });

@@ -1585,6 +1585,7 @@ void DecompileFontModel(FontModelData* model, u32 modelIndex, DebugModelParams* 
     DumpVerticesAndNormals((ModelData*)model, debugModelParams, modelInfo, strOutput);
 
     FontModelData* fontModel = (FontModelData*) model;
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored  "-Waddress-of-packed-member"
     u16* offsets = fontModel->offsets;
 #pragma GCC diagnostic pop

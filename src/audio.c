@@ -346,7 +346,7 @@ u32 Audio_Init(AudioContext* audio, u8* data, u32 size) {
 
     Audio_CopyAndFixSamples(audio);
 
-    audio->masterVolume = 32;
+    audio->masterVolume = AUDIO_VOLUME_MAX;
 
     audio->playModOnly = 1;
 
