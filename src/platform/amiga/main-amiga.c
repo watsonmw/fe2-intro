@@ -96,7 +96,7 @@ static AudioContext sAudioContext;
 static u64 sStartTime;
 static u64 sCurrentClock;
 
-static u16 sModToPlay = Audio_ModEnum_SILENCE;
+static u16 sModToPlay = Audio_ModEnum_FRONTIER_THEME_INTRO;
 static const char* sFrontierExePath = NULL;
 static b32 sProfile;
 static b32 sProfileFrame;
@@ -557,30 +557,30 @@ static i32 ParseCommandLine(int argc, char** argv) {
 
 void* AmigaMalloc(void* alloc, size_t size) {
     void* mem = AllocMem(size, MEMF_ANY);
-    MLogf("AmigaMalloc %p %u", mem, size);
+    // MLogf("AmigaMalloc %p %u", mem, size);
     return mem;
 }
 
 void* AmigaRealloc(void* alloc, void* mem, size_t oldSize, size_t newSize) {
-    MLogf("AmigaRealloc %p %ul %u", mem, oldSize, newSize);
+    // MLogf("AmigaRealloc %p %ul %u", mem, oldSize, newSize);
     if (newSize > 0) {
         void* newMem = AllocMem(newSize, MEMF_ANY);
-        MLogf("AllocMem %p %u", newMem, newSize);
+        // MLogf("AllocMem %p %u", newMem, newSize);
         if (oldSize && mem != NULL) {
             memmove(newMem, mem, oldSize);
-            MLogf("FreeMem %p %u", mem, oldSize);
+            // MLogf("FreeMem %p %u", mem, oldSize);
             FreeMem(mem, oldSize);
         }
         return newMem;
     } else {
-        MLogf("FreeMem2 %p %u", mem, oldSize);
+        // MLogf("FreeMem2 %p %u", mem, oldSize);
         FreeMem(mem, oldSize);
         return 0;
     }
 }
 
 void AmigaFree(void* alloc, void* mem, size_t size) {
-    MLogf("AmigaFree %p %u", size);
+    // MLogf("AmigaFree %p %u", size);
     FreeMem(mem, size);
 }
 
@@ -642,7 +642,8 @@ __stdargs int main(int argc, char** argv) {
             }
 
             if (!amigaExeData.size) {
-                MLog("Unable to find Frontier exe 'game' or 'frontier'");
+                MLog("Unable to find original Amiga Frontier executable: looked for 'game' or 'frontier' in "
+                     "current directory");
                 AOS_cleanupAndExit(0);
             }
         }

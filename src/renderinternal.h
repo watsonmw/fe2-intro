@@ -140,8 +140,7 @@ typedef enum eDrawFuncEnum {
     DRAW_FUNC_BODY_DRAW_1 = 25,
     DRAW_FUNC_BODY_DRAW_2 = 26,
     DRAW_FUNC_BODY_DRAW_3 = 27,
-    DRAW_FUNC_NOP = 28,
-    DRAW_FUNC_ELLIPSE = 29
+    DRAW_FUNC_NOP = 28
 } DrawFuncEnum;
 
 typedef struct sVertexData {

@@ -1203,5 +1203,5 @@ vertices: ; 1
 normals: ; 0
 
 code:
-  planet v:0 size:32512 colours:[#373, #004, #444, #444] atmosColour:#008 atmosBands:[#1.0074 #646, #1.00b #536, #1.022 #426, #1.01a #416]
+  planet v:0 size:32512 colours:[#374, #004, #444, #444] atmosColour:#008 atmosBands:[#1.0074 #646, #1.00b #536, #1.022 #426, #1.01a #416]
   done

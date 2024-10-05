@@ -480,6 +480,8 @@ void DrawCircleOutline(Surface* surface, int x, int y, int r, u8 colour) {
     }
 }
 
+// Axis aligned ellipse - just for debugging
+#ifdef ELLIPSE_DEBUG_FUNC
 void DrawEllipseOutline(Surface* surface, int x0, int y0, int xr, int yr, u8 colour) {
     int xr2 = xr * xr;
     int yr2 = yr * yr;
@@ -539,6 +541,7 @@ void DrawEllipseOutline(Surface* surface, int x0, int y0, int xr, int yr, u8 col
         }
     }
 }
+#endif
 
 void DrawSmallCircle(Surface *surface, int x, int y, int d, u8 colour) {
     if (x < 2 || x >= SURFACE_WIDTH - 1 || y < 2 || y >= SURFACE_HEIGHT - 1) {
@@ -2119,6 +2122,7 @@ void Raster_Free(RasterContext* raster) {
 
 MINTERNAL void DoRasterTree(RasterContext* raster, u8* mem, RasterOpNode* drawNode);
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
 
 MINTERNAL int DoDrawFunc(RasterContext *context, DrawFunc *drawFunc) {
@@ -2244,11 +2248,6 @@ MINTERNAL int DoDrawFunc(RasterContext *context, DrawFunc *drawFunc) {
                                    Palette_GetDynamicColourIndex(context, params->innerColour));
 
             return sizeof(DrawParamsRingedCircle);
-        }
-        case DRAW_FUNC_ELLIPSE: {
-            DrawParamsLineColour* params = (DrawParamsLineColour*)(&drawFunc->params);
-            DrawEllipseOutline(context->surface, params->x1, params->y1, params->x2, params->y2, params->colour);
-            return sizeof(DrawParamsLineColour);
         }
         case DRAW_FUNC_TEXT: {
             DrawParamsText* params = (DrawParamsText*)(&drawFunc->params);
@@ -2454,7 +2453,6 @@ MINTERNAL int DoRenderNode(RasterContext* context, RasterOpNode* renderNode) {
         case DRAW_FUNC_BEZIER_LINE:
         case DRAW_FUNC_FLARE:
         case DRAW_FUNC_CIRCLE:
-        case DRAW_FUNC_ELLIPSE:
         case DRAW_FUNC_RINGED_CIRCLE:
         case DRAW_FUNC_CIRCLES:
         case DRAW_FUNC_TEXT:
@@ -2794,7 +2792,6 @@ DEPTHNODE_APPEND_FUNC(BatchSpanBezier, DRAW_FUNC_SPANS_BEZIER, DrawParamsBezier)
 DEPTHNODE_APPEND_FUNC(BatchSpanDraw, DRAW_FUNC_SPANS_DRAW, DrawParamsColour)
 DEPTHNODE_APPEND_FUNC(BatchSpanLineCont, DRAW_FUNC_SPANS_LINE_CONT, DrawParamsPoint)
 DEPTHNODE_APPEND_FUNC(BatchLine, DRAW_FUNC_LINE, DrawParamsLineColour)
-DEPTHNODE_APPEND_FUNC(BatchEllipse, DRAW_FUNC_ELLIPSE, DrawParamsLineColour)
 DEPTHNODE_APPEND_FUNC(BatchBezierLine, DRAW_FUNC_BEZIER_LINE, DrawParamsBezierColour)
 DEPTHNODE_APPEND_FUNC(BatchTri, DRAW_FUNC_TRI, DrawParamsTri)
 DEPTHNODE_APPEND_FUNC(BatchCircle, DRAW_FUNC_CIRCLE, DrawParamsCircle)
@@ -8902,6 +8899,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
         bodyXor->colour = workspace.startToggleColour;
     }
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Waddress-of-packed-member"
     if (workspace.colourMode & 0x8) {
         DrawParamsColour16 *drawParams = BatchBodyDraw2(renderContext->depthTree);

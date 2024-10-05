@@ -9,7 +9,10 @@ CLANG=clang-15
 
 BUILD_DIR=build-wasm
 
-DEFINES="-DM_MEM_DEBUG -DM_LOG_ALLOCATIONS -DWASM_DIRECT -DFINTRO_SCREEN_RES=3 -DM_CLIB_DISABLE"
+#DEBUG_DEFINES="-DM_MEM_DEBUG -DM_LOG_ALLOCATIONS"
+DEBUG_DEFINES=""
+
+DEFINES="$DEBUG_DEFINES -DWASM_DIRECT -DFINTRO_SCREEN_RES=3 -DM_CLIB_DISABLE"
 INCLUDES="-Isrc -Isrc/platform/wasm"
 SOURCES="src/render.c src/fmath.c src/audio.c src/fintro.c src/assets.c src/platform/wasm/mlib-wasm.c src/platform/wasm/main-wasm.c src/platform/basicalloc.c"
 # OPT="-g"

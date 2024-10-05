@@ -190,6 +190,10 @@ int CompileFileAndWriteOut(const char* fileToCompile, const char* fileOutputPath
                                        memOutput, modelsArray, endian,
                                        dumpModelsToConsole);
 
+    if (result == -1) {
+        MLogf("File not found: %s", fileToCompile);
+    }
+
     return result;
 }
 
