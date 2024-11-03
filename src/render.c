@@ -6726,8 +6726,8 @@ MINTERNAL void RenderConeParams(RenderContext* renderContext, RenderFrame* rf, u
 
             i32 dot1 = Vec3i32DotProd(cap1Axis2, lightSplitAxis);
             i32 r = dot1 / (area + 3);
-
-            i16 lightCutoffAngle = FMath_arccos[(r >> 9) & 0x7f];
+            i16 index = (r >> 9) & 0x7f;
+            i16 lightCutoffAngle = FMath_arccos[index];
 
             i32 dot2 = Vec3i16i32DotProd(rf->lightDirView, cap1Axis);
             if (dot2 < 0) {
@@ -7075,7 +7075,7 @@ MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
             return 0;
         }
 
-        while (z > 0x8000) {
+        while (z >= 0x8000) {
             p1 >>= 1;
             z >>= 1;
         }
@@ -7151,7 +7151,7 @@ MINTERNAL int RenderMatrixSetup(RenderContext* renderContext, u16 funcParam) {
         return 0;
     }
 
-    // Orientate given axis awy from light source
+    // Orientate given axis away from light source
     u16 rotationAxis = (param0 >> 1) & 0x3;
     u16 lightAxis = sMatrixRotationOffsets3[rotationAxis];
     i32 x = rf->lightDirObject[lightAxis];
@@ -7183,7 +7183,7 @@ MINTERNAL int RenderMatrixSetup(RenderContext* renderContext, u16 funcParam) {
         }
     } else {
         sine = (i16)((x << (i32)14) / r);
-        cosine = (i16)((y << (i32)14) / r );
+        cosine = (i16)((y << (i32)14) / r);
     }
 
     Matrix3x3i16RotateAxis(rf->tmpMatrix, rotationAxis, cosine, sine);
@@ -8264,22 +8264,22 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
 
     i32 eptOffsetX = (endPointOffsetDist * (i32)workspace->axisY) >> 15;
     i32 eptOffsetY = (endPointOffsetDist * (i32)workspace->axisX) >> 15;
-    i32 eptcentreX = (endPointDist * (i32)workspace->axisX) >> 15;
-    i32 eptcentreY = (endPointDist * (i32)workspace->axisY) >> 15;
+    i32 eptCentreX = (endPointDist * (i32)workspace->axisX) >> 15;
+    i32 eptCentreY = (endPointDist * (i32)workspace->axisY) >> 15;
     Vec2i16 bezierPt[4];
-    bezierPt[0].x = eptcentreX - eptOffsetX;
-    bezierPt[0].y = eptcentreY + eptOffsetY;
-    bezierPt[3].x = eptcentreX + eptOffsetX;
-    bezierPt[3].y = eptcentreY - eptOffsetY;
+    bezierPt[0].x = eptCentreX - eptOffsetX;
+    bezierPt[0].y = eptCentreY + eptOffsetY;
+    bezierPt[3].x = eptCentreX + eptOffsetX;
+    bezierPt[3].y = eptCentreY - eptOffsetY;
 
     i32 cptOffsetX = (ctrlPointOffsetDist * (i32)workspace->axisY) >> 15;
     i32 cptOffsetY = (ctrlPointOffsetDist * (i32)workspace->axisX) >> 15;
-    i32 cptcentreX = (ctrlPtDistMajor * (i32)workspace->axisX) >> 15;
-    i32 cptcentreY = (ctrlPtDistMajor * (i32)workspace->axisY) >> 15;
-    bezierPt[1].x = cptcentreX + cptOffsetX;
-    bezierPt[1].y = cptcentreY - cptOffsetY;
-    bezierPt[2].x = cptcentreX - cptOffsetX;
-    bezierPt[2].y = cptcentreY + cptOffsetY;
+    i32 cptCentreX = (ctrlPtDistMajor * (i32)workspace->axisX) >> 15;
+    i32 cptCentreY = (ctrlPtDistMajor * (i32)workspace->axisY) >> 15;
+    bezierPt[1].x = cptCentreX + cptOffsetX;
+    bezierPt[1].y = cptCentreY - cptOffsetY;
+    bezierPt[2].x = cptCentreX - cptOffsetX;
+    bezierPt[2].y = cptCentreY + cptOffsetY;
 
     for (int i = 0; i < 4; i++) {
         bezierPt[i] = ScreenCoords(bezierPt[i]);

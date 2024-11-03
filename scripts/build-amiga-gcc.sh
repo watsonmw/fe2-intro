@@ -45,7 +45,7 @@ set -x # echo on
 # -mregparm             - gives a ~ 2% speedup and reduces exe size (less moves)
 # -fno-strict-aliasing  - code violates strict aliasing, but also strict aliasing generates worse code in gcc6.5 (!)
 #OPT_FLAGS="-m68040 -mregparm=4 -fomit-frame-pointer -fweb -frename-registers -fno-strict-aliasing"
-OPT_FLAGS="-m68040 -O2 -mregparm=4 -fomit-frame-pointer -fweb -frename-registers -fno-strict-aliasing"
+OPT_FLAGS="-O3 -m68040 -mregparm=4 -fomit-frame-pointer -fweb -frename-registers -fno-strict-aliasing"
 
 GCC="/opt/amiga/bin/m68k-amigaos-gcc"
 VASM="/opt/amiga/bin/vasmm68k_mot"

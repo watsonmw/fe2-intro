@@ -208,7 +208,7 @@ int DumpDrawFunc(RasterContext* raster, DebugDrawInfo &drawInfo, DrawFunc *drawF
             if (raster->legacy) {
                 DrawParamsLegacyCircles* params = (DrawParamsLegacyCircles*)(&drawFunc->params);
 
-                writer->appendf("CIRCLES (%d, %d", params->width, params->colour);
+                writer->appendf("CIRCLES (d: %d, c: %d", params->width, params->colour);
 
                 int i = 0;
                 while (params->pos[i] != 0xffff) {
@@ -222,7 +222,7 @@ int DumpDrawFunc(RasterContext* raster, DebugDrawInfo &drawInfo, DrawFunc *drawF
             } else {
                 DrawParamsCircles* params = (DrawParamsCircles*)(&drawFunc->params);
 
-                writer->appendf("CIRCLES (%d, %d", params->width, params->colour);
+                writer->appendf("CIRCLES (d: %d, c: %d", params->width, params->colour);
 
                 for (int i = 0; i < params->num;) {
                     i16 x = params->pos[i++];

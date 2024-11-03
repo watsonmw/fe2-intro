@@ -502,7 +502,6 @@ static b32 PathAppend(char* dirInOut, u32 dirLen, const char* fileName) {
 static i32 ParseCommandLine(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
         const char* arg = argv[i];
-        MLog(arg);
         if (*arg == '-') {
             if (MStrCmp("mod", arg + 1) == 0) {
                 i++;

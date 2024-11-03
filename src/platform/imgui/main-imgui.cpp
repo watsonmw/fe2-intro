@@ -1041,39 +1041,24 @@ int main(int, char**) {
                         renderScene = true;
                     }
                     if (ImGui::Button("Bad Planet1")) {
-                        modelViewer.pos[0] = -1070;
-                        modelViewer.pos[1] = 382;
-                        modelViewer.pos[2] = 7515;
-                        modelViewer.pitch = 14073;
-                        modelViewer.yaw = -17250;
-                        modelViewer.roll = -8209;
+                        modelViewer.pos[0] = -198;
+                        modelViewer.pos[1] = 34;
+                        modelViewer.pos[2] = -413;
+                        modelViewer.pitch = 417280;
+                        modelViewer.yaw = -525248;
+                        modelViewer.roll = 0;
+                        modelViewer.modelIndex = 72;
                         renderScene = true;
                     }
+                    ImGui::SameLine();
                     if (ImGui::Button("Good Planet1")) {
-                        modelViewer.pos[0] = -1070;
-                        modelViewer.pos[1] = 382;
-                        modelViewer.pos[2] = 7515;
-                        modelViewer.pitch = 14073;
-                        modelViewer.yaw = -17250;
-                        modelViewer.roll = -8208;
-                        renderScene = true;
-                    }
-                    if (ImGui::Button("Good Planet2")) {
-                        modelViewer.pos[0] = -1070;
-                        modelViewer.pos[1] = 382;
-                        modelViewer.pos[2] = 7515;
-                        modelViewer.pitch = 14073;
-                        modelViewer.yaw = -21540;
-                        modelViewer.roll = -8326;
-                        renderScene = true;
-                    }
-                    if (ImGui::Button("Bad Planet2")) {
-                        modelViewer.pos[0] = 458;
-                        modelViewer.pos[1] = 153;
-                        modelViewer.pos[2] = 5091;
-                        modelViewer.pitch = 17338;
-                        modelViewer.yaw = -9239;
-                        modelViewer.roll = 2291;
+                        modelViewer.pos[0] = -198;
+                        modelViewer.pos[1] = 34;
+                        modelViewer.pos[2] = -412;
+                        modelViewer.pitch = 417280;
+                        modelViewer.yaw = -525248;
+                        modelViewer.roll = 0;
+                        modelViewer.modelIndex = 72;
                         renderScene = true;
                     }
                     if (renderScene) {
