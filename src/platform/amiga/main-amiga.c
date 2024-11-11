@@ -906,6 +906,7 @@ __stdargs int main(int argc, char** argv) {
                 MMemWriteU32BE(&stats, sRenderTime);
                 MMemWriteU32BE(&stats, sCopyTime);
                 MMemWriteU32BE(&stats, sPalTime);
+                isDone= TRUE;
             }
         }
 

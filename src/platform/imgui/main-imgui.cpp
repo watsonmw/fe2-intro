@@ -141,7 +141,6 @@ MINTERNAL void UpdateSurfaceTexture(GLuint glTextureId, Surface* surface, RGB* p
 MINTERNAL void RenderIntroAtTime(GLuint surfaceTexture, Surface* surface, Intro* intro, SceneSetup* sceneSetup,
                                  RenderEntity* entity, int frameOffset, bool* resetPalette) {
     sModelRendered = true;
-    sceneSetup->debugPlanetUpdate = 0;
 
     Intro_SetSceneForFrameOffset(intro, sceneSetup, entity, frameOffset);
 
@@ -160,7 +159,6 @@ MINTERNAL void RenderIntroAtTime(GLuint surfaceTexture, Surface* surface, Intro*
 MINTERNAL void RenderModelViewer(GLuint surfaceTexture, Surface* surface, ModelViewer* modelViewer, u16 modelIndex,
                                  bool resetPalette) {
     sModelRendered = true;
-    modelViewer->sceneSetup.debugPlanetUpdate = 0;
 
     if (modelViewer->modelIndex != modelIndex) {
         ModelViewer_SetModelForScene(modelViewer, modelIndex);
@@ -188,7 +186,7 @@ void WriteAllModels(const char* modelsFilename, Annotations* annotations, SceneS
     memset(&params,  0, sizeof(DebugModelParams));
     params.maxSize = 0xfff;
     params.codeOffsets = 1;
-    params.byteCodeTrace = &sceneSetup->byteCodeTrace;
+    params.byteCodeTrace = &sceneSetup->debug.byteCodeTrace;
 
     while (true) {
         ModelData* modelData = Render_GetModel(sceneSetup, i);
@@ -199,7 +197,7 @@ void WriteAllModels(const char* modelsFilename, Annotations* annotations, SceneS
             }
         } else {
             foundNull = 0;
-            u64 byteCodeBegin = ((u8*)modelData - sceneSetup->modelDataFileStartAddress) + modelData->codeOffset;
+            u64 byteCodeBegin = ((u8*)modelData - sceneSetup->debug.modelDataFileStartAddress) + modelData->codeOffset;
             DebugModelInfo modelInfo;
             params.offsetBegin = byteCodeBegin;
 
@@ -332,10 +330,10 @@ int main(int, char**) {
     Render_Init(&introSceneSetup, &raster);
 
     // Enabled debug render tracing
-    introSceneSetup.logLevel = 1;
-    MArrayInit(introSceneSetup.loadedModelIndexes);
-    MArrayInit(introSceneSetup.byteCodeTrace);
-    memset(introSceneSetup.hideModel, 0, sizeof(introSceneSetup.hideModel));
+    introSceneSetup.debug.logLevel = 1;
+    MArrayInit(introSceneSetup.debug.loadedModelIndexes);
+    MArrayInit(introSceneSetup.debug.byteCodeTrace);
+    memset(introSceneSetup.debug.hideModel, 0, sizeof(introSceneSetup.debug.hideModel));
 
     // Setup raster
     Palette_SetupForNewFrame(&raster.paletteContext, true);
@@ -365,10 +363,10 @@ int main(int, char**) {
     Render_Init(&modelViewer.sceneSetup, &raster);
 
     // Enabled debug render tracing
-    modelViewer.sceneSetup.logLevel = 1;
-    MArrayInit(modelViewer.sceneSetup.loadedModelIndexes);
-    MArrayInit(modelViewer.sceneSetup.byteCodeTrace);
-    memset(modelViewer.sceneSetup.hideModel, 0, sizeof(modelViewer.sceneSetup.hideModel));
+    modelViewer.sceneSetup.debug.logLevel = 1;
+    MArrayInit(modelViewer.sceneSetup.debug.loadedModelIndexes);
+    MArrayInit(modelViewer.sceneSetup.debug.byteCodeTrace);
+    memset(modelViewer.sceneSetup.debug.hideModel, 0, sizeof(modelViewer.sceneSetup.debug.hideModel));
 
     if (SDL_Init(SDL_INIT_VIDEO|SDL_INIT_TIMER|SDL_INIT_AUDIO) != 0) {
         printf("Error: %s\n", SDL_GetError());
@@ -602,8 +600,7 @@ int main(int, char**) {
 
         ImGui::NewFrame();
         {
-            ImGui::Begin("Resources");
-
+            ImGui::Begin("Data2");
 
             if (ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_None)) {
                 if (ImGui::BeginTabItem("Draw Tests")) {
@@ -783,6 +780,51 @@ int main(int, char**) {
                     ImGui::EndTabItem();
                 }
 
+                if (ImGui::BeginTabItem("Render Stats")) {
+                    char distanceBuffer1[64];
+                    char distanceBuffer2[64];
+                    char distanceBuffer3[64];
+                    I64FormatDistance(((u64)curEntity->entityPos[0]) << curEntity->depthScale, distanceBuffer1, sizeof(distanceBuffer1));
+                    I64FormatDistance(((u64)curEntity->entityPos[1]) << curEntity->depthScale, distanceBuffer2, sizeof(distanceBuffer2));
+                    I64FormatDistance(((u64)curEntity->entityPos[2]) << curEntity->depthScale, distanceBuffer3, sizeof(distanceBuffer3));
+
+                    ImGui::Text("Entity pos x: %x (%s)  y: %x (%s)  z: %x (%s)",
+                                curEntity->entityPos[0], distanceBuffer1,
+                                curEntity->entityPos[1], distanceBuffer2,
+                                curEntity->entityPos[2], distanceBuffer3);
+
+                    ImGui::Text("Lighting x: %hx y: %hx z: %hx",
+                                curSceneSetup->lightDirView[0], curSceneSetup->lightDirView[1],
+                                curSceneSetup->lightDirView[2]);
+
+                    ImGui::Text("Vertices Projected: %d  Transformed: %d",
+                                curSceneSetup->debug.projectedVertices, curSceneSetup->debug.transformedVertices);
+
+                    ImGui::Text("Models Visited: %d  Skipped: %d",
+                                curSceneSetup->debug.modelsVisited, curSceneSetup->debug.modelsSkipped);
+
+                    ImGui::Text("Model Code Interpreted: %d", MArraySize(curSceneSetup->debug.byteCodeTrace));
+
+                    if (curSceneSetup->debug.planetRendered) {
+                        ImGui::Text("Planet: ");
+                        ImGui::SameLine();
+                        ImGui::Text("half: %d surface: %d horizon: %d",
+                                    curSceneSetup->debug.planetHalfMode, curSceneSetup->debug.planetCloseToSurface,
+                                    curSceneSetup->debug.planetHorizonScale);
+                        ImGui::Text("    near: %d far: %d",
+                                    curSceneSetup->debug.planetNearAxisDist, curSceneSetup->debug.planetFarAxisDist);
+
+                        Float16FormatDistance(curSceneSetup->debug.planetOutlineDist, distanceBuffer1, sizeof(distanceBuffer1));
+                        Float16FormatDistance(curSceneSetup->debug.planetAltitude, distanceBuffer2, sizeof(distanceBuffer2));
+                        Float16FormatDistance(curSceneSetup->debug.planetRadius, distanceBuffer3, sizeof(distanceBuffer3));
+
+                        ImGui::Text("    outline: %s altitude: %s radius: %s",
+                                    distanceBuffer1, distanceBuffer2, distanceBuffer3);
+                    }
+
+                    ImGui::EndTabItem();
+                }
+
                 ImGui::EndTabBar();
 
                 ImGui::End();
@@ -851,6 +893,22 @@ int main(int, char**) {
                     if (ImGui::SliderInt("Scene", &(scenePos.scene), 0, intro.numScenes - 1)) {
                         renderScene = true;
                         frameOffset = Intro_GetSceneFrameOffset(&intro, scenePos.scene);
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("--")) {
+                        if (scenePos.scene > 0) {
+                            scenePos.scene -= 1;
+                            frameOffset = Intro_GetSceneFrameOffset(&intro, scenePos.scene);
+                            renderScene = true;
+                        }
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("++")) {
+                        if (scenePos.scene < intro.numScenes - 1) {
+                            scenePos.scene += 1;
+                            frameOffset = Intro_GetSceneFrameOffset(&intro, scenePos.scene);
+                            renderScene = true;
+                        }
                     }
                     IntroScene *introScene = intro.scenes + scenePos.scene;
                     ImGui::SameLine();
@@ -1199,39 +1257,6 @@ int main(int, char**) {
                             renderScene = true;
                         }
 
-                        char distanceBuffer1[64];
-                        char distanceBuffer2[64];
-                        char distanceBuffer3[64];
-                        I64FormatDistance(((u64)curEntity->entityPos[0]) << curEntity->depthScale, distanceBuffer1, sizeof(distanceBuffer1));
-                        I64FormatDistance(((u64)curEntity->entityPos[1]) << curEntity->depthScale, distanceBuffer2, sizeof(distanceBuffer2));
-                        I64FormatDistance(((u64)curEntity->entityPos[2]) << curEntity->depthScale, distanceBuffer3, sizeof(distanceBuffer3));
-
-                        ImGui::Text("Entity pos x: %x (%s)  y: %x (%s)  z: %x (%s)",
-                                    curEntity->entityPos[0], distanceBuffer1,
-                                    curEntity->entityPos[1], distanceBuffer2,
-                                    curEntity->entityPos[2], distanceBuffer3);
-
-                        ImGui::Text("Lighting x: %hx y: %hx z: %hx",
-                                    curSceneSetup->lightDirView[0], curSceneSetup->lightDirView[1],
-                                    curSceneSetup->lightDirView[2]);
-
-                        if (curSceneSetup->debugPlanetUpdate) {
-                            ImGui::Text("Planet: ");
-                            ImGui::SameLine();
-                            ImGui::Text("half: %d surface: %d horizon: %d",
-                                        curSceneSetup->debugPlanetHalfMode, curSceneSetup->debugPlanetCloseToSurface,
-                                        curSceneSetup->debugPlanetHorizonScale);
-                            ImGui::Text("near: %d far: %d",
-                                        curSceneSetup->debugPlanetNearAxisDist, curSceneSetup->debugPlanetFarAxisDist);
-
-                            Float16FormatDistance(curSceneSetup->debugPlanetOutlineDist, distanceBuffer1, sizeof(distanceBuffer1));
-                            Float16FormatDistance(curSceneSetup->debugPlanetAltitude, distanceBuffer2, sizeof(distanceBuffer2));
-                            Float16FormatDistance(curSceneSetup->debugPlanetRadius, distanceBuffer3, sizeof(distanceBuffer3));
-
-                            ImGui::Text("outline: %s altitude: %s radius: %s",
-                                        distanceBuffer1, distanceBuffer2, distanceBuffer3);
-                        }
-
                         ImGui::RadioButton("Entity Ours", &showEntityHexView, 0);
                         ImGui::SameLine();
                         if (modelRadio == 0) {
@@ -1242,13 +1267,13 @@ int main(int, char**) {
 
                         if (showEntityHexView == 0) {
                             hexEditor.DrawContents(curEntity, sizeof(*curEntity),
-                                                   curSceneSetup->renderDataOffset);
+                                                   curSceneSetup->debug.renderDataOffset);
                         } else if (showEntityHexView == 1 && modelRadio == 0) {
-                            hexEditor.DrawContents(curSceneSetup->renderData, 0x150,
-                                                   curSceneSetup->renderDataOffset);
+                            hexEditor.DrawContents(curSceneSetup->debug.renderData, 0x150,
+                                                   curSceneSetup->debug.renderDataOffset);
                         } else if (showEntityHexView == 2) {
                             hexEditor.DrawContents(curEntity->entityVars, sizeof(curEntity->entityVars),
-                                                   curSceneSetup->renderDataOffset + 72);
+                                                   curSceneSetup->debug.renderDataOffset + 72);
                         }
 
                         ImGui::EndTabItem();
@@ -1262,9 +1287,9 @@ int main(int, char**) {
                             ImGui::SameLine();
                             bool copy = ImGui::Button("Copy");
                             ImGui::SameLine();
-                            bool hide = curSceneSetup->hideModel[selectedModel];
+                            bool hide = curSceneSetup->debug.hideModel[selectedModel];
                             if (ImGui::Checkbox("Hide", &hide)) {
-                                curSceneSetup->hideModel[selectedModel] = hide;
+                                curSceneSetup->debug.hideModel[selectedModel] = hide;
                                 renderScene = true;
                             }
                             ImGui::SameLine();
@@ -1309,7 +1334,7 @@ int main(int, char**) {
                             int foundNull = 0;
                             int i = 0;
                             uint32_t rootIndex = curEntity->modelIndex;
-                            u32Array *loadedModelIndexes = &curSceneSetup->loadedModelIndexes;
+                            u32Array *loadedModelIndexes = &curSceneSetup->debug.loadedModelIndexes;
                             while (true) {
                                 u32 modelOffset2 = Render_GetModelCodeOffset(curSceneSetup, i);
                                 if (modelOffset2 == 0) {
@@ -1350,7 +1375,7 @@ int main(int, char**) {
                             MMemInitAlloc(&modelDecompile, 100);
 
                             if (modelData != NULL) {
-                                byteCodeBegin = ((u8 *) modelData - curSceneSetup->modelDataFileStartAddress) +
+                                byteCodeBegin = ((u8 *) modelData - curSceneSetup->debug.modelDataFileStartAddress) +
                                                 modelData->codeOffset;
 
                                 DebugModelInfo modelInfo;
@@ -1359,7 +1384,7 @@ int main(int, char**) {
                                 if (copy) {
                                     debugModelParams.byteCodeTrace = NULL;
                                 } else {
-                                    debugModelParams.byteCodeTrace = &curSceneSetup->byteCodeTrace;
+                                    debugModelParams.byteCodeTrace = &curSceneSetup->debug.byteCodeTrace;
                                 }
 
                                 DecompileModel(modelData, selectedModel, &debugModelParams, &modelInfo, &modelDecompile);
@@ -1379,7 +1404,7 @@ int main(int, char**) {
                                 }
                             } else {
                                 if (modelData != NULL) {
-                                    u32 modelBegin = ((u8*) modelData - curSceneSetup->modelDataFileStartAddress);
+                                    u32 modelBegin = ((u8*) modelData - curSceneSetup->debug.modelDataFileStartAddress);
                                     hexEditor.DrawContents(modelData, 0xff, modelBegin);
                                 }
                             }

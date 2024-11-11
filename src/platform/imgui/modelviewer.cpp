@@ -40,8 +40,8 @@ void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData) {
 
     memcpy(entity->entityText, "  RUMBA", 8);
 
-    sceneSetup->modelDataFileStartAddress = assetsData->mainExeData;
-    sceneSetup->fontModelDataFileStartAddress = assetsData->mainExeData;
+    sceneSetup->debug.modelDataFileStartAddress = assetsData->mainExeData;
+    sceneSetup->debug.fontModelDataFileStartAddress = assetsData->mainExeData;
 }
 
 void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsDataAmiga* assetsData) {
@@ -84,8 +84,8 @@ void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsDataAmiga* assetsData) {
         ARRAY_REWRITE_BE16(fileData + 0x324cc, 72); // 76
     }
 
-    sceneSetup->modelDataFileStartAddress = fileData;
-    sceneSetup->fontModelDataFileStartAddress = fileData;
+    sceneSetup->debug.modelDataFileStartAddress = fileData;
+    sceneSetup->debug.fontModelDataFileStartAddress = fileData;
     sceneSetup->assets.galmapModels = assetsData->galmapModels;
     sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
     sceneSetup->assets.mainStrings = assetsData->mainStrings;

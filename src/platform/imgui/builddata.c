@@ -4,6 +4,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb/stb_image.h"
 
+// Build_Stars("data/stars-small.png", sDrawFlareGraphics16, 45, 8, 15);
+// Build_Stars("data/stars.png", sDrawFlareGraphics32, 45, 16, 31);
+
 i32 Build_Stars(const char* filepath, u8* out, i32 images, i32 tileSize, i32 tileSize2) {
     int w = 0;
     int h = 0;

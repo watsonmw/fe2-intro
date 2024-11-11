@@ -35,9 +35,9 @@ static IntroScene Intro_SceneList[] = {
 static void SetupEntityFromRenderData(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, u32 renderDataOffset) {
     u8* renderData = (u8*) (intro->sceneSetupData + renderDataOffset);
 #ifdef FINTRO_INSPECTOR
-    sceneSetup->modelDataFileStartAddress = intro->sceneSetupData;
-    sceneSetup->renderDataOffset = renderDataOffset;
-    sceneSetup->renderData = renderData;
+    sceneSetup->debug.modelDataFileStartAddress = intro->sceneSetupData;
+    sceneSetup->debug.renderDataOffset = renderDataOffset;
+    sceneSetup->debug.renderData = renderData;
 #endif
     Entity_Init(entity);
     memcpy(entity->viewMatrix, renderData, sizeof(entity->viewMatrix));
@@ -55,8 +55,8 @@ void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData
     intro->creditsStringData = (u16*)(gameFileData + 0xa3);
 
 #ifdef FINTRO_INSPECTOR
-    sceneSetup->galmapModelDataFileStartAddress = assetsData->mainExeData;
-    sceneSetup->modelDataFileStartAddress = assetsData->mainExeData;
+    sceneSetup->debug.galmapModelDataFileStartAddress = assetsData->mainExeData;
+    sceneSetup->debug.modelDataFileStartAddress = assetsData->mainExeData;
 #endif
 
     sceneSetup->moduleStrings = Assets_LoadStringPointers16LE(introFileData + 0x1d8, 33);
@@ -165,8 +165,8 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
     ARRAY_REWRITE_BE16((u8*)intro->creditsStringData, 26 * 2);
 
 #ifdef FINTRO_INSPECTOR
-    sceneSetup->modelDataFileStartAddress = fileData;
-    sceneSetup->galmapModelDataFileStartAddress = fileData;
+    sceneSetup->debug.modelDataFileStartAddress = fileData;
+    sceneSetup->debug.galmapModelDataFileStartAddress = fileData;
 #endif
 
     sceneSetup->assets.galmapModels = assetsData->galmapModels;

@@ -1082,14 +1082,6 @@ void DrawFlareLayer(Surface* surface, i16 x, i16 y, const u8* flareData, int col
 }
 
 void Surface_DrawFlare(Surface* surface, i16 x, i16 y, int diameter, u16 colour1, u16 colour2) {
-//#ifdef FINTRO_INSPECTOR
-//    static b32 init = 0;
-//    if (init == 0) {
-//        Build_Stars("data/stars-small.png", Draw_FlairGraphics16, 45, 8, 15);
-//        Build_Stars("data/stars.png", Draw_FlairGraphics32, 45, 16, 31);
-//        init = 1;
-//    }
-//#endif
     i16 offset = (diameter + HIGHLIGHTS_SMALL) * HIGHLIGHTS_SIZE;
     u8* flareData;
 #if HIGHLIGHTS_SIZE == 16
@@ -2598,6 +2590,7 @@ typedef struct sRenderFrame {
     u16* normalColours;
 
 #ifdef FINTRO_INSPECTOR
+    InspectorDebugInfo* debug;
     u8* fileDataStartAddress;
 #endif
 } RenderFrame;
@@ -2691,9 +2684,7 @@ typedef struct sRenderContext {
     SceneSetup* sceneSetup;
 
 #ifdef FINTRO_INSPECTOR
-    int logLevel;
-    u32Array* loadedModelIndexes;
-    ByteCodeTraceArray* byteCodeTrace;
+    InspectorDebugInfo* debug;
 #endif
 } RenderContext;
 
@@ -2821,17 +2812,52 @@ MINTERNAL Vec2i16 ScreenCoords(Vec2i16 pos) {
     return pos;
 }
 
+// Project view space vector to screen space
+// 32 bit vector converted to screen space 16 bit vector
+// Vectors off-screen are only correct directionally (x/y ratio)
+// Screen space coordinates are < 0x4000 && >= -0x4000 so that they can be compared
+// during drawing without checking overflow/underflow
+// Original used lookup table for 1/z and scaled so 16 bit mult could be used.
 MINTERNAL Vec2i16 ZProject(i32 x, i32 y, i32 z) {
     i32 x1;
     i32 y1;
 
-    if (z < (1 << ZSCALE)) {
-        x1 = x << 8;
-        y1 = y << 8;
-    } else {
-        i32 max = 0xffffffffu >> (ZSCALE + 1);
-        i32 min = -max - 1;
+    i32 max = 0xffffffffu >> (ZSCALE + 1);
+    i32 min = -max - 1;
 
+    if (z < (1 << ZSCALE)) {
+        // Z is behind view plane, but because the line clipping is done in screen space we still have to project
+        if (z == 0) {
+            x1 = x << 8;
+            y1 = y << 8;
+        } else {
+            if (z < 0) {
+                z = -z;
+                x = -x;
+                y = -y;
+            }
+            if (z < (1 << ZSCALE)) {
+                if (x > max || x < min || y > max || y < min) {
+                    x1 = (x >> ZSCALE);
+                    y1 = (y >> ZSCALE);
+                } else {
+                    x1 = ((x << ZSCALE) / z);
+                    y1 = ((y << ZSCALE) / z);
+                }
+            } else {
+                if (x > max || x < min) {
+                    x1 = (x / (z >> ZSCALE));
+                } else {
+                    x1 = ((x << ZSCALE) / z);
+                }
+                if (y > max || y < min) {
+                    y1 = (y / (z >> ZSCALE));
+                } else {
+                    y1 = ((y << ZSCALE) / z);
+                }
+            }
+        }
+    } else {
         if (x > max || x < min) {
             x1 = (x / (z >> ZSCALE));
         } else {
@@ -2845,24 +2871,24 @@ MINTERNAL Vec2i16 ZProject(i32 x, i32 y, i32 z) {
     }
 
     if (x1 > 0) {
-        while (x1 > (i32)0x1f00) {
+        while (x1 >= (i32)0x4000) {
             x1 >>= 1;
             y1 >>= 1;
         }
     } else {
-        while (x1 < (i32)-0x1f00) {
+        while (x1 < (i32)-0x4000) {
             x1 >>= 1;
             y1 >>= 1;
         }
     }
 
     if (y1 > 0) {
-        while (y1 > (i32)0x1f00) {
+        while (y1 >= (i32)0x4000) {
             x1 >>= 1;
             y1 >>= 1;
         }
     } else {
-        while (y1 < (i32)-0x1f00) {
+        while (y1 < (i32)-0x4000) {
             x1 >>= 1;
             y1 >>= 1;
         }
@@ -2984,7 +3010,7 @@ MINTERNAL u16 GetValueForParam16(RenderFrame* rf, u16 param16) {
     return (param16 << 9) | (param16 >> 7);
 }
 
-MINTERNAL int CheckClipped(RenderContext* objectContext, ModelData* modelData) {
+MINTERNAL int IsModelVisible(RenderContext* objectContext, ModelData* modelData) {
     RenderFrame* rf = GetRenderFrame(objectContext);
 
     i32 radius = modelData->radius << rf->scale;
@@ -3001,7 +3027,7 @@ MINTERNAL void TranslateProjectVertexDirect(RenderFrame* rf, VertexData* vertex)
         return;
     }
 
-    vertex->sVec = ScreenCoords(ZProjecti32(vertex->vVec));
+    vertex->sVec = ZProjectPoint(vertex->vVec);
     vertex->projectedState = rf->frameId;
 }
 
@@ -3019,7 +3045,11 @@ MINTERNAL void TranslateProjectVertex(RenderFrame* rf, VertexData* vertex) {
         return;
     }
 
-    vertex->sVec = ScreenCoords(ZProjecti32(vertex->vVec));
+    vertex->sVec = ZProjectPoint(vertex->vVec);
+#ifdef FINTRO_INSPECTOR
+    rf->debug->projectedVertices++;
+#endif
+
     vertex->projectedState = rf->frameId;
 }
 
@@ -3037,6 +3067,10 @@ MINTERNAL VertexData* TransformVertexRecursive(RenderContext *rc, RenderFrame* r
 MINTERNAL VertexData* TransformAndProjectVertex(RenderContext *rc, RenderFrame* rf, i16 vertexIndex);
 
 MINTERNAL VertexData* TransformProjectVertexRecursive(RenderContext* rc, RenderFrame* rf, i16 vertexIndex, i16 projectedState) {
+#ifdef FINTRO_INSPECTOR
+    rf->debug->transformedVertices++;
+#endif
+
     if (vertexIndex < 0) {
         i16 v1x = rf->parentFrameVertexIndexes[-(vertexIndex + 1)];
         VertexData* src = rf->parentVertexTrans + v1x;
@@ -3590,8 +3624,8 @@ MINTERNAL Vec2i16 ClipLineZVec3i32(const Vec3i32 v1, const Vec3i32 v2) {
     i64 d = ZCLIPNEAR - z1;
     i64 x3, y3;
     if (dz == 0) {
-        x3 = 0;
-        y3 = 0;
+        x3 = x1 + dx / 2;
+        y3 = y1 + dy / 2;
     } else {
         x3 = x1 + ((dx * d) / dz);
         y3 = y1 + ((dy * d) / dz);
@@ -4795,6 +4829,10 @@ MINTERNAL i32 RComplexBezierDraw(RenderContext* renderContext, Vec3i32 v1, Vec3i
         *(drawParams->pts + 2) = ZProjectPoint(v3);
         *(drawParams->pts + 3) = ZProjectPoint(v4);
 
+#ifdef FINTRO_INSPECTOR
+        renderContext->debug->projectedVertices += 4;
+#endif
+
         return 1;
     }
 }
@@ -4857,6 +4895,9 @@ MINTERNAL i32 RComplexBezier(RenderContext* renderContext, u16 funcParam) {
                 rf->complexCurrentlyZClipped = 1;
                 DrawParamsLine* drawLine = BatchSpanLine(renderContext->depthTree);
                 Vec2i16 pts = ZProjectPoint(p5);
+#ifdef FINTRO_INSPECTOR
+                renderContext->debug->projectedVertices++;
+#endif
                 rf->complexLastZClipPt = pts;
                 drawLine->x1 = pts.x;
                 drawLine->y1 = pts.y;
@@ -4866,6 +4907,9 @@ MINTERNAL i32 RComplexBezier(RenderContext* renderContext, u16 funcParam) {
                 rf->complexCurrentlyZClipped = 0;
                 DrawParamsLine* drawLine = BatchSpanLine(renderContext->depthTree);
                 Vec2i16 pts = ZProjectPoint(p5);
+#ifdef FINTRO_INSPECTOR
+                renderContext->debug->projectedVertices++;
+#endif
                 drawLine->x1 = pts.x;
                 drawLine->y1 = pts.y;
                 drawLine->x2 = v1->sVec.x;
@@ -4890,6 +4934,9 @@ MINTERNAL i32 RComplexBezier(RenderContext* renderContext, u16 funcParam) {
                         Vec2i16 v4Clip = ClipLineZVec3i32(p5, v4->vVec);
                         rf->complexLastZClipPt = v4Clip;
                         Vec2i16 pts = ZProjectPoint(p5);
+#ifdef FINTRO_INSPECTOR
+                        renderContext->debug->projectedVertices++;
+#endif
                         DrawParamsLine* drawLine = BatchSpanLine(renderContext->depthTree);
                         drawLine->x1 = v4Clip.x;
                         drawLine->y1 = v4Clip.y;
@@ -4909,6 +4956,9 @@ MINTERNAL i32 RComplexBezier(RenderContext* renderContext, u16 funcParam) {
             } else {
                 rf->complexCurrentlyZClipped = 0;
                 Vec2i16 pts = ZProjectPoint(p5);
+#ifdef FINTRO_INSPECTOR
+                renderContext->debug->projectedVertices++;
+#endif
                 DrawParamsLine* drawLine = BatchSpanLine(renderContext->depthTree);
                 drawLine->x1 = v4->sVec.x;
                 drawLine->y1 = v4->sVec.y;
@@ -5113,6 +5163,8 @@ MINTERNAL int ProjectCircleBezierPoints(RenderContext* renderContext, VertexData
     }
     *(ptsOut + 5) = ZProjectPoint(p2);
 
+    renderContext->debug->projectedVertices += 6;
+
     return 1;
 }
 
@@ -5209,11 +5261,11 @@ MINTERNAL void InterpretComplexByteCode(RenderContext* renderContext, RenderFram
     while (!ByteCodeIsDone(rf)) {
 #ifdef FINTRO_INSPECTOR
         u32 byteCodeOffset = rf->byteCodePos - rf->fileDataStartAddress;
-        if (renderContext->logLevel) {
+        if (rf->debug->logLevel) {
             ByteCodeTrace trace;
             trace.index = byteCodeOffset;
             trace.result = 0;
-            MArrayAdd(*(renderContext->byteCodeTrace), trace);
+            MArrayAdd(rf->debug->byteCodeTrace, trace);
         }
         renderContext->depthTree->insOffsetTmp = byteCodeOffset;
 #endif
@@ -5519,7 +5571,7 @@ MINTERNAL void RenderCircleParams(RenderContext* renderContext, RenderFrame* rf,
 
 #ifdef FINTRO_INSPECTOR
 MINTERNAL b32 AllowModelRender(RenderContext* renderContext, u16 modelIndex) {
-    return !(renderContext->sceneSetup->hideModel[modelIndex]);
+    return !(renderContext->debug->hideModel[modelIndex]);
 }
 #endif
 
@@ -5529,6 +5581,9 @@ MINTERNAL int RenderSubModel(RenderContext* renderContext, RenderFrame* rf, u16 
     u16 modelIndex = (funcParam >> 5) & 0xff;
 
     ModelData* modelData = Render_GetModel(renderContext->sceneSetup, modelIndex);
+#ifdef FINTRO_INSPECTOR
+    rf->debug->modelsVisited++;
+#endif
 
     scale += modelData->scale1 + modelData->scale2 - rf->depthScale;
 
@@ -5541,6 +5596,9 @@ MINTERNAL int RenderSubModel(RenderContext* renderContext, RenderFrame* rf, u16 
     i32 z = objectPosition->vVec[2];
 
     if (!IsInViewport(radius, x, y, z)) {
+#ifdef FINTRO_INSPECTOR
+        rf->debug->modelsSkipped++;
+#endif
         if (param1 & 0x8000) {
             ByteCodeSkipBytes(rf, 4);
             return 0;
@@ -5550,8 +5608,8 @@ MINTERNAL int RenderSubModel(RenderContext* renderContext, RenderFrame* rf, u16 
     }
 
 #ifdef FINTRO_INSPECTOR
-    if (renderContext->logLevel) {
-        MArrayAdd(*(renderContext->loadedModelIndexes), modelIndex);
+    if (rf->debug->logLevel) {
+        MArrayAdd(rf->debug->loadedModelIndexes, modelIndex);
     }
 #endif
 
@@ -6136,7 +6194,8 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
     newRenderFrame->modelData = (ModelData*)font;
 
 #ifdef FINTRO_INSPECTOR
-    newRenderFrame->fileDataStartAddress = rc->sceneSetup->fontModelDataFileStartAddress;
+    newRenderFrame->debug = &rc->sceneSetup->debug;
+    newRenderFrame->fileDataStartAddress = rc->sceneSetup->debug.fontModelDataFileStartAddress;
 #endif
 
 #ifdef FRAME_MEM_USE_STACK_ALLOC
@@ -6189,13 +6248,19 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
         if (c >= 0x20) {
             u16 charModelOffset = c - 0x20;
 
-            if (CheckClipped(rc, newRenderFrame->modelData)) {
+#ifdef FINTRO_INSPECTOR
+            rf->debug->modelsVisited++;
+#endif
+            if (IsModelVisible(rc, newRenderFrame->modelData)) {
                 u8* charByteCode = GetFontByteCodeForCharacter(font, charModelOffset);
                 newRenderFrame->byteCodePos = charByteCode;
                 InterpretModelCode(rc, newRenderFrame);
                 i16 val = (*(i16 *)(newRenderFrame->byteCodePos - 2));
                 vertexIndex = val >> 6;
             } else {
+#ifdef FINTRO_INSPECTOR
+                rf->debug->modelsSkipped++;
+#endif
                 u8* charByteCode = GetFontByteCodeForCharacter(font, charModelOffset + 1);
                 i16 val = (*(i16 *)(charByteCode - 2));
                 vertexIndex = val >> 6;
@@ -6461,7 +6526,7 @@ MINTERNAL int RenderCalc(RenderContext* renderContext, u16 funcParam) {
     rf->tmpVariable[resultOffset] = u16Result;
 
 #ifdef FINTRO_INSPECTOR
-    ByteCodeTrace* trace = MArrayTopPtr(*renderContext->byteCodeTrace);
+    ByteCodeTrace* trace = MArrayTopPtr(renderContext->debug->byteCodeTrace);
     trace->result = u16Result;
 #endif
 
@@ -7044,27 +7109,28 @@ MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
     u16 param1 = ByteCodeRead16u(rf);
 
     u16 colour = CalcColourMidTint(rf, param0);
-
-    u32 p1 = GetValueForParam16(rf, param1);
-
+    u16 sizeParam = GetValueForParam16(rf, param1);
     i32 width = 0;
 
-    if (p1 & 0x8000) {
-        width = p1 ^ 0x8000;
+    if (sizeParam & 0x8000) {
+        width = sizeParam ^ 0x8000;
     } else {
+        i32 z = rf->entityPos[2];
         i16 cl = rf->scale - 7;
+        u32 screenSpaceWidth;
 
         if (cl >= 0) {
             cl &= 0x3f;
             if (cl) {
-                p1 <<= cl;
+                screenSpaceWidth = ((u32)sizeParam) << cl;
+            } else {
+                screenSpaceWidth = sizeParam;
             }
         } else {
             cl = -cl;
-            p1 >>= cl;
+            screenSpaceWidth = ((u32)sizeParam) >> cl;
         }
 
-        i32 z = rf->entityPos[2];
         if (z <= 0) {
             while (TRUE) {
                 i8 param = ByteCodeRead8i(rf);
@@ -7076,11 +7142,11 @@ MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
         }
 
         while (z >= 0x8000) {
-            p1 >>= 1;
+            screenSpaceWidth >>= 1;
             z >>= 1;
         }
 
-        width = (p1 << ZSCALE) / z;
+        width = (screenSpaceWidth << ZSCALE) / z;
     }
 
     DrawParamsCircles* drawParams;
@@ -8726,21 +8792,21 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     }
 
 #ifdef FINTRO_INSPECTOR
-    renderContext->sceneSetup->debugPlanetHalfMode = 0;
-    renderContext->sceneSetup->debugPlanetNearAxisDist = 0;
-    renderContext->sceneSetup->debugPlanetFarAxisDist = 0;
-    renderContext->sceneSetup->debugPlanetUpdate = 1;
-    renderContext->sceneSetup->debugPlanetHorizonScale = workspace.radiusMinusHorizonDistScale;
-    renderContext->sceneSetup->debugPlanetCloseToSurface = tooCloseToSurface;
-    renderContext->sceneSetup->debugPlanetOutlineDist = Float32Sqrt(horizonDist2);
-    renderContext->sceneSetup->debugPlanetRadius = workspace.radius;
-    renderContext->sceneSetup->debugPlanetAltitude = Float16Sub(Float32Sqrt(Float32Add(xyOffset2, z2)), workspace.radius);
+    renderContext->debug->planetHalfMode = 0;
+    renderContext->debug->planetNearAxisDist = 0;
+    renderContext->debug->planetFarAxisDist = 0;
+    renderContext->debug->planetRendered = 1;
+    renderContext->debug->planetHorizonScale = workspace.radiusMinusHorizonDistScale;
+    renderContext->debug->planetCloseToSurface = tooCloseToSurface;
+    renderContext->debug->planetOutlineDist = Float32Sqrt(horizonDist2);
+    renderContext->debug->planetRadius = workspace.radius;
+    renderContext->debug->planetAltitude = Float16Sub(Float32Sqrt(Float32Add(xyOffset2, z2)), workspace.radius);
 
     if (rf->modelData->scale2) {
         i16 add = rf->modelData->scale2 + 7;
-        renderContext->sceneSetup->debugPlanetAltitude.p += add;
-        renderContext->sceneSetup->debugPlanetOutlineDist.p += add;
-        renderContext->sceneSetup->debugPlanetRadius.p += add;
+        renderContext->debug->planetAltitude.p += add;
+        renderContext->debug->planetOutlineDist.p += add;
+        renderContext->debug->planetRadius.p += add;
     }
 #endif
 
@@ -8812,7 +8878,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     workspace.nearMajorAxisDist.p += ZSCALE;
     workspace.nearMajorAxisDist = Float16Extract(workspace.nearMajorAxisDist);
 #ifdef FINTRO_INSPECTOR
-    renderContext->sceneSetup->debugPlanetNearAxisDist = workspace.nearMajorAxisDist.v;
+    renderContext->debug->planetNearAxisDist = workspace.nearMajorAxisDist.v;
 #endif
 
     if (workspace.nearMajorAxisDist.v > PLANET_SCREENSPACE_ATMOS_DIST) {
@@ -8834,7 +8900,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     workspace.farMajorAxisDist = Float16Extract(workspace.farMajorAxisDist);
 
 #ifdef FINTRO_INSPECTOR
-    renderContext->sceneSetup->debugPlanetFarAxisDist = workspace.farMajorAxisDist.v;
+    renderContext->debug->planetFarAxisDist = workspace.farMajorAxisDist.v;
 #endif
 
     b32 halfDrawMode;
@@ -8858,9 +8924,9 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     }
 
 #ifdef FINTRO_INSPECTOR
-    renderContext->sceneSetup->debugPlanetHalfMode = halfDrawMode;
-    renderContext->sceneSetup->debugPlanetNearAxisDist = workspace.nearMajorAxisDist.v;
-    renderContext->sceneSetup->debugPlanetFarAxisDist = workspace.farMajorAxisDist.v;
+    renderContext->debug->planetHalfMode = halfDrawMode;
+    renderContext->debug->planetNearAxisDist = workspace.nearMajorAxisDist.v;
+    renderContext->debug->planetFarAxisDist = workspace.farMajorAxisDist.v;
 #endif
 
     if (halfDrawMode) {
@@ -8982,7 +9048,8 @@ MINTERNAL void FrameRenderObjects(RenderContext* rc, ModelData* model) {
     u8* data = ((u8*)model) + model->codeOffset;
     rf->byteCodePos = data;
 #ifdef FINTRO_INSPECTOR
-    rf->fileDataStartAddress = rc->sceneSetup->modelDataFileStartAddress;
+    rf->debug = &rc->sceneSetup->debug;
+    rf->fileDataStartAddress = rc->sceneSetup->debug.modelDataFileStartAddress;
 #endif
     InterpretModelCode(rc, rf);
 
@@ -9023,8 +9090,8 @@ void Render_Free(SceneSetup* sceneSetup) {
     MMemStackFree(&sceneSetup->memStack);
 
 #ifdef FINTRO_INSPECTOR
-    MArrayFree(sceneSetup->byteCodeTrace);
-    MArrayFree(sceneSetup->loadedModelIndexes);
+    MArrayFree(sceneSetup->debug.byteCodeTrace);
+    MArrayFree(sceneSetup->debug.loadedModelIndexes);
 #endif
 }
 
@@ -9067,9 +9134,8 @@ void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* entity) {
     ModelData* modelData = Render_GetModel(sceneSetup, entity->modelIndex);
 
 #ifdef FINTRO_INSPECTOR
-    renderContext.logLevel = sceneSetup->logLevel;
-    renderContext.loadedModelIndexes = &sceneSetup->loadedModelIndexes;
-    renderContext.byteCodeTrace = &sceneSetup->byteCodeTrace;
+    renderContext.debug = &sceneSetup->debug;
+    rf->debug = &sceneSetup->debug;
 #endif
 
     // Copy rotation to view space
@@ -9081,9 +9147,13 @@ void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* entity) {
 
 #ifdef FINTRO_INSPECTOR
     entity->modelScale =  modelData->scale1 + modelData->scale2;
+    rf->debug->modelsVisited++;
 #endif
 
-    if (!CheckClipped(&renderContext, modelData)) {
+    if (!IsModelVisible(&renderContext, modelData)) {
+#ifdef FINTRO_INSPECTOR
+        rf->debug->modelsSkipped++;
+#endif
         return;
     }
 
@@ -9116,12 +9186,12 @@ MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf)
     // Call render funcs until hit end byte code, or draw buffer is full
     while (!ByteCodeIsDone(rf)) {
 #ifdef FINTRO_INSPECTOR
-        u32 byteCodeOffset = rf->byteCodePos - rf->fileDataStartAddress;
-        if (renderContext->logLevel) {
+        u32 byteCodeOffset = rf->byteCodePos - rf->debug->modelDataFileStartAddress;
+        if (rf->debug->logLevel) {
             ByteCodeTrace trace;
             trace.index = byteCodeOffset;
             trace.result = 0;
-            MArrayAdd(*(renderContext->byteCodeTrace), trace);
+            MArrayAdd(renderContext->debug->byteCodeTrace, trace);
         }
         renderContext->depthTree->insOffsetTmp = byteCodeOffset;
 #endif
@@ -9267,8 +9337,13 @@ MINTERNAL void InterpretModelCode(RenderContext* renderContext, RenderFrame* rf)
 
 void Render_RenderAndDrawScene(SceneSetup* sceneSetup, RenderEntity* renderEntity, b32 resetPalette) {
 #ifdef FINTRO_INSPECTOR
-    MArrayClear(sceneSetup->loadedModelIndexes);
-    MArrayClear(sceneSetup->byteCodeTrace);
+    MArrayClear(sceneSetup->debug.loadedModelIndexes);
+    MArrayClear(sceneSetup->debug.byteCodeTrace);
+    sceneSetup->debug.projectedVertices = 0;
+    sceneSetup->debug.transformedVertices = 0;
+    sceneSetup->debug.modelsVisited = 0;
+    sceneSetup->debug.modelsSkipped = 0;
+    sceneSetup->debug.planetRendered = 0;
 #endif
 
     Palette_SetupForNewFrame(&sceneSetup->raster->paletteContext, resetPalette);

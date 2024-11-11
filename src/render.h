@@ -227,6 +227,41 @@ typedef struct MMemStack {
 } MMemStack;
 
 
+#ifdef FINTRO_INSPECTOR
+typedef struct sInspectorDebugInfo {
+    ////
+    // Debug Input Settings
+    ////
+    int logLevel; // Logging info
+    u32Array loadedModelIndexes; // Models that executed (even if skipped due to being outside viewport)
+    ByteCodeTraceArray byteCodeTrace; // Bytecode addresses trace
+    b32 hideModel[400]; // Models to skip
+    u8* modelDataFileStartAddress;
+    u8* galmapModelDataFileStartAddress;
+    u8* fontModelDataFileStartAddress;
+    u32 renderDataOffset; // entity/scene setup from exe
+    u8* renderData; // entity/scene setup from exe
+
+    ////
+    // Debug Output Stats
+    ////
+    int projectedVertices;
+    int transformedVertices;
+    int modelsVisited;
+    int modelsSkipped;
+    // Planet details
+    i16 planetRendered; // a planet was rendered
+    i16 planetHorizonScale;
+    i16 planetCloseToSurface;
+    b32 planetHalfMode;
+    i16 planetNearAxisDist;
+    i16 planetFarAxisDist;
+    Float16 planetOutlineDist;
+    Float16 planetAltitude;
+    Float16 planetRadius;
+} InspectorDebugInfo;
+#endif
+
 typedef struct sSceneSetup {
     // Random seed vars, mutated everytime a new random is generated
     u32 random1;
@@ -256,25 +291,7 @@ typedef struct sSceneSetup {
     MMemStack memStack;
 
 #ifdef FINTRO_INSPECTOR
-    // Logging info
-    int logLevel;
-    u32Array loadedModelIndexes;
-    ByteCodeTraceArray byteCodeTrace;
-    b32 hideModel[400];
-    u8* modelDataFileStartAddress;
-    u8* galmapModelDataFileStartAddress;
-    u8* fontModelDataFileStartAddress;
-    u32 renderDataOffset; // entity/scene setup from exe
-    u8* renderData; // entity/scene setup from exe
-    i16 debugPlanetUpdate;
-    i16 debugPlanetHorizonScale;
-    i16 debugPlanetCloseToSurface;
-    b32 debugPlanetHalfMode;
-    i16 debugPlanetNearAxisDist;
-    i16 debugPlanetFarAxisDist;
-    Float16 debugPlanetOutlineDist;
-    Float16 debugPlanetAltitude;
-    Float16 debugPlanetRadius;
+    InspectorDebugInfo debug;
 #endif
 } SceneSetup;
 
@@ -321,7 +338,7 @@ static u32 Render_GetModelCodeOffset(SceneSetup* sceneSetup, u16 offset) {
         return 0;
     }
 
-    u32 fileOffset = ((u8*)modelData - sceneSetup->modelDataFileStartAddress);
+    u32 fileOffset = ((u8*)modelData - sceneSetup->debug.modelDataFileStartAddress);
     return fileOffset + modelData->codeOffset;
 }
 #endif
