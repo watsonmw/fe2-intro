@@ -1,4 +1,4 @@
-delete build_amiga/fe2intro.lha
-delete build_amiga/fintro
-copy build_amiga/fintro-gcc build_amiga/fintro
-lha a build_amiga/fe2intro.lha build_amiga/fintro data/overrides.dat amiga/readme.txt
+delete build-amiga/fe2intro.lha
+delete build-amiga/fintro
+copy build-amiga/fintro-gcc build-amiga/fintro
+lha a build-amiga/fe2intro.lha build-amiga/fintro data/model-overrides-be.dat scripts/amiga/readme.txt
