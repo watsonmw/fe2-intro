@@ -3604,7 +3604,6 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                 if (StrCmp(ctxt, "z") == 0) {
                     param2 = 0;
                     RETURN_IF_ERROR(ReadU16(ctxt, &param2));
-                    param2 <<= 1;
                 } else if (StrCmp(ctxt, "normal") == 0 || StrCmp(ctxt, "n") == 0) {
                     param2 = 0x8000;
                     u8 normal;

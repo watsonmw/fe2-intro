@@ -258,11 +258,11 @@ vertices: ; 51
   11, 61, 22                  ;  66
   lerp 64, 66, t5             ;  68
   7, 61, -38                  ;  70
-  15, 0, -22                  ;  72
+  16, 0, -22                  ;  72
   -3, 0, 7                    ;  74
   lerp 72, 74, t5             ;  76
-  22, 0, -22                  ;  78
-  3, 0, 7                     ;  80
+  18, 0, -20                  ;  78
+  2, 0, 6                     ;  80
   lerp 78, 80, t5             ;  82
   91, -1, 0                   ;  84
   45, -1, 79                  ;  86
@@ -273,6 +273,7 @@ vertices: ; 51
   3, 10, -3                   ;  96
   22, 9, 15                   ;  98
   25, 10, 6                   ; 100
+  8, 61, -37                  ; 102
 
 normals: ; 0
 
@@ -348,7 +349,7 @@ ztree push v:0
   t2 = t4 << 9
   t2 = t2 >> 8
   model index:94 v:76 flip:xz-y
-82c56: line 76, 70 colour:#f44
+82c56: tri 102, 76, 70 colour:#f22
   batch end
 82c5c: t3 = t6 >> 5
   t3 = t3 + 7
@@ -359,7 +360,7 @@ ztree push v:0
   t2 = t4 << 9
   t2 = t2 >> 8
   model index:94 v:82 flip:xz-y
-82c82: line 82, 70 colour:#f44
+82c82: tri 102, 82, 70 colour:#f22
   batch end
 82c88: t4 = max(t4, 8192)
   t4 = t4 - 8192
@@ -972,7 +973,7 @@ code:
   model index:80 v:59 light flip:xyz
   model index:79 v:62 light flip:xyz
   model index:80 v:63 light flip:xyz
-85250: if > z:213 end
+85250: if > z:140 end
   model index:79 v:8 light flip:xyz
   model index:79 v:9 light flip:xyz
   model index:79 v:10 light flip:xyz
@@ -1016,16 +1017,16 @@ code:
 ; Laser Damage Splash
 ; Rotate the splash over time, so that it looks more random
 model: 94
-  scale1: 18,
+  scale1: 19,
   scale2: 0,
-  radius: 122,
+  radius: 82,
   colour: #000
 
 vertices: ; 34
   0, 0, 0                     ;   0
-  122, 0, 0                   ;   2
-  61, 105, 0                  ;   4
-  61, -105, 0                 ;   6
+  82, 0, 0                   ;   2
+  51, 75, 0                  ;   4
+  51, -75, 0                 ;   6
   rand 2, 0, 16               ;   8
   rand 4, 0, 16               ;  10
   rand 5, 0, 16               ;  12
@@ -1060,7 +1061,7 @@ vertices: ; 34
 normals: ; 0
 
 code:
-  t3 = scene[0] << 11
+  t3 = scene[0] << 10
   mrotate flip:xyz axis:z angle:t3
   mcopy
   t3 = scene[0]

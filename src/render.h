@@ -230,7 +230,7 @@ typedef struct MMemStack {
 #ifdef FINTRO_INSPECTOR
 typedef struct sInspectorDebugInfo {
     ////
-    // Debug Input Settings
+    //// Debug Input Settings
     ////
     int logLevel; // Logging info
     u32Array loadedModelIndexes; // Models that executed (even if skipped due to being outside viewport)
@@ -243,8 +243,10 @@ typedef struct sInspectorDebugInfo {
     u8* renderData; // entity/scene setup from exe
 
     ////
-    // Debug Output Stats
+    //// Debug Output Stats
     ////
+    u64 renderTime;
+    u64 drawTime;
     int projectedVertices;
     int transformedVertices;
     int modelsVisited;

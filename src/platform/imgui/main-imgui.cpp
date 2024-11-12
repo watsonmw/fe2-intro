@@ -805,6 +805,9 @@ int main(int, char**) {
 
                     ImGui::Text("Model Code Interpreted: %d", MArraySize(curSceneSetup->debug.byteCodeTrace));
 
+                    ImGui::Text("Render Time: %lld Draw Time: %lld",
+                                curSceneSetup->debug.renderTime, curSceneSetup->debug.drawTime);
+
                     if (curSceneSetup->debug.planetRendered) {
                         ImGui::Text("Planet: ");
                         ImGui::SameLine();

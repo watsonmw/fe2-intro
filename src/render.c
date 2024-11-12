@@ -1599,15 +1599,15 @@ MINTERNAL void BodySpans_Draw(BodySpanRenderer* spans, Surface* surface) {
                             x2 = SURFACE_WIDTH - 1;
                         }
                         u16 colour = spans->colours[curColour / 4];
-#ifdef FINTRO_INSPECTOR
+#ifdef FINTRO_INSPECTOR1
                         int d = (cSpansY * SURFACE_WIDTH);
-#endif
                         for (; x1 <= x2; ++x1) {
                             pixelsLine[x1] = colour;
-#ifdef FINTRO_INSPECTOR
                             surface->insOffset[d + x1] = surface->insOffsetTmp;
-#endif
                         }
+#else
+                        DrawSpanNoClip(pixelsLine, x1, x2, colour);
+#endif
                     }
                 }
                 u16 colour = span->colour;
@@ -5163,7 +5163,9 @@ MINTERNAL int ProjectCircleBezierPoints(RenderContext* renderContext, VertexData
     }
     *(ptsOut + 5) = ZProjectPoint(p2);
 
+#ifdef FINTRO_INSPECTOR
     renderContext->debug->projectedVertices += 6;
+#endif
 
     return 1;
 }
@@ -9344,11 +9346,20 @@ void Render_RenderAndDrawScene(SceneSetup* sceneSetup, RenderEntity* renderEntit
     sceneSetup->debug.modelsVisited = 0;
     sceneSetup->debug.modelsSkipped = 0;
     sceneSetup->debug.planetRendered = 0;
+    u64 startTime = SDL_GetPerformanceCounter();
 #endif
 
     Palette_SetupForNewFrame(&sceneSetup->raster->paletteContext, resetPalette);
     Render_RenderScene(sceneSetup, renderEntity);
+#ifdef FINTRO_INSPECTOR
+    u64 renderTime = SDL_GetPerformanceCounter();
+    sceneSetup->debug.renderTime = renderTime - startTime;
+#endif
     Palette_CalcDynamicColourUpdates(&sceneSetup->raster->paletteContext);
     Surface_Clear(sceneSetup->raster->surface, BACKGROUND_COLOUR_INDEX);
     Raster_Draw(sceneSetup->raster);
+#ifdef FINTRO_INSPECTOR
+    u64 drawTime = SDL_GetPerformanceCounter();
+    sceneSetup->debug.drawTime = drawTime - renderTime;
+#endif
 }
