@@ -120,7 +120,7 @@ it was written with 16 bit buses in mind). This code specifies the primitives to
 display, level of detail calculations, animations, and more.  Much of this is
 described in entertaining detail here (for FFE):
 
-    http://www.jongware.com/galaxy7.html 
+    https://web.archive.org/web/20220117065108/http://www.jongware.com/galaxy7.html
 
 This project implements much more than is described there though, I'd say 95%
 of the original Frontier's graphics code is implemented here, mostly just some
