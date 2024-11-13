@@ -772,8 +772,8 @@ visible from a flat assembly listing (unlike indented code), so it's easy to get
 At some point in the process, I found the following existing reverse engineering work, this was an immense help both
 to verify existing work, and to find new jumping off points in the code when I started to run out of steam:
 
-- [Jongware](http://www.jongware.com/galaxy7.html) - Documents the Frontier Model code in detail for Frontier:
-  First Encounters (FFE).  It has a lot of good info, but some missing bits.
+- [Jongware](https://web.archive.org/web/20220117065108/http://www.jongware.com/galaxy7.html) - Documents the Frontier
+  Model code in detail for Frontier: First Encounters (FFE).  It has a lot of good info, but some missing bits.
 - [GL Frontier](https://github.com/pcercuei/glfrontier) - Frontier running natively on PC using OpenGL.  It's done by
   code converting the AtariST assembly into C, with manual assembly patches to hook into SDL / OpenGL. Has some bugs /
   limitations, but in general looks really great.
@@ -867,8 +867,9 @@ techniques apply: e.g. vertex ordering for backface culling, subpixel precision?
 <span id="further-reading"></span>
 ## Further Reading
 
-- [Jongware](http://www.jongware.com/galaxy7.html) - Documents the Frontier Model code in detail for Frontier:
-  First Encounters (FFE).  It has a lot of detailed info about the model code, and how the star systems are generated.
+- [Jongware](https://web.archive.org/web/20220117065108/http://www.jongware.com/galaxy7.html) - Documents the Frontier
+  Model code in detail for Frontier: First Encounters (FFE).  It has a lot of detailed info about the model code, and
+  how the star systems are generated.
 - [GL Frontier](https://github.com/pcercuei/glfrontier) - Frontier running natively on PC using OpenGL.  It's done by
   auto converting the AtariST assembly into C, with manual assembly patches to hook into SDL / OpenGL. Has some bugs / 
   limitations, but in general looks really great.

@@ -288,6 +288,15 @@ MINTERNAL int CountModels(SceneSetup* sceneSetup) {
     return i-1;
 }
 
+i16 shadeRamps[6][8] = {
+    {0x777, 0x777, 0x777, 0x666, 0x555, 0x444, 0x333, 0x222},  // 0 (default)
+    {0x763, 0x752, 0x742, 0x631, 0x520, 0x410, 0x300, 0x200},  // Red
+    {0x775, 0x764, 0x752, 0x640, 0x530, 0x420, 0x320, 0x210},  // Orange
+    {0x777, 0x777, 0x666, 0x555, 0x444, 0x333, 0x222, 0x111},  // White
+    {0x777, 0x777, 0x677, 0x667, 0x557, 0x447, 0x336, 0x224},  // Cyan
+    {0x067, 0x057, 0x047, 0x037, 0x026, 0x015, 0x004, 0x002}   // Blue only
+};
+
 int main(int, char**) {
     MMemDebugInit();
 
@@ -460,6 +469,7 @@ int main(int, char**) {
     annotations.load(annotationsFile);
     u32 introNumFrames = Intro_GetNumFrames(&intro) - 1;
     int showEntityHexView = 0;
+    i32 shadeIndex = 0;
     ScenePos scenePos{};
 
     u64 startTime = SDL_GetPerformanceCounter();
@@ -1257,6 +1267,13 @@ int main(int, char**) {
                         }
 
                         if (ImGui::InputText("Entity Text", curEntity->entityText, 20)) {
+                            renderScene = true;
+                        }
+
+                        if (ImGui::SliderInt("Shade Index", &shadeIndex, 0, 5)) {
+                            for (int i = 0; i < sizeof(curSceneSetup->shadeRamp)/sizeof(i16); ++i) {
+                                curSceneSetup->shadeRamp[i] = shadeRamps[shadeIndex][i];
+                            }
                             renderScene = true;
                         }
 
