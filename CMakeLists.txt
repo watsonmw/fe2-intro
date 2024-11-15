@@ -73,7 +73,8 @@ add_executable(
         fintro-imgui
         src/platform/imgui/gl3w/GL/gl3w.c
         src/platform/imgui/imgui/imgui_impl_opengl3.cpp
-        src/platform/imgui/imgui/imgui_impl_sdl.cpp
+        src/platform/imgui/imgui/imgui_impl_sdl2.cpp
+        src/platform/imgui/imgui/imgui_tables.cpp
         src/platform/imgui/imgui/imgui.cpp
         src/platform/imgui/imgui/imgui_draw.cpp
         src/platform/imgui/imgui/imgui_widgets.cpp

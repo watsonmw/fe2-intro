@@ -3805,7 +3805,6 @@ MINTERNAL u16 CalcNormalColour(RenderFrame* rf, u16 colourParam, u8 normalIndex)
     }
 
     u16 colour = (colourParam & (u16)0xeee);
-
     if (!(colourParam & 0x100)) {
         colour += normalLightTint;
     }
@@ -6352,6 +6351,10 @@ MINTERNAL int RenderIf(RenderContext* renderContext, u16 funcParam) {
             scale = renderContext->renderDetail;
         }
         scale += rf->scale;
+//        i32 z = (i32)param1 << scale;
+//        if (z < 0) {
+//            return  0;
+//        }
         i32 z = param1;
         while (scale > 0) {
             z = z * 2;
@@ -7405,7 +7408,7 @@ typedef struct sBodyWorkspace {
 
     i16 radiusFeatureDraw;
 
-    Vec3i16 arccentre;
+    Vec3i16 arcCentre;
 
     BodyPoint prevPt;
     BodyPoint endPt;
@@ -7540,9 +7543,9 @@ MINTERNAL void PlanetProjectPoint(BodyWorkspace* workspace, Vec3i16 vec, BodyPoi
 
     // If add circle on sphere add its offset
     Vec3i16 sVec;
-    sVec[0] = wVec[0] + workspace->arccentre[0];
-    sVec[1] = wVec[1] + workspace->arccentre[1];
-    sVec[2] = wVec[2] + workspace->arccentre[2];
+    sVec[0] = wVec[0] + workspace->arcCentre[0];
+    sVec[1] = wVec[1] + workspace->arcCentre[1];
+    sVec[2] = wVec[2] + workspace->arcCentre[2];
 
     // Get vector offset to viewport
     Vec3i16 pVec;
@@ -7780,7 +7783,7 @@ MINTERNAL void PlanetCircle2(RenderContext* scene, RenderFrame* rf, BodyWorkspac
         arcCentrePointsAway = 0;
     }
 
-    Vec3i16Multi16(spokeVec, -arcOffset, workspace->arccentre);
+    Vec3i16Multi16(spokeVec, -arcOffset, workspace->arcCentre);
     PlanetCircle3(scene, rf, workspace, spokeVec, arcRadius, arcCentrePointsAway);
 }
 
@@ -7790,11 +7793,11 @@ MINTERNAL void PlanetCircle(RenderContext* scene, RenderFrame* rf, BodyWorkspace
         // covers less than half a hemisphere
         PlanetCircle2(scene, rf, workspace, spokeVec, arcRadius, arcOffset);
     } else if (workspace->radiusScaled < 0x1000) {
-        Vec3i16Multi16(spokeVec, -arcOffset, workspace->arccentre);
+        Vec3i16Multi16(spokeVec, -arcOffset, workspace->arcCentre);
 
         PlanetCircle3(scene, rf, workspace, spokeVec, arcRadius, 0);
     } else {
-        Vec3i16Multi16(spokeVec, -arcOffset, workspace->arccentre);
+        Vec3i16Multi16(spokeVec, -arcOffset, workspace->arcCentre);
 
         Vec3i16 vec2;
         Vec3i16Copy(spokeVec, vec2);
@@ -7994,7 +7997,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
             workspace->yMaxHit++;
             return;
         } else if (pt.x >= 0) {
-            spokeX += workspace->arccentre[0];
+            spokeX += workspace->arcCentre[0];
             if (spokeX >= 0) {
                 // Right side, no need to add a colour flip
                 if (pt.y < workspace->y2Last) {
@@ -8200,7 +8203,7 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
                 workspace->outsideSphere = 0;
                 workspace->colour = featureCtrl;
                 workspace->arcRadius = workspace->radiusScaled;
-                Vec3i16Zero(workspace->arccentre);
+                Vec3i16Zero(workspace->arcCentre);
                 i16 detailLevel = ByteCodeRead8i(rf);
                 if (detailLevel) {
                     workspace->detailParam = (detailLevel + workspace->relativeScale + 1) << 1;

@@ -1,5 +1,5 @@
 #include "imgui.h"
-#include "imgui_impl_sdl.h"
+#include "imgui_impl_sdl2.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_memory_editor.h"
 
@@ -288,13 +288,15 @@ MINTERNAL int CountModels(SceneSetup* sceneSetup) {
     return i-1;
 }
 
-i16 shadeRamps[6][8] = {
+i16 shadeRamps[8][8] = {
     {0x777, 0x777, 0x777, 0x666, 0x555, 0x444, 0x333, 0x222},  // 0 (default)
     {0x763, 0x752, 0x742, 0x631, 0x520, 0x410, 0x300, 0x200},  // Red
     {0x775, 0x764, 0x752, 0x640, 0x530, 0x420, 0x320, 0x210},  // Orange
     {0x777, 0x777, 0x666, 0x555, 0x444, 0x333, 0x222, 0x111},  // White
     {0x777, 0x777, 0x677, 0x667, 0x557, 0x447, 0x336, 0x224},  // Cyan
-    {0x067, 0x057, 0x047, 0x037, 0x026, 0x015, 0x004, 0x002}   // Blue only
+    {0x067, 0x057, 0x047, 0x037, 0x026, 0x015, 0x004, 0x002},  // Blue only
+    {0x444, 0x444, 0x333, 0x333, 0x222, 0x222, 0x111, 0x000},  // Half (debug)
+    {0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000, 0x000},  // No directional (debug)
 };
 
 int main(int, char**) {
@@ -606,7 +608,7 @@ int main(int, char**) {
         }
 
         ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplSDL2_NewFrame(window);
+        ImGui_ImplSDL2_NewFrame();
 
         ImGui::NewFrame();
         {
@@ -858,7 +860,7 @@ int main(int, char**) {
                 imageSize.x = surface.width;
                 imageSize.y = surface.height;
 #endif
-                ImGui::Image((void *) (intptr_t) surfaceTexture, imageSize,
+                ImGui::Image((ImTextureID)surfaceTexture, imageSize,
                              ImVec2(0, 0), ImVec2(1, 1), ImColor(255, 255, 255, 255), ImColor(255, 255, 255, 0));
 
                 if (!modelViewerViewControl && ImGui::IsItemClicked(1)) {
@@ -1270,7 +1272,7 @@ int main(int, char**) {
                             renderScene = true;
                         }
 
-                        if (ImGui::SliderInt("Shade Index", &shadeIndex, 0, 5)) {
+                        if (ImGui::SliderInt("Shade Index", &shadeIndex, 0, 7)) {
                             for (int i = 0; i < sizeof(curSceneSetup->shadeRamp)/sizeof(i16); ++i) {
                                 curSceneSetup->shadeRamp[i] = shadeRamps[shadeIndex][i];
                             }
@@ -1385,7 +1387,7 @@ int main(int, char**) {
                                 i++;
                             }
 
-                            ImGui::ListBox("", &selectedModel, strArray.data(),
+                            ImGui::ListBox("Models", &selectedModel, strArray.data(),
                                            strArray.size(), strArray.size());
                             ImGui::EndChild();
                             ImGui::SameLine();
