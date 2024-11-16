@@ -622,6 +622,7 @@ void Surface_DrawCircleFill(Surface* surface, int x, int y, int diameter, u8 col
 }
 
 void Surface_DrawTriFill(Surface* surface, Vec2i16 points[3], u8 colour) {
+    // Rotate to top y point
     while ((points[0].y > points[1].y) ||
            (points[0].y > points[2].y)) {
 
@@ -665,6 +666,13 @@ void Surface_DrawTriFill(Surface* surface, Vec2i16 points[3], u8 colour) {
     for (; spansToDraw > 0; --spansToDraw) {
         xx1 = fx1 >> 16;
         xx2 = fx2 >> 16;
+#ifdef FINTRO_INSPECTOR
+        i16 xx3 = xx1;
+        for (; xx3 < xx2; ++xx3) {
+            int d = pixelsLine - surface->pixels;
+            surface->insOffset[d + xx3] = surface->insOffsetTmp;
+        }
+#endif
         DrawSpanNoClip(pixelsLine, xx1, xx2, colour);
         fx1 += dfx1;
         fx2 += dfx2;
@@ -708,6 +716,13 @@ void Surface_DrawTriFill(Surface* surface, Vec2i16 points[3], u8 colour) {
     for (; spansToDraw > 0; --spansToDraw) {
         xx1 = fx1 >> 16;
         xx2 = fx2 >> 16;
+#ifdef FINTRO_INSPECTOR
+        i16 xx3 = xx1;
+        for (; xx3 < xx2; ++xx3) {
+            int d = pixelsLine - surface->pixels;
+            surface->insOffset[d + xx3] = surface->insOffsetTmp;
+        }
+#endif
         DrawSpanNoClip(pixelsLine, xx1, xx2, colour);
         fx1 += dfx1;
         fx2 += dfx2;
@@ -716,6 +731,7 @@ void Surface_DrawTriFill(Surface* surface, Vec2i16 points[3], u8 colour) {
 }
 
 void Surface_DrawQuadFill(Surface* surface, Vec2i16 points[4], u8 colour) {
+    // Rotate to top y point
     while ((points[0].y > points[1].y) ||
            (points[0].y > points[2].y) ||
            (points[0].y > points[3].y)) {
@@ -763,6 +779,13 @@ void Surface_DrawQuadFill(Surface* surface, Vec2i16 points[4], u8 colour) {
     for (; spansToDraw > 0; --spansToDraw) {
         x1 = fx1 >> 16;
         x2 = fx2 >> 16;
+#ifdef FINTRO_INSPECTOR
+        i16 xx3 = x1;
+        for (; xx3 < x2; ++xx3) {
+            int d = pixelsLine - surface->pixels;
+            surface->insOffset[d + xx3] = surface->insOffsetTmp;
+        }
+#endif
         DrawSpanNoClip(pixelsLine, x1, x2, colour);
         fx1 += dfx1;
         fx2 += dfx2;
@@ -828,6 +851,13 @@ void Surface_DrawQuadFill(Surface* surface, Vec2i16 points[4], u8 colour) {
     for (; spansToDraw > 0; --spansToDraw) {
         x1 = fx1 >> 16;
         x2 = fx2 >> 16;
+#ifdef FINTRO_INSPECTOR
+        i16 xx3 = x1;
+        for (; xx3 < x2; ++xx3) {
+            int d = pixelsLine - surface->pixels;
+            surface->insOffset[d + xx3] = surface->insOffsetTmp;
+        }
+#endif
         DrawSpanNoClip(pixelsLine, x1, x2, colour);
         fx1 += dfx1;
         fx2 += dfx2;
@@ -879,6 +909,13 @@ void Surface_DrawQuadFill(Surface* surface, Vec2i16 points[4], u8 colour) {
     for (; spansToDraw > 0; --spansToDraw) {
         x1 = fx1 >> 16;
         x2 = fx2 >> 16;
+#ifdef FINTRO_INSPECTOR
+        i16 xx3 = x1;
+        for (; xx3 < x2; ++xx3) {
+            int d = pixelsLine - surface->pixels;
+            surface->insOffset[d + xx3] = surface->insOffsetTmp;
+        }
+#endif
         DrawSpanNoClip(pixelsLine, x1, x2, colour);
         fx1 += dfx1;
         fx2 += dfx2;
@@ -1599,7 +1636,7 @@ MINTERNAL void BodySpans_Draw(BodySpanRenderer* spans, Surface* surface) {
                             x2 = SURFACE_WIDTH - 1;
                         }
                         u16 colour = spans->colours[curColour / 4];
-#ifdef FINTRO_INSPECTOR1
+#ifdef FINTRO_INSPECTOR
                         int d = (cSpansY * SURFACE_WIDTH);
                         for (; x1 <= x2; ++x1) {
                             pixelsLine[x1] = colour;
@@ -1656,11 +1693,20 @@ void Surface_DrawLine(Surface* surface, int x1, int y1, int x2, int y2, u8 colou
         int fixedDelta = ((((xLen + 1) << 16)) / (yLen + 1));
         int xx1 = ((x1) << 16) + 0x8000;
         int xx2 = xx1;
-        u8* pixels = surface->pixels + y1 * SURFACE_WIDTH;
+        u8* pixelsLine = surface->pixels + y1 * SURFACE_WIDTH;
         while (yLen >= 0) {
             xx2 += fixedDelta;
-            DrawSpanNoClip(pixels, (xx1 >> 16), (xx2 >> 16), colour);
-            pixels += deltaY;
+            x1 = (xx1 >> 16);
+            x2 = (xx2 >> 16);
+#ifdef FINTRO_INSPECTOR
+            i16 x3 = x1;
+            for (; x3 < x2; ++x3) {
+                int d = pixelsLine - surface->pixels;
+                surface->insOffset[d + x3] = surface->insOffsetTmp;
+            }
+#endif
+            DrawSpanNoClip(pixelsLine, x1, x2, colour);
+            pixelsLine += deltaY;
             yLen--;
             xx1 = xx2;
         }

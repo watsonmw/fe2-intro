@@ -141,10 +141,8 @@ static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
     MMemIO writer;
     MMemInitAlloc(&writer, 100);
 
-    DebugModelParams params;
-    memset(&params,  0, sizeof(DebugModelParams));
+    DebugModelParams params = {};
     params.maxSize = 0xfff;
-    params.codeOffsets = 1;
 
     while (TRUE) {
         ModelData* modelData = MArrayGet(*modelsArray, modelIndex);
@@ -158,7 +156,7 @@ static void WriteAllModels(ModelsArray* modelsArray, const u8* dataStart) {
         } else {
             foundNull = 0;
             u64 byteCodeBegin = ((u8*)modelData - dataStart) + modelData->codeOffset;
-            DebugModelInfo modelInfo;
+            DebugModelInfo modelInfo = {};
             params.offsetBegin = byteCodeBegin;
 
             if (modelIndex < 2) {

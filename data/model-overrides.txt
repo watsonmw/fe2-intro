@@ -135,13 +135,13 @@ code:
   mrotate axis:z angle:t5
   t2 = 64512 + 3
   t1 = 64512
-  t4 = t6 > 32768 ; c4bd:60c6
-  if !t4 loc:000b4 ; 01d3:00c4
+  t4 = t6 > 32768
+  if !t4 loc:000b4
   t4 = t6 - 32768
   t4 = t4 >> 3
   t4 = t4 * 8
   t2 = t4 + 4096
-  t1 = 0 - 1
+  t1 = -1
   model index:55 v:38 light flip:xyz
   t4 = 1
 000b4: if t4 loc:000c8
@@ -159,7 +159,7 @@ code:
   t4 = 16384 - t4
   t4 = t4 << 2
   t5 = t4 >> 3
-  t5 = 0 - t5
+  t5 = -t5
   t5 = t5 >> 1
   t5 = t5 - 32768
   mrotate flip:zy-x axis:y angle:49152
@@ -281,7 +281,18 @@ code:
   t6 = t2
   t3 = t1
   model index:114 v:0 flip:xyz
-ztree push v:0
+  ztree push v:0
+  if !bit(t3, 4) loc:82b44
+  batch begin vertex:8
+  complex colour:#008 loc:82b3e
+  cbezier 10, 22, 22, 62
+  cbezierc 16, 16, 20
+  cbezierc 12, 12, 60
+  cbezierc 24, 24, 14
+  cbezierc 26, 28, 30
+  cbezierc 18, 18, 32
+  cbezierc 34, 36, 10
+  cdone
 82b3e: model index:67 v:8 light flip:zy-x scale:4 colour:#444
 82b44: batch begin z:obj
   if !bit(t3, 2) loc:82b50
@@ -289,7 +300,7 @@ ztree push v:0
 82b50: if !bit(t3, 1) loc:82b58
   model index:69 v:40 light flip:zy-x
 82b58: if !bit(t3, 6) loc:82b72
-  batch end ; 0006
+  batch end
   model index:73 v:50 light flip:xyz
   model index:73 v:52 light flip:xyz
   model index:73 v:54 light flip:xyz
@@ -307,7 +318,7 @@ ztree push v:0
   model index:68 v:37 light flip:xyz
 82b9c: if !bit(t3, 5) loc:82bb4
   model index:76 v:6 light flip:xyz
-  t1 = 0 - 1
+  t1 = -1
   model index:78 v:4 light flip:xyz
   t1 = 10240 + 39
   model index:82 v:2 light flip:xyz

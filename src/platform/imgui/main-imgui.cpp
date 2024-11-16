@@ -1414,15 +1414,12 @@ int main(int, char**) {
                             }
 
                             if (modelTab == 0) {
-                                if (copy) {
-                                    ImGui::LogToClipboard();
-                                }
                                 ImGui::BeginChild("ByteCodeTextArea", ImVec2(0, 0), false,
                                                   ImGuiWindowFlags_HorizontalScrollbar);
                                 ImGui::TextUnformatted((char *) modelDecompile.mem, (char *) modelDecompile.pos);
                                 ImGui::EndChild();
                                 if (copy) {
-                                    ImGui::LogFinish();
+                                    ImGui::SetClipboardText((char*)modelDecompile.mem);
                                 }
                             } else {
                                 if (modelData != NULL) {
@@ -1443,9 +1440,6 @@ int main(int, char**) {
                         bool copy = ImGui::Button("Copy");
 
                         if (drawTab == 0) {
-                            if (copy) {
-                                ImGui::LogToClipboard();
-                            }
                             DebugDrawInfo drawInfo;
                             MStrWriter writer;
                             writer.init(100);
@@ -1455,7 +1449,7 @@ int main(int, char**) {
                             ImGui::TextUnformatted(writer.data(), writer.data() + writer.size());
                             ImGui::EndChild();
                             if (copy) {
-                                ImGui::LogFinish();
+                                ImGui::SetClipboardText(writer.data());
                             }
                         } else {
                             hexEditor.DrawContents(raster.depthTree.data, raster.depthTree.size, 0x000);
@@ -1464,9 +1458,6 @@ int main(int, char**) {
                     }
                     if (ImGui::BeginTabItem("Palette")) {
                         bool copy = ImGui::Button("Copy");
-                        if (copy) {
-                            ImGui::LogToClipboard();
-                        }
                         ImGui::SameLine();
                         if (ImGui::SmallButton("Reset")) {
                             resetPalette = true;
@@ -1480,7 +1471,7 @@ int main(int, char**) {
                                                paletteInfo.writer.data() + paletteInfo.writer.size());
                         ImGui::EndChild();
                         if (copy) {
-                            ImGui::LogFinish();
+                            ImGui::SetClipboardText(paletteInfo.writer.data());
                         }
                         ImGui::EndTabItem();
                     }

@@ -874,7 +874,7 @@ static void DumpModelCode(const u8* codeStart, const DebugModelParams* debugMode
                         if (param2IsZero) {
                             snprintf(buff3, buffSize, "%s", buff1);
                         } else if (param1IsZero) {
-                            snprintf(buff3, buffSize, "%s", buff2);
+                            snprintf(buff3, buffSize, "-%s", buff2);
                         } else {
                             snprintf(buff3, buffSize, "%s - %s", buff1, buff2);
                         }
@@ -2997,6 +2997,11 @@ i32 ReadRightSideCalc(ModelParserContext* ctxt, u8* paramA, u16* mathFunc, u8* p
             *mathFunc = MathFunc_Max;
             return 0;
         }
+    } else if (token == ModelParserToken_MINUS) {
+        *mathFunc = MathFunc_Sub;
+        *paramA = 0;
+        RETURN_IF_ERROR(ReadParam8Base10(ctxt, paramB));
+        return 0;
     }
 
     RETURN_IF_ERROR(ParseParam8(ctxt, paramA));
