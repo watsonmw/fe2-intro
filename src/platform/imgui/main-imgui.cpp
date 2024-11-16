@@ -182,10 +182,9 @@ void WriteAllModels(const char* modelsFilename, Annotations* annotations, SceneS
     MMemIO writer;
     MMemInitAlloc(&writer, 100);
 
-    DebugModelParams params;
-    memset(&params,  0, sizeof(DebugModelParams));
+    DebugModelParams params{};
     params.maxSize = 0xfff;
-    params.codeOffsets = 1;
+    params.codeOffsets = 0;
     params.byteCodeTrace = &sceneSetup->debug.byteCodeTrace;
 
     while (true) {
@@ -198,7 +197,7 @@ void WriteAllModels(const char* modelsFilename, Annotations* annotations, SceneS
         } else {
             foundNull = 0;
             u64 byteCodeBegin = ((u8*)modelData - sceneSetup->debug.modelDataFileStartAddress) + modelData->codeOffset;
-            DebugModelInfo modelInfo;
+            DebugModelInfo modelInfo{};
             params.offsetBegin = byteCodeBegin;
 
             DecompileModel(modelData, i, &params, &modelInfo, &writer);

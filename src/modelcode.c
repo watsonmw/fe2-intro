@@ -1627,10 +1627,9 @@ void DecompileModelToConsole(ModelData* modelData, u32 modelIndex, ModelType mod
     MMemIO writer;
     MMemInitAlloc(&writer, 10000);
     DebugModelInfo modelInfo;
-    DebugModelParams params;
-    memset(&params,  0, sizeof(DebugModelParams));
+    DebugModelParams params = {};
     params.maxSize = 0xfff;
-    params.codeOffsets = 1;
+    params.codeOffsets = 0;
     if (modelType == ModelType_OBJ) {
         DecompileModel(modelData, modelIndex, &params, &modelInfo, &writer);
     } else {
@@ -1831,9 +1830,18 @@ MINTERNAL ModelParserTokenEnum NextToken(ModelParserContext* ctxt) {
     return token;
 }
 
-MINTERNAL ModelParserTokenEnum NextTokenIfNewLine(ModelParserContext* ctxt) {
+MINTERNAL ModelParserTokenEnum SkipNewLine(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = ctxt->token;
     if (token == ModelParserToken_NEW_LINE) {
+        token = NextToken(ctxt);
+    }
+
+    return token;
+}
+
+MINTERNAL ModelParserTokenEnum SkipNewLines(ModelParserContext* ctxt) {
+    ModelParserTokenEnum token = ctxt->token;
+    while (token == ModelParserToken_NEW_LINE) {
         token = NextToken(ctxt);
     }
 
@@ -1843,24 +1851,6 @@ MINTERNAL ModelParserTokenEnum NextTokenIfNewLine(ModelParserContext* ctxt) {
 MINTERNAL ModelParserTokenEnum NextTokenIfNotNewLine(ModelParserContext* ctxt) {
     ModelParserTokenEnum token = ctxt->token;
     if (token != ModelParserToken_NEW_LINE) {
-        token = NextToken(ctxt);
-    }
-
-    return token;
-}
-
-MINTERNAL ModelParserTokenEnum NextTokenConsumeNewLine(ModelParserContext* ctxt) {
-    ModelParserTokenEnum token = NextToken(ctxt);
-    if (token == ModelParserToken_NEW_LINE) {
-        token = NextToken(ctxt);
-    }
-
-    return token;
-}
-
-MINTERNAL ModelParserTokenEnum NextTokenConsumeNewLines(ModelParserContext* ctxt) {
-    ModelParserTokenEnum token = ctxt->token;
-    while (token == ModelParserToken_NEW_LINE) {
         token = NextToken(ctxt);
     }
 
@@ -3194,7 +3184,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
         NextToken(ctxt);
     }
 
-    token = NextTokenIfNewLine(ctxt);
+    token = SkipNewLine(ctxt);
 
     while (token == ModelParserToken_LABEL) {
         ModelParamEnum param;
@@ -3243,7 +3233,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
         token = NextTokenSkipNewLines(ctxt);
     }
 
-    token = NextTokenConsumeNewLines(ctxt);
+    token = SkipNewLines(ctxt);
 
     if (token != ModelParserToken_LABEL || StrCmp(ctxt, "vertices") != 0) {
         RETURN_ERROR("Syntax error: Expecting 'vertices:'");
@@ -3370,7 +3360,7 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
             token = NextTokenConsumeLine(ctxt);
         }
 
-        token = NextTokenConsumeNewLines(ctxt);
+        token = SkipNewLines(ctxt);
         if (token != ModelParserToken_LABEL) {
             RETURN_ERROR("Syntax error: Expecting label 'code:'");
         }
@@ -4043,6 +4033,8 @@ i32 CompileModelWithContext(ModelParserContext* ctxt, MMemIO* memOutput) {
                         featuresByteCode[featuresSize] = 0;
                         token = NextToken(ctxt);
                     } while (token == ModelParserToken_COMMA);
+
+                    token = SkipNewLine(ctxt);
 
                     if (token != ModelParserToken_SQUARE_BRACKET_CLOSE) {
                         RETURN_ERROR("Syntax error: expecting ']'");
