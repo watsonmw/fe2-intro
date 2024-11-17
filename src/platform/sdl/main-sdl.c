@@ -195,7 +195,7 @@ int CompileFileAndWriteOut(const char* fileToCompile, const char* fileOutputPath
     return result;
 }
 
-void HotReload(SceneSetup* sceneSetup) {
+void HotReload(AssetsData* assetsData) {
     MMemReset(&sModelOverrides);
     ModelsArray modelsArray;
     MArrayInit(modelsArray);
@@ -203,10 +203,11 @@ void HotReload(SceneSetup* sceneSetup) {
     CompileFileAndWriteOut(sFileToHotCompile, INTRO_OVERRIDES_LE, &sModelOverrides, &modelsArray,
                            ModelEndian_LITTLE, TRUE);
 
-    MArrayCopy(sOrigModels, (*sceneSetup).assets.models);
     for (int i = 0; i < MArraySize(modelsArray); i++) {
         if (modelsArray.arr[i] != NULL) {
-            MArraySet(sceneSetup->assets.models, i, modelsArray.arr[i]);
+            MArraySet(assetsData->introModels, i, modelsArray.arr[i]);
+        } else {
+            MArraySet(assetsData->introModels, i, sOrigModels.arr[i]);
         }
     }
 
@@ -234,7 +235,7 @@ typedef struct LoopContext {
     Intro intro;
     SceneSetup introScene;
     RenderEntity entity;
-    AssetsDataAmiga* assetsDataAmiga;
+    AssetsData* assetsData;
     Surface surface;
 
     // SDL stuff
@@ -259,8 +260,8 @@ void PauseIntro(b32 pause) {
 
 void StartIntro() {
     Audio_Init(&sLoopContext.audio,
-               sLoopContext.assetsDataAmiga->mainExeData,
-               sLoopContext.assetsDataAmiga->mainExeSize);
+               sLoopContext.assetsData->mainExeData,
+               sLoopContext.assetsData->mainExeSize);
 
     sLoopContext.prevClock = SDL_GetPerformanceCounter();
     sStartTime = sLoopContext.prevClock;
@@ -359,7 +360,8 @@ void MainLoopIteration() {
                         PauseIntro(FALSE);
                         sLoopContext.windowHidden = FALSE;
                         if (sFileToHotCompile) {
-                            HotReload(&sLoopContext.introScene);
+                            HotReload(sLoopContext.assetsData);
+                            sLoopContext.introScene.assets.models = sLoopContext.assetsData->introModels;
                             sRender = TRUE;
                         }
                     } else if (event.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
@@ -479,14 +481,14 @@ int main(int argc, char**argv) {
     Palette_SetupForNewFrame(&raster.paletteContext, TRUE);
     Palette_CopyFixedColoursRGB(&raster.paletteContext, sFIntroPalette);
 
-    AssetsDataAmiga assetsDataAmiga;
+    AssetsData assetsData = {};
     AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub2;
-    Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExe, assetsRead);
+    Assets_LoadAmigaFiles(&assetsData, &amigaExe, assetsRead);
     sLoopContext.intro.drawFrontierLogo = 1;
-    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &assetsDataAmiga);
+    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &assetsData);
 
     if (sDumpIntroModels) {
-        WriteAllModels(&sLoopContext.introScene.assets.models, assetsDataAmiga.mainExeData);
+        WriteAllModels(&assetsData.introModels, assetsData.mainExeData);
         return 0;
     } else if (sDumpGameModels) {
         ModelsArray mainModels;
@@ -499,20 +501,20 @@ int main(int argc, char**argv) {
         // Flip back planet byte code
         // ARRAY_REWRITE_BE16(fileData + 0x28804, 28);
 
-        WriteAllModels(&mainModels, assetsDataAmiga.mainExeData);
+        WriteAllModels(&mainModels, assetsData.mainExeData);
         return 0;
     } else if (sDumpGalmapModels) {
-        WriteAllModels(&sLoopContext.introScene.assets.galmapModels, assetsDataAmiga.mainExeData);
+        WriteAllModels(&assetsData.galmapModels, assetsData.mainExeData);
         return 0;
     }
 
-    MArrayCopy(sLoopContext.introScene.assets.models, sOrigModels);
+    MArrayCopy(assetsData.introModels, sOrigModels);
     ModelsArray overrideModels;
     MArrayInit(overrideModels);
     MReadFileRet overridesFile = Assets_LoadModelOverrides(INTRO_OVERRIDES_LE, &overrideModels);
     for (int i = 0; i < MArraySize(overrideModels); i++) {
         if (overrideModels.arr[i]) {
-            MArraySet(sLoopContext.introScene.assets.models, i, overrideModels.arr[i]);
+            MArraySet(assetsData.introModels, i, overrideModels.arr[i]);
         }
     }
 
@@ -556,7 +558,7 @@ int main(int argc, char**argv) {
     sLoopContext.fpsFrames = 0;
     sLoopContext.numIntroFrames = Intro_GetNumFrames(&sLoopContext.intro);
     sLoopContext.prevClock = SDL_GetPerformanceCounter();
-    sLoopContext.assetsDataAmiga = &assetsDataAmiga;
+    sLoopContext.assetsData = &assetsData;
 
     StartIntro();
 
@@ -566,18 +568,17 @@ int main(int argc, char**argv) {
 
     Audio_Exit(&sLoopContext.audio);
     Intro_Free(&sLoopContext.intro, &sLoopContext.introScene);
-    Assets_FreeAmigaFiles(&assetsDataAmiga);
     MArrayFree(overrideModels);
     if (overridesFile.data) {
         MFree(overridesFile.data, overridesFile.size);
     }
-
     MArrayFree(sOrigModels);
     MMemFree(&sModelOverrides);
 
     Render_Free(&sLoopContext.introScene);
     Raster_Free(&raster);
     Surface_Free(&sLoopContext.surface);
+    Assets_Free(&assetsData);
 
     SDL_DestroyRenderer(sLoopContext.renderer);
     SDL_DestroyWindow(sLoopContext.window);

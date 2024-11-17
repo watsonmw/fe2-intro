@@ -1025,6 +1025,199 @@ code:
 85324: done
 
 
+model: 88
+  scale1: 14,
+  scale2: 0,
+  radius: 91,
+  colour: #34c
+
+vertices: ; 47
+  12, 3, 76                   ;   0
+  14, 7, 56                   ;   2
+  12, 0, 76                   ;   4
+  18, 0, 51                   ;   6
+  18, 5, -54                  ;   8
+  18, 5, -82                  ;  10
+  18, 0, -54                  ;  12
+  18, 0, -82                  ;  14
+  12, 0, 51                   ;  16
+  18, 0, 40                   ;  18
+  29, 0, 43                   ;  20
+  27, 0, 58                   ;  22
+  1, 0, 23                    ;  24
+  21, 0, 36                   ;  26
+  27, 0, 40                   ;  28
+  29, 0, 43                   ;  30
+  38, 0, 36                   ;  32
+  1, 0, -27                   ;  34
+  1, 0, -31                   ;  36
+  1, 0, -40                   ;  38
+  9, 0, -36                   ;  40
+  9, 0, -40                   ;  42
+  45, 0, -20                  ;  44
+  56, 0, -14                  ;  46
+  60, 0, -12                  ;  48
+  58, 0, -5                   ;  50
+  45, 0, -23                  ;  52
+  56, 0, -20                  ;  54
+  60, 0, -14                  ;  56
+  67, 0, -21                  ;  58
+  84, 0, -54                  ;  60
+  88, 0, -52                  ;  62
+  17, 0, 91                   ;  64
+  11, 0, 89                   ;  66
+  64, 0, 51                   ;  68
+  80, 0, 18                   ;  70
+  29, 0, -3                   ;  72
+  51, 0, -54                  ;  74
+  27, 0, -7                   ;  76
+  47, 0, -54                  ;  78
+  76, 0, 49                   ;  80
+  avg 64, 66                  ;  82
+  0, 0, 0                     ;  84
+  27, 0, 21                   ;  86
+  67, 0, -58                  ;  88
+  7, 0, -18                   ;  90
+  0, 0, -45                   ;  92
+
+normals: ; 8
+    8 (0, 126, 0)             ;   2
+    0 (0, 124, 22)            ;   4
+    0 (0, 0, 127)             ;   6
+    0 (117, 44, 18)           ;   8
+    2 (0, 76, -101)           ;  10
+    8 (0, 0, 127)             ;  12
+    8 (127, 0, 0)             ;  14
+   10 (0, 0, -127)            ;  16
+
+code:
+  t1 = 1
+  if < z:1830 loc:85b3a
+  quad 65, 60, 61, 64 colour:#544
+  done
+85b3a: batch begin z:18310 vertex:84
+  model index:90 v:72 light flip:xyz
+  model index:90 v:73 light flip:xyz
+  model index:90 v:74 light flip:xyz
+  model index:90 v:75 light flip:xyz
+  if < z:1280 loc:85b6c
+  line 64, 62 colour:#544
+  line 65, 63 colour:#544
+  complex colour:#544 loc:85b6a
+  cline 16, 28
+  clinec 24
+  clinec 29
+  clinec 17
+  cdone
+85b6a: done
+85b6c: complex colour:#544 loc:85bac
+  cline 22, 66
+  clinec 64
+  clinec 62
+  clinec 60
+  clinec 58
+  cbezierc 56, 54, 52
+  clinec 44
+  cbezierc 46, 48, 50
+  clinec 32
+  cbezierc 30, 28, 26
+  cjoin
+  cbezier 27, 29, 31, 33
+  clinec 51
+  cbezierc 49, 47, 45
+  clinec 53
+  cbezierc 55, 57, 59
+  clinec 61
+  clinec 63
+  clinec 65
+  clinec 67
+  clinec 23
+  cdone
+85bac: if < z:548 loc:85bf4
+  line 24, 36 colour:#544
+  line 44, 36 colour:#544
+  line 45, 37 colour:#544
+  line 74, 72 colour:#544
+  line 72, 73 colour:#544
+  line 75, 73 colour:#544
+  complex colour:#544 loc:85bde
+  cline 16, 22
+  clinec 26
+  clinec 24
+  clinec 25
+  clinec 27
+  clinec 23
+  clinec 17
+  cdone
+85bde: quad 1, 2, 3, 0 colour:#444 normal:4
+  if !bit(t1, 1) loc:85bf2
+  quad 9, 10, 11, 8 colour:#444 normal:2
+85bf2: done
+85bf4: complex colour:#544 loc:85c26
+  cbezier 16, 18, 20, 22
+  clinec 26
+  clinec 24
+  clinec 34
+  cbezierc 36, 38, 40
+  clinec 44
+  clinec 52
+  clinec 42
+  clinec 43
+  clinec 53
+  clinec 45
+  clinec 41
+  cbezierc 39, 37, 35
+  clinec 25
+  clinec 27
+  clinec 23
+  cbezierc 21, 19, 17
+  cdone
+85c26: complex colour:#544 loc:85c3c
+  cline 78, 74
+  clinec 72
+  clinec 73
+  clinec 75
+  clinec 79
+  clinec 77
+  clinec 76
+  cdone
+85c3c: vtext vertex:81 transform:65 scale:14 font:0 string:module[17] colour:#888
+  model index:91 v:84 light flip:xyz
+  batch begin vertex:6
+  quad 1, 4, 5, 0 colour:#444 normal:6
+  mquad 4, 2, 6, 0 colour:#444 normal:8
+  quad 3, 6, 7, 2 colour:#444 normal:10
+  quad 1, 2, 3, 0 colour:#444 normal:4
+  if !bit(t1, 1) loc:85c90
+  batch begin vertex:10
+  quad 9, 12, 13, 8 colour:#222 normal:12
+  mquad 12, 10, 14, 8 colour:#666 normal:14
+  quad 11, 14, 15, 10 colour:#222 normal:16
+  quad 9, 10, 11, 8 colour:#444 normal:2
+  batch end
+85c90: model index:92 v:92 light flip:xyz
+  model index:89 v:68 light flip:-zyx
+  model index:89 v:70 light flip:-zyx
+  model index:89 v:69 light flip:zy-x
+  model index:89 v:71 light flip:zy-x
+  if !bit(t1, 14) loc:85cb6
+  batch begin vertex:86
+  model index:99 v:86 light flip:-xy-z
+  batch begin vertex:87
+  model index:99 v:87 light flip:xyz
+85cb6: if !bit(t1, 15) loc:85cc6
+  batch begin vertex:88
+  model index:99 v:88 light flip:-zyx
+  batch begin vertex:89
+  model index:99 v:89 light flip:zy-x
+85cc6: if !bit(t1, 16) loc:85cd6
+  batch begin vertex:90
+  model index:99 v:90 light flip:-zyx
+  batch begin vertex:91
+  model index:99 v:91 light flip:zy-x
+85cd6: done
+
+
 ; Laser Damage Splash
 ; Rotate the splash over time, so that it looks more random
 model: 94

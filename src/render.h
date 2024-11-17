@@ -237,7 +237,6 @@ typedef struct sInspectorDebugInfo {
     ByteCodeTraceArray byteCodeTrace; // Bytecode addresses trace
     b32 hideModel[400]; // Models to skip
     u8* modelDataFileStartAddress;
-    u8* galmapModelDataFileStartAddress;
     u8* fontModelDataFileStartAddress;
     u32 renderDataOffset; // entity/scene setup from exe
     u8* renderData; // entity/scene setup from exe
@@ -264,6 +263,16 @@ typedef struct sInspectorDebugInfo {
 } InspectorDebugInfo;
 #endif
 
+typedef struct sSceneAssets {
+    u8* mainData;
+    u8* bitmapFontData;
+
+    u8** mainStrings;
+
+    ModelsArray models;
+    ModelsArray fonts; // 3d fonts
+} SceneAssets;
+
 typedef struct sSceneSetup {
     // Random seed vars, mutated everytime a new random is generated
     u32 random1;
@@ -277,7 +286,7 @@ typedef struct sSceneSetup {
     u8** moduleStrings;
     u32 moduleStringNum;
 
-    AssetsData assets;
+    SceneAssets assets;
 
     // Light direction in viewspace
     Vec3i16 lightDirView;

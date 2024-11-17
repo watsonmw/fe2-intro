@@ -81,7 +81,7 @@ void Assets_EndianFlip32(u8* data, u32 sizeBytes) {
     }
 }
 
-void Assets_LoadAmigaFiles(AssetsDataAmiga* assets, MReadFileRet* amigaExeData, AssetsReadEnum assetsRead) {
+void Assets_LoadAmigaFiles(AssetsData* assets, MReadFileRet* amigaExeData, AssetsReadEnum assetsRead) {
     assets->mainExeData = amigaExeData->data;
     assets->mainExeSize = amigaExeData->size;
 
@@ -107,8 +107,74 @@ void Assets_LoadAmigaFiles(AssetsDataAmiga* assets, MReadFileRet* amigaExeData, 
     assets->assetsRead = assetsRead;
 }
 
-void Assets_FreeAmigaFiles(AssetsDataAmiga* assets) {
+void Assets_LoadAmigaMainModels(AssetsData* assets) {
+    u8* fileData = assets->mainExeData;
+    if (assets->assetsRead == AssetsRead_Amiga_Orig) {
+        // Load model data
+        Assets_LoadModelPointers16BE(fileData + 0x28804, 300, &assets->mainModels);
+
+        // Flip model words
+        ARRAY_REWRITE_BE16(fileData + 0x289e4, 0xffee);
+    } else if (assets->assetsRead == AssetsRead_Amiga_EliteClub) {
+        Assets_LoadModelPointers32BE(fileData + 0x28804, 300, &assets->mainModels);
+
+        // Flip model words
+        ARRAY_REWRITE_BE16(fileData + 0x28c8c, 0x11698);
+    } else if (assets->assetsRead == AssetsRead_Amiga_EliteClub2) {
+        Assets_LoadModelPointers32BE(fileData + 0x28804, 300, &assets->mainModels);
+
+        // Flip model words
+        ARRAY_REWRITE_BE16(fileData + 0x28c8c, 0x11698);
+
+        ARRAY_REWRITE_BE16(fileData + 0x310fe, 92); // 61
+        ARRAY_REWRITE_BE16(fileData + 0x31472, 398); // 63
+        ARRAY_REWRITE_BE16(fileData + 0x31960, 142); // 65
+        ARRAY_REWRITE_BE16(fileData + 0x31b4c, 92); // 69
+        ARRAY_REWRITE_BE16(fileData + 0x31bf6, 76); // 70
+        ARRAY_REWRITE_BE16(fileData + 0x31d58, 336); // 72
+        ARRAY_REWRITE_BE16(fileData + 0x32236, 86); // 73
+        ARRAY_REWRITE_BE16(fileData + 0x3234a, 72); // 74
+        ARRAY_REWRITE_BE16(fileData + 0x32452, 16); // 75
+        ARRAY_REWRITE_BE16(fileData + 0x324cc, 72); // 76
+    }
+}
+
+void Assets_LoadAmigaIntroModels(AssetsData* assets) {
+    u8* fileData = assets->mainExeData;
+    if (assets->assetsRead == AssetsRead_Amiga_Orig) {
+        // Load model data
+        u8* modelDataStart = fileData + 0x77160;
+        Assets_LoadModelPointers16BE(modelDataStart, 120, &assets->introModels);
+        ARRAY_REWRITE_BE16(fileData + 0x387d6, 0x18fc);
+
+        u32 planetByteCodeLen = 28;
+        u32 planetByteCodeStart = 0x2772;
+        ARRAY_REWRITE_BE16(modelDataStart, planetByteCodeStart);
+        ARRAY_REWRITE_BE16((modelDataStart + planetByteCodeStart + planetByteCodeLen),
+                           (0x6a34 - (planetByteCodeStart + planetByteCodeLen)));
+    } else if (assets->assetsRead == AssetsRead_Amiga_EliteClub) {
+        Assets_LoadModelPointers32BE(fileData + 0x7ffdc, 120, &assets->introModels);
+
+        // Flip model words
+        ARRAY_REWRITE_BE16(fileData + 0x80464, 0x687c);
+
+        // Flip back planet byte code
+        ARRAY_REWRITE_BE16(fileData + 0x829f8, 28);
+    } else if (assets->assetsRead == AssetsRead_Amiga_EliteClub2) {
+        Assets_LoadModelPointers32BE(fileData + 0x7ffdc, 120, &assets->introModels);
+
+        // Flip model words
+        ARRAY_REWRITE_BE16(fileData + 0x80464, 0x687c);
+
+        // Flip back planet byte code
+        ARRAY_REWRITE_BE16(fileData + 0x829f8, 28);
+    }
+}
+
+void Assets_Free(AssetsData* assets) {
     MFree(assets->mainExeData, assets->mainExeSize); assets->mainExeData = 0;
+    MArrayFree(assets->mainModels);
+    MArrayFree(assets->introModels);
     MArrayFree(assets->galmapModels);
     MFree(assets->mainStrings, assets->mainStringsLen * sizeof(u8*));
 }

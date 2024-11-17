@@ -10,32 +10,6 @@ extern "C" {
 
 MARRAY_TYPEDEF(ModelData*, ModelsArray)
 
-typedef struct sAssetsData {
-    u8* mainData;
-    u8* bitmapFontData;
-
-    u8** mainStrings;
-
-    ModelsArray models;
-    ModelsArray galmapModels;
-} AssetsData;
-
-typedef struct sAssetsDataPC {
-    u8* mainExeData;
-    u32 mainExeSize;
-    u8* videoModuleData;
-    u32 videoModuleSize;
-    u8* gameMenuModuleData;
-    u32 gameMenuModuleSize;
-    u8* introModuleData;
-    u32 introModuleSize;
-
-    u8* mainStringData;
-    u8* galmapModels;
-    u8* bitmapFontData;
-    u8* defaultPalette;
-} AssetsDataPC;
-
 typedef enum eAssetsReadEnum {
     AssetsRead_Amiga_Orig,
     AssetsRead_Amiga_EliteClub,
@@ -43,16 +17,18 @@ typedef enum eAssetsReadEnum {
     AssetsRead_PC_EliteClub
 } AssetsReadEnum;
 
-typedef struct sAssetsDataAmiga {
+typedef struct sAssetsData {
     u8* mainExeData;
     u32 mainExeSize;
 
+    ModelsArray mainModels;
+    ModelsArray introModels;
     ModelsArray galmapModels;
     u8** mainStrings;
     u32 mainStringsLen;
     u8* bitmapFontData;
     AssetsReadEnum assetsRead;
-} AssetsDataAmiga;
+} AssetsData;
 
 i32 Assets_LoadModelPointers16LE(u8* data, u32 modelsToRead, ModelsArray* modelsOut);
 i32 Assets_LoadModelPointers16BE(u8* data, u32 modelsToRead, ModelsArray* modelsOut);
@@ -64,8 +40,10 @@ u8** Assets_LoadStringPointers16BE(u8* data, u32 stringsToRead);
 void Assets_EndianFlip16(u8* data, u32 sizeBytes);
 void Assets_EndianFlip32(u8* data, u32 sizeBytes);
 
-void Assets_LoadAmigaFiles(AssetsDataAmiga* assets, MReadFileRet* amigaExeData, AssetsReadEnum assetsReadEnum);
-void Assets_FreeAmigaFiles(AssetsDataAmiga* assets);
+void Assets_LoadAmigaFiles(AssetsData* assets, MReadFileRet* amigaExeData, AssetsReadEnum assetsReadEnum);
+void Assets_LoadAmigaMainModels(AssetsData* assets);
+void Assets_LoadAmigaIntroModels(AssetsData* assets);
+void Assets_Free(AssetsData* assets);
 
 MReadFileRet Assets_LoadModelOverrides(const char* filePath, ModelsArray* modelsArray);
 

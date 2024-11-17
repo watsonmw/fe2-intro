@@ -52,7 +52,7 @@ typedef struct LoopContext {
     RasterContext raster;
     SceneSetup introScene;
     RenderEntity entity;
-    AssetsDataAmiga assetsDataAmiga;
+    AssetsData assetsData;
     ModelsArray overrideModels;
     Surface surface;
     u32* rgbaOutput;
@@ -71,8 +71,8 @@ static LoopContext sLoopContext;
 
 static void StartIntro(u32 currentTimestampMs) {
     Audio_Init(&sLoopContext.audio,
-               sLoopContext.assetsDataAmiga.mainExeData,
-               sLoopContext.assetsDataAmiga.mainExeSize);
+               sLoopContext.assetsData.mainExeData,
+               sLoopContext.assetsData.mainExeSize);
 
     sLoopContext.prevClock = currentTimestampMs;
     sLoopContext.startTime = sLoopContext.prevClock;
@@ -206,9 +206,9 @@ int setup(void) {
     Palette_CopyFixedColoursRGB(&sLoopContext.raster.paletteContext, sLoopContext.palette);
 
     AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub2;
-    Assets_LoadAmigaFiles(&sLoopContext.assetsDataAmiga, &sLoopContext.gameExeFile, assetsRead);
+    Assets_LoadAmigaFiles(&sLoopContext.assetsData, &sLoopContext.gameExeFile, assetsRead);
     sLoopContext.intro.drawFrontierLogo = 0;
-    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &sLoopContext.assetsDataAmiga);
+    Intro_InitAmiga(&sLoopContext.intro, &sLoopContext.introScene, &sLoopContext.assetsData);
 
     MArrayInit(sLoopContext.overrideModels);
     sLoopContext.overridesFile =

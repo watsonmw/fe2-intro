@@ -73,27 +73,132 @@ MINTERNAL MReadFileRet Assets_LoadAmigaExeFromDataDir(AssetsReadEnum assetsRead)
     }
 }
 
-MINTERNAL void Assets_LoadPCFiles(AssetsDataPC* assets) {
+typedef struct sAssetsDataPC {
+    u8* mainExeData;
+    u32 mainExeSize;
+    u8* videoModuleData;
+    u32 videoModuleSize;
+    u8* gameMenuModuleData;
+    u32 gameMenuModuleSize;
+    u8* introModuleData;
+    u32 introModuleSize;
+
+    u8* mainStringData;
+    u8* galmapModels;
+    u8* bitmapFontData;
+    u8* defaultPalette;
+} AssetsDataPC;
+
+MINTERNAL void Assets_LoadPCFiles(AssetsData* assets, AssetsDataPC* pcAssets) {
     MReadFileRet frontierExe = MFileReadFully("data/frontier.exe");
-    assets->mainExeData = frontierExe.data;
-    assets->mainExeSize = frontierExe.size;
+    pcAssets->mainExeData = frontierExe.data;
+    pcAssets->mainExeSize = frontierExe.size;
+    assets->mainExeData = pcAssets->mainExeData;
+    assets->mainExeSize = pcAssets->mainExeSize;
 
     MReadFileRet introModuleData = MFileReadFully("data/el2m08.ovl");
-    assets->introModuleData = introModuleData.data;
-    assets->introModuleSize = introModuleData.size;
+    pcAssets->introModuleData = introModuleData.data;
+    pcAssets->introModuleSize = introModuleData.size;
 
     MReadFileRet gameMenuModuleData = MFileReadFully("data/el2m10.ovl");
-    assets->gameMenuModuleData = gameMenuModuleData.data;
-    assets->gameMenuModuleSize = gameMenuModuleData.size;
+    pcAssets->gameMenuModuleData = gameMenuModuleData.data;
+    pcAssets->gameMenuModuleSize = gameMenuModuleData.size;
 
     MReadFileRet videoModelData = MFileReadFully("data/el2mcga3.ovl");
-    assets->videoModuleData = videoModelData.data;
-    assets->videoModuleSize = videoModelData.size;
+    pcAssets->videoModuleData = videoModelData.data;
+    pcAssets->videoModuleSize = videoModelData.size;
 
-    assets->mainStringData = frontierExe.data + 0x1f73a;
-    assets->galmapModels = frontierExe.data + 0x283e6; // size: 0x1654
+    pcAssets->mainStringData = frontierExe.data + 0x1f73a;
+    pcAssets->galmapModels = frontierExe.data + 0x283e6; // size: 0x1654
     assets->bitmapFontData = videoModelData.data + 0x6164;
-    assets->defaultPalette = videoModelData.data + 0x5fe7;
+    pcAssets->defaultPalette = videoModelData.data + 0x5fe7;
+
+    // Load font/galmap model
+    Assets_LoadModelPointers16LE(pcAssets->galmapModels, 15, &assets->galmapModels);
+
+    // Load intro models
+    u8* introFileData = pcAssets->introModuleData + 0x200;
+    Assets_LoadModelPointers16LE(introFileData + 0x3b0, 120, &assets->introModels);
+
+    // Load main models
+    Assets_LoadModelPointers16LE(assets->mainExeData + 0x418d4, 300, &assets->mainModels);
+}
+
+void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* pcAssets, AssetsData* assets) {
+    Intro_Init(intro);
+
+    u8* introFileData = pcAssets->introModuleData + 0x200;
+    u8* gameFileData = pcAssets->gameMenuModuleData + 0x200;
+
+    intro->sceneSetupData = introFileData;
+    intro->creditsStringData = (u16*)(gameFileData + 0xa3);
+
+    sceneSetup->debug.modelDataFileStartAddress = pcAssets->mainExeData;
+
+    sceneSetup->moduleStrings = Assets_LoadStringPointers16LE(introFileData + 0x1d8, 33);
+    sceneSetup->moduleStringNum = 33;
+    sceneSetup->assets.fonts = assets->galmapModels;
+    sceneSetup->assets.models = assets->introModels;
+    sceneSetup->assets.bitmapFontData = assets->bitmapFontData;
+
+    intro->lastScene = -1;
+    sceneSetup->planetMinAtmosBandWidth = 0x0;
+    SceneSetup_InitDefaultShadeRamp(sceneSetup);
+
+    u32 i = 0;
+    intro->scenes[i++].dataOffset = 0x6f4b;
+    intro->scenes[i++].dataOffset = 0x00a3;
+    intro->scenes[i++].dataOffset = 0x7155;
+    intro->scenes[i++].dataOffset = 0x72bb;
+    intro->scenes[i++].dataOffset = 0x7421;
+    intro->scenes[i++].dataOffset = 0x7587;
+    intro->scenes[i++].dataOffset = 0x76ed;
+    intro->scenes[i++].dataOffset = 0x7853;
+    intro->scenes[i++].dataOffset = 0x79b9;
+    intro->scenes[i++].dataOffset = 0x7b1f;
+    intro->scenes[i++].dataOffset = 0x7C85;
+    intro->scenes[i++].dataOffset = 0x7DEB;
+    intro->scenes[i++].dataOffset = 0x7F51;
+    intro->scenes[i++].dataOffset = 0x80B7;
+    intro->scenes[i++].dataOffset = 0x821D;
+    intro->scenes[i++].dataOffset = 0x8383;
+    intro->scenes[i++].dataOffset = 0x84E9;
+    intro->scenes[i++].dataOffset = 0x864F;
+    intro->scenes[i++].dataOffset = 0x87B5;
+    intro->scenes[i++].dataOffset = 0x891B;
+    intro->scenes[i++].dataOffset = 0x8A81;
+    intro->scenes[i++].dataOffset = 0x8BE7;
+    intro->scenes[i++].dataOffset = 0x8D4D;
+
+    // Apply scene data endianness fixups
+    for (i = 0; i < intro->numScenes; ++i) {
+        u8* data1 = introFileData + intro->scenes[i].dataOffset;
+        ARRAY_REWRITE_LE16(data1, 0x14);
+        ARRAY_REWRITE_LE32(data1 + 0x14, 0xc);
+        ARRAY_REWRITE_LE16(data1 + 0x20, 0xd6);
+    }
+
+    MArrayInit(intro->imageStore.images);
+
+    intro->drawFrontierLogo = 0;
+}
+
+void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* pcAssets, AssetsData* assets) {
+    ModelViewer_Init(viewer);
+
+    RenderEntity* entity = &viewer->entity;
+    SceneSetup* sceneSetup = &viewer->sceneSetup;
+
+    sceneSetup->assets.models = assets->mainModels;
+    sceneSetup->assets.fonts = assets->galmapModels;
+
+    sceneSetup->moduleStrings = Assets_LoadStringPointers16LE(pcAssets->mainStringData, 126);
+    sceneSetup->assets.bitmapFontData = pcAssets->bitmapFontData;
+
+    memcpy(entity->entityText, "  RUMBA", 8);
+
+    sceneSetup->debug.modelDataFileStartAddress = pcAssets->mainExeData;
+    sceneSetup->debug.fontModelDataFileStartAddress = pcAssets->mainExeData;
 }
 
 MINTERNAL GLuint CreateTextureForSurface(Surface *surface) {
@@ -176,7 +281,7 @@ MINTERNAL void RenderModelViewer(GLuint surfaceTexture, Surface* surface, ModelV
     }
 }
 
-void WriteAllModels(const char* modelsFilename, Annotations* annotations, SceneSetup* sceneSetup) {
+void WriteAllModels(const char* modelsFilename, Annotations* annotations, ModelsArray* models, u8* startAddress) {
     size_t i = 2;
     int foundNull = 0;
     MMemIO writer;
@@ -185,10 +290,9 @@ void WriteAllModels(const char* modelsFilename, Annotations* annotations, SceneS
     DebugModelParams params{};
     params.maxSize = 0xfff;
     params.codeOffsets = 0;
-    params.byteCodeTrace = &sceneSetup->debug.byteCodeTrace;
 
     while (true) {
-        ModelData* modelData = Render_GetModel(sceneSetup, i);
+        ModelData* modelData = MArrayGet(*models, i);
         if (modelData == NULL) {
             foundNull++;
             if (foundNull > 1) {
@@ -196,7 +300,7 @@ void WriteAllModels(const char* modelsFilename, Annotations* annotations, SceneS
             }
         } else {
             foundNull = 0;
-            u64 byteCodeBegin = ((u8*)modelData - sceneSetup->debug.modelDataFileStartAddress) + modelData->codeOffset;
+            u64 byteCodeBegin = ((u8*)modelData - startAddress) + modelData->codeOffset;
             DebugModelInfo modelInfo{};
             params.offsetBegin = byteCodeBegin;
 
@@ -232,7 +336,7 @@ MINTERNAL void FreeModelOverridesFile(OverridesFile* overridesFile) {
     }
 }
 
-i32 LoadModelOverridesIfChanged(const char* filename, SceneSetup* sceneSetup, OverridesFile* overridesFile) {
+i32 LoadModelOverridesIfChanged(const char* filename, ModelsArray* models, OverridesFile* overridesFile) {
     u64 lastModifiedTime = overridesFile->fieInfo.lastModifiedTime;
 
     overridesFile->fieInfo = MGetFileInfo(filename);
@@ -250,7 +354,7 @@ i32 LoadModelOverridesIfChanged(const char* filename, SceneSetup* sceneSetup, Ov
         MMemInitAlloc(&overridesFile->memOutput, 1024);
         ModelCompileResult result = CompileMultipleModels(
                 (const char*)overridesFile->fileData.data, overridesFile->fileData.size,
-                &overridesFile->memOutput,&sceneSetup->assets.models,ModelEndian_LITTLE,
+                &overridesFile->memOutput,models,ModelEndian_LITTLE,
                 TRUE);
 
         if (result.error) {
@@ -301,17 +405,6 @@ i16 shadeRamps[8][8] = {
 int main(int, char**) {
     MMemDebugInit();
 
-//    Float16 f1 = Float16MakeFromInt(-0x3000);
-//    Float16 f2 = Float16MakeFromInt(0x7fff);
-//    MLogf("%e", Float16ieee(f1));
-//    MLogf("%e", Float16ieee(f2));
-//
-//    Float32 f3 = Float16Mult32(f1, f2);
-//    MLogf("%e", Float32ieee(f3));
-//
-//    Float16 f4 = Float16Mult(f1, f2);
-//    MLogf("%e", Float16ieee(f4));
-
     AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub2;
 
     Surface surface;
@@ -348,26 +441,33 @@ int main(int, char**) {
     // Setup raster
     Palette_SetupForNewFrame(&raster.paletteContext, true);
 
-    AssetsDataPC assetsDataPc;
-
-    AssetsDataAmiga assetsDataAmiga;
+    AssetsData assetsData{};
+    AssetsDataPC assetsDataPC{};
     ModelViewer modelViewer{};
+    u8* amigaExeData = nullptr;
+    u32 amigaExeSize = 0;
 
     // Load intro file data
     if (assetsRead == AssetsRead_PC_EliteClub) {
-        Assets_LoadPCFiles(&assetsDataPc);
-        Intro_InitPC(&intro, &introSceneSetup, &assetsDataPc);
-        ModelViewer_InitPC(&modelViewer, &assetsDataPc);
-
-        // Also load amiga version for audio
+        // Audio samples only available form the amiga version, so load it as well
         MReadFileRet amigaExe = Assets_LoadAmigaExeFromDataDir(AssetsRead_Amiga_EliteClub);
-        Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExe, AssetsRead_Amiga_EliteClub);
+        amigaExeData = amigaExe.data;
+        amigaExeSize = amigaExe.size;
+
+        Assets_LoadPCFiles(&assetsData, &assetsDataPC);
+        Intro_InitPC(&intro, &introSceneSetup, &assetsDataPC, &assetsData);
+        ModelViewer_InitPC(&modelViewer, &assetsDataPC, &assetsData);
     } else {
         MReadFileRet amigaExe = Assets_LoadAmigaExeFromDataDir(assetsRead);
-        Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExe, assetsRead);
+        amigaExeData = amigaExe.data;
+        amigaExeSize = amigaExe.size;
+        Assets_LoadAmigaFiles(&assetsData, &amigaExe, assetsRead);
 
-        Intro_InitAmiga(&intro, &introSceneSetup, &assetsDataAmiga);
-        ModelViewer_InitAmiga(&modelViewer, &assetsDataAmiga);
+        Intro_InitAmiga(&intro, &introSceneSetup, &assetsData);
+        introSceneSetup.debug.modelDataFileStartAddress = amigaExe.data;
+        introSceneSetup.debug.fontModelDataFileStartAddress = amigaExe.data;
+
+        ModelViewer_InitAmiga(&modelViewer, &assetsData);
     }
 
     Render_Init(&modelViewer.sceneSetup, &raster);
@@ -384,7 +484,7 @@ int main(int, char**) {
     }
 
     AudioContext audio;
-    Audio_Init(&audio, assetsDataAmiga.mainExeData, assetsDataAmiga.mainExeSize);
+    Audio_Init(&audio, amigaExeData, amigaExeSize);
     modelViewer.sceneSetup.audio = &audio;
     introSceneSetup.audio = &audio;
 
@@ -465,7 +565,8 @@ int main(int, char**) {
     char textInputBuff[textInputBuffSize];
     Annotations annotations;
     bool renderScene = true;
-    int modelOffset = 11;
+    int mainModelOffset = 11;
+    int galmapModelOffset = 3;
     const char *annotationsFile = "data/annotations.csv";
     annotations.load(annotationsFile);
     u32 introNumFrames = Intro_GetNumFrames(&intro) - 1;
@@ -480,7 +581,8 @@ int main(int, char**) {
     MIni ini;
     if (MIniLoadFile(&ini, "persist.ini")) {
         MIniReadI32(&ini, "frameOffset", &frameOffset);
-        MIniReadI32(&ini, "modelOffset", &modelOffset);
+        MIniReadI32(&ini, "modelOffset", &mainModelOffset);
+        MIniReadI32(&ini, "galmapModelOffset", &galmapModelOffset);
         MIniReadI32(&ini, "modelViewer.pitch", &modelViewer.pitch);
         MIniReadI32(&ini, "modelViewer.yaw", &modelViewer.yaw);
         MIniReadI32(&ini, "modelViewer.roll", &modelViewer.roll);
@@ -494,14 +596,14 @@ int main(int, char**) {
     }
 
     if (assetsRead == AssetsRead_PC_EliteClub) {
-        WriteAllModels("models-main-pc.txt" , &annotations, &modelViewer.sceneSetup);
-        WriteAllModels("models-intro-pc.txt" , &annotations, &introSceneSetup);
+        WriteAllModels("models-main-pc.txt", &annotations, &assetsData.mainModels, assetsData.mainExeData);
+        WriteAllModels("models-intro-pc.txt", &annotations, &assetsData.introModels, assetsData.mainExeData);
     } else if (assetsRead == AssetsRead_Amiga_EliteClub) {
-        WriteAllModels("models-main-amiga.txt" , &annotations, &modelViewer.sceneSetup);
-        WriteAllModels("models-intro-amiga.txt" , &annotations, &introSceneSetup);
+        WriteAllModels("models-main-amiga.txt", &annotations, &assetsData.mainModels, assetsData.mainExeData);
+        WriteAllModels("models-intro-amiga.txt", &annotations, &assetsData.introModels, assetsData.mainExeData);
     } else if (assetsRead == AssetsRead_Amiga_EliteClub2) {
-        WriteAllModels("models-main-amiga.txt" , &annotations, &modelViewer.sceneSetup);
-        WriteAllModels("models-intro-amiga.txt" , &annotations, &introSceneSetup);
+        WriteAllModels("models-main-amiga.txt", &annotations, &assetsData.mainModels, assetsData.mainExeData);
+        WriteAllModels("models-intro-amiga.txt", &annotations, &assetsData.introModels, assetsData.mainExeData);
     }
 
     bool resetPalette = true;
@@ -518,10 +620,24 @@ int main(int, char**) {
     mainOverrides.override = true;
 
     if (mainOverrides.override) {
-        LoadModelOverridesIfChanged("data/models-main.txt", &(modelViewer.sceneSetup), &mainOverrides);
+        LoadModelOverridesIfChanged("data/main-overrides.txt", &assetsData.mainModels, &mainOverrides);
     }
-    if (introOverrides.override ) {
-        LoadModelOverridesIfChanged("data/model-overrides.txt", &introSceneSetup, &introOverrides);
+
+    if (introOverrides.override) {
+        LoadModelOverridesIfChanged("data/intro-overrides.txt", &assetsData.introModels, &introOverrides);
+    }
+
+    if (modelRadio == 0) {
+        curSceneSetup = &introSceneSetup;
+        curSceneSetup->debug.modelDataFileStartAddress = assetsData.mainExeData;
+    } else if (modelRadio == 1) {
+        curSceneSetup = &modelViewer.sceneSetup;
+        curSceneSetup->assets.models = assetsData.mainModels;
+        curSceneSetup->debug.modelDataFileStartAddress = assetsData.mainExeData;
+    } else if (modelRadio == 2) {
+        curSceneSetup = &modelViewer.sceneSetup;
+        curSceneSetup->assets.models = assetsData.galmapModels;
+        curSceneSetup->debug.modelDataFileStartAddress = assetsData.mainExeData;
     }
 
     if (modelRadio == 0) {
@@ -591,12 +707,12 @@ int main(int, char**) {
         if (timeSinceLastCheck > 100) {
             lastFileCheckTime = time;
             if (mainOverrides.override) {
-                if (LoadModelOverridesIfChanged("data/models-main.txt", &(modelViewer.sceneSetup), &mainOverrides) == 0) {
+                if (LoadModelOverridesIfChanged("data/main-overrides.txt", &assetsData.mainModels, &mainOverrides) == 0) {
                     renderScene = true;
                 }
             }
-            if (introOverrides.override ) {
-                if (LoadModelOverridesIfChanged("data/model-overrides.txt", &introSceneSetup, &introOverrides) == 0) {
+            if (introOverrides.override) {
+                if (LoadModelOverridesIfChanged("data/intro-overrides.txt", &assetsData.introModels, &introOverrides) == 0) {
                     renderScene = true;
                 }
             }
@@ -655,7 +771,7 @@ int main(int, char**) {
                         fileRasterPalette[2].g = 0x50;
                         fileRasterPalette[2].b = 0xc0;
 
-                        UpdateSurfaceTexture(surfaceTexture, fileRasterContext.surface, (RGB *) fileRasterPalette);
+                        UpdateSurfaceTexture(surfaceTexture, fileRasterContext.surface, (RGB*)fileRasterPalette);
                     }
 
                     if (ImGui::Button("Flares 32")) {
@@ -881,9 +997,32 @@ int main(int, char**) {
                     renderScene = true;
                 }
                 ImGui::SameLine();
-                if (ImGui::RadioButton("Main", &modelRadio, 1)) {
+                if (ImGui::RadioButton("Main Models", &modelRadio, 1)) {
+                    selectedModel = mainModelOffset;
                     renderScene = true;
                 }
+                ImGui::SameLine();
+                if (ImGui::RadioButton("Galmap Models", &modelRadio, 2)) {
+                    selectedModel = galmapModelOffset;
+                    renderScene = true;
+                }
+
+                if (modelRadio == 0) {
+                    curEntity = &introEntity;
+                    curSceneSetup = &introSceneSetup;
+                } else if (modelRadio == 1) {
+                    curEntity = &modelViewer.entity;
+                    curSceneSetup = &modelViewer.sceneSetup;
+                    curSceneSetup->assets.models = assetsData.mainModels;
+                    curSceneSetup->debug.modelDataFileStartAddress = assetsData.mainExeData;
+                } else {
+                    curEntity = &modelViewer.entity;
+                    curSceneSetup = &modelViewer.sceneSetup;
+                    curSceneSetup->assets.models = assetsData.galmapModels;
+                    curSceneSetup->debug.modelDataFileStartAddress = assetsData.mainExeData;
+                }
+
+                numModels = CountModels(curSceneSetup);
 
                 if (modelRadio == 0) {
                     if (ImGui::SliderInt("Pos", &frameOffset, 0, introNumFrames)) { // format %x doesnt work
@@ -951,22 +1090,26 @@ int main(int, char**) {
                     }
                 } else {
                     bool modelChanged = false;
-                    if (ImGui::SliderInt("Model", &modelOffset, 0, numModels)) {
+                    int* modelOffset = &mainModelOffset;
+                    if (modelRadio == 2) {
+                        modelOffset = &galmapModelOffset;
+                    }
+                    if (ImGui::SliderInt("Model", modelOffset, 0, numModels)) {
                         modelChanged = true;
                     }
                     ImGui::SameLine();
                     if (ImGui::SmallButton("-")) {
-                        modelOffset -= 1;
+                        *modelOffset -= 1;
                         modelChanged = true;
                     }
                     ImGui::SameLine();
                     if (ImGui::SmallButton("+")) {
-                        modelOffset += 1;
+                        *modelOffset += 1;
                         modelChanged = true;
                     }
                     if (modelChanged) {
-                        selectedModel = modelOffset;
-                        ModelViewer_SetModelForScene(&modelViewer, modelOffset);
+                        selectedModel = *modelOffset;
+                        ModelViewer_SetModelForScene(&modelViewer, *modelOffset);
                         renderScene = true;
                     }
                     ImGui::SameLine();
@@ -1134,7 +1277,7 @@ int main(int, char**) {
                         renderScene = true;
                     }
                     if (renderScene) {
-                        RenderModelViewer(surfaceTexture, &surface, &modelViewer, modelOffset, resetPalette);
+                        RenderModelViewer(surfaceTexture, &surface, &modelViewer, *modelOffset, resetPalette);
                         renderScene = false;
                     }
                 }
@@ -1160,15 +1303,6 @@ int main(int, char**) {
                     ImGui::Text("%d,%d (%d, %d) : n/a", mouseX, mouseY, mouseX-SURFACE_WIDTH/2, mouseY-SURFACE_HEIGHT/2);
                 }
 
-                if (modelRadio == 0) {
-                    curSceneSetup = &introSceneSetup;
-                    curEntity = &introEntity;
-                } else if (modelRadio == 1) {
-                    curSceneSetup = &modelViewer.sceneSetup;
-                    curEntity = &modelViewer.entity;
-                }
-
-                numModels = CountModels(curSceneSetup);
 
                 ImGui::End();
 
@@ -1493,7 +1627,8 @@ int main(int, char**) {
     MIniSave iniSave;
     if (MIniSaveFile(&iniSave, "persist.ini") == 0) {
         MIniMWriteI32(&iniSave, "frameOffset", frameOffset);
-        MIniMWriteI32(&iniSave, "modelOffset", modelOffset);
+        MIniMWriteI32(&iniSave, "modelOffset", mainModelOffset);
+        MIniMWriteI32(&iniSave, "galmapModelOffset", galmapModelOffset);
         MIniMWriteI32(&iniSave, "modelViewer.pitch", modelViewer.pitch);
         MIniMWriteI32(&iniSave, "modelViewer.yaw", modelViewer.yaw);
         MIniMWriteI32(&iniSave, "modelViewer.roll", modelViewer.roll);
@@ -1513,7 +1648,7 @@ int main(int, char**) {
     Raster_Free(&fileRasterContext);
     Surface_Free(&surface);
     Render_Free(&introSceneSetup);
-    Assets_FreeAmigaFiles(&assetsDataAmiga);
+    Assets_Free(&assetsData);
     FreeModelOverridesFile(&introOverrides);
     FreeModelOverridesFile(&mainOverrides);
 

@@ -6,7 +6,7 @@
 #include "fintro.h"
 #include "render.h"
 
-static IntroScene Intro_SceneList[] = {
+IntroScene Intro_SceneList[] = {
         { 0x200, 0x000, 0, 768 },  // Spinny Intro Text
         { 0x400, 0x000, 0, 2100 }, // Animate Logo
         { 0x100, 0x000, 0, 384 },  // Courier flyby
@@ -35,7 +35,6 @@ static IntroScene Intro_SceneList[] = {
 static void SetupEntityFromRenderData(Intro* intro, SceneSetup* sceneSetup, RenderEntity* entity, u32 renderDataOffset) {
     u8* renderData = (u8*) (intro->sceneSetupData + renderDataOffset);
 #ifdef FINTRO_INSPECTOR
-    sceneSetup->debug.modelDataFileStartAddress = intro->sceneSetupData;
     sceneSetup->debug.renderDataOffset = renderDataOffset;
     sceneSetup->debug.renderData = renderData;
 #endif
@@ -47,116 +46,29 @@ static void SetupEntityFromRenderData(Intro* intro, SceneSetup* sceneSetup, Rend
     memcpy(entity->entityVars, renderData + 0x72, sizeof(entity->entityVars));
 }
 
-void Intro_InitPC(Intro* intro, SceneSetup* sceneSetup, AssetsDataPC* assetsData) {
-    u8* introFileData = assetsData->introModuleData + 0x200;
-    u8* gameFileData = assetsData->gameMenuModuleData + 0x200;
-
-    intro->sceneSetupData = introFileData;
-    intro->creditsStringData = (u16*)(gameFileData + 0xa3);
-
-#ifdef FINTRO_INSPECTOR
-    sceneSetup->debug.galmapModelDataFileStartAddress = assetsData->mainExeData;
-    sceneSetup->debug.modelDataFileStartAddress = assetsData->mainExeData;
-#endif
-
-    sceneSetup->moduleStrings = Assets_LoadStringPointers16LE(introFileData + 0x1d8, 33);
-    sceneSetup->moduleStringNum = 33;
-
-    Assets_LoadModelPointers16LE(introFileData + 0x3b0, 120, &sceneSetup->assets.models);
-    Assets_LoadModelPointers16LE(assetsData->galmapModels, 15, &sceneSetup->assets.galmapModels);
-
-    sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
-
-    intro->lastScene = -1;
-    sceneSetup->planetMinAtmosBandWidth = 0x0;
-    SceneSetup_InitDefaultShadeRamp(sceneSetup);
-
+void Intro_Init(Intro* intro) {
     intro->scenes = Intro_SceneList;
-
-    u32 i = 0;
-    intro->scenes[i++].dataOffset = 0x6f4b;
-    intro->scenes[i++].dataOffset = 0x00a3;
-    intro->scenes[i++].dataOffset = 0x7155;
-    intro->scenes[i++].dataOffset = 0x72bb;
-    intro->scenes[i++].dataOffset = 0x7421;
-    intro->scenes[i++].dataOffset = 0x7587;
-    intro->scenes[i++].dataOffset = 0x76ed;
-    intro->scenes[i++].dataOffset = 0x7853;
-    intro->scenes[i++].dataOffset = 0x79b9;
-    intro->scenes[i++].dataOffset = 0x7b1f;
-    intro->scenes[i++].dataOffset = 0x7C85;
-    intro->scenes[i++].dataOffset = 0x7DEB;
-    intro->scenes[i++].dataOffset = 0x7F51;
-    intro->scenes[i++].dataOffset = 0x80B7;
-    intro->scenes[i++].dataOffset = 0x821D;
-    intro->scenes[i++].dataOffset = 0x8383;
-    intro->scenes[i++].dataOffset = 0x84E9;
-    intro->scenes[i++].dataOffset = 0x864F;
-    intro->scenes[i++].dataOffset = 0x87B5;
-    intro->scenes[i++].dataOffset = 0x891B;
-    intro->scenes[i++].dataOffset = 0x8A81;
-    intro->scenes[i++].dataOffset = 0x8BE7;
-    intro->scenes[i++].dataOffset = 0x8D4D;
-
     intro->numScenes = sizeof(Intro_SceneList) / sizeof(IntroScene);
-
-    // Apply scene data endianness fixups
-    for (i = 0; i < intro->numScenes; ++i) {
-        u8* data1 = introFileData + intro->scenes[i].dataOffset;
-        ARRAY_REWRITE_LE16(data1, 0x14);
-        ARRAY_REWRITE_LE32(data1 + 0x14, 0xc);
-        ARRAY_REWRITE_LE16(data1 + 0x20, 0xd6);
-    }
-
-    MArrayInit(intro->imageStore.images);
-
-    intro->drawFrontierLogo = 0;
 }
 
-void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* assetsData) {
+void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsData* assetsData) {
+    Intro_Init(intro);
+
     intro->sceneSetupData = assetsData->mainExeData;
     intro->lastScene = -1;
     sceneSetup->planetMinAtmosBandWidth = 0x0;
     SceneSetup_InitDefaultShadeRamp(sceneSetup);
 
+    Assets_LoadAmigaIntroModels(assetsData);
+    sceneSetup->assets.models = assetsData->introModels;
+
     u8* fileData = assetsData->mainExeData;
-
     if (assetsData->assetsRead == AssetsRead_Amiga_Orig) {
-        // Load model data
-        u8* modelDataStart = fileData + 0x77160;
-        Assets_LoadModelPointers16BE(modelDataStart, 120, &sceneSetup->assets.models);
-        ARRAY_REWRITE_BE16(fileData + 0x387d6, 0x18fc);
-
-        u32 planetByteCodeLen = 28;
-        u32 planetByteCodeStart = 0x2772;
-        ARRAY_REWRITE_BE16(modelDataStart, planetByteCodeStart);
-        ARRAY_REWRITE_BE16((modelDataStart + planetByteCodeStart + planetByteCodeLen),
-                           (0x6a34 - (planetByteCodeStart + planetByteCodeLen)));
-
         sceneSetup->moduleStrings = Assets_LoadStringPointers16BE(fileData + 0x76f88, 33);
         sceneSetup->moduleStringNum = 33 ;
         intro->creditsStringData = (u16*)(fileData + 0x81e16);
-    } else if (assetsData->assetsRead == AssetsRead_Amiga_EliteClub) {
-        Assets_LoadModelPointers32BE(fileData + 0x7ffdc, 120, &sceneSetup->assets.models);
-
-        // Flip model words
-        ARRAY_REWRITE_BE16(fileData + 0x80464, 0x687c);
-
-        // Flip back planet byte code
-        ARRAY_REWRITE_BE16(fileData + 0x829f8, 28);
-
-        sceneSetup->moduleStrings = Assets_LoadStringPointers16BE(fileData + 0x7fe0e, 33);
-        sceneSetup->moduleStringNum = 33;
-        intro->creditsStringData = (u16*)(fileData + 0x8b774);
-    } else if (assetsData->assetsRead == AssetsRead_Amiga_EliteClub2) {
-        Assets_LoadModelPointers32BE(fileData + 0x7ffdc, 120, &sceneSetup->assets.models);
-
-        // Flip model words
-        ARRAY_REWRITE_BE16(fileData + 0x80464, 0x687c);
-
-        // Flip back planet byte code
-        ARRAY_REWRITE_BE16(fileData + 0x829f8, 28);
-
+    } else if (assetsData->assetsRead == AssetsRead_Amiga_EliteClub ||
+            assetsData->assetsRead == AssetsRead_Amiga_EliteClub2) {
         sceneSetup->moduleStrings = Assets_LoadStringPointers16BE(fileData + 0x7fe0e, 33);
         sceneSetup->moduleStringNum = 33;
         intro->creditsStringData = (u16*)(fileData + 0x8b774);
@@ -164,12 +76,7 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
 
     ARRAY_REWRITE_BE16((u8*)intro->creditsStringData, 26 * 2);
 
-#ifdef FINTRO_INSPECTOR
-    sceneSetup->debug.modelDataFileStartAddress = fileData;
-    sceneSetup->debug.galmapModelDataFileStartAddress = fileData;
-#endif
-
-    sceneSetup->assets.galmapModels = assetsData->galmapModels;
+    sceneSetup->assets.fonts = assetsData->galmapModels;
     sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
     sceneSetup->assets.mainStrings = assetsData->mainStrings;
 
@@ -224,7 +131,6 @@ void Intro_InitAmiga(Intro* intro, SceneSetup* sceneSetup, AssetsDataAmiga* asse
 }
 
 void Intro_Free(Intro* intro, SceneSetup* sceneSetup) {
-    MArrayFree(sceneSetup->assets.models);
     MFree(sceneSetup->moduleStrings, sceneSetup->moduleStringNum * sizeof(u8*));
 
     Images8Bit* images = &intro->imageStore.images;

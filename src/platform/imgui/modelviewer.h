@@ -20,8 +20,8 @@ typedef struct sModelViewer {
     int planetMinAtmosBandWidth;
 } ModelViewer;
 
-void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData);
-void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsDataAmiga* assetsData);
+void ModelViewer_Init(ModelViewer* viewer);
+void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsData* assetsData);
 void ModelViewer_ResetForModel(ModelViewer* viewer);
 bool ModelViewer_ResetPosScale(ModelViewer* viewer);
 bool ModelViewer_SetModelForScene(ModelViewer* viewer, i32 modelOffset);

@@ -1,7 +1,7 @@
 #include "modelviewer.h"
 #include "modelcode.h"
 
-void ModelViewer_InitCommon(ModelViewer* viewer) {
+void ModelViewer_Init(ModelViewer* viewer) {
     RenderEntity* entity = &viewer->entity;
     Entity_Init(entity);
 
@@ -26,67 +26,20 @@ void ModelViewer_InitCommon(ModelViewer* viewer) {
     viewer->planetDetail = 1;
 }
 
-void ModelViewer_InitPC(ModelViewer* viewer, AssetsDataPC* assetsData) {
-    ModelViewer_InitCommon(viewer);
-
-    RenderEntity* entity = &viewer->entity;
-    SceneSetup* sceneSetup = &viewer->sceneSetup;
-
-    Assets_LoadModelPointers16LE(assetsData->mainExeData + 0x418d4, 300, &sceneSetup->assets.models);
-    Assets_LoadModelPointers16LE(assetsData->galmapModels, 15, &sceneSetup->assets.galmapModels);
-
-    sceneSetup->moduleStrings = Assets_LoadStringPointers16LE(assetsData->mainStringData, 126);
-    sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
-
-    memcpy(entity->entityText, "  RUMBA", 8);
-
-    sceneSetup->debug.modelDataFileStartAddress = assetsData->mainExeData;
-    sceneSetup->debug.fontModelDataFileStartAddress = assetsData->mainExeData;
-}
-
-void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsDataAmiga* assetsData) {
-    ModelViewer_InitCommon(viewer);
+void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsData* assetsData) {
+    ModelViewer_Init(viewer);
 
     SceneSetup* sceneSetup = &viewer->sceneSetup;
     RenderEntity* entity = &viewer->entity;
 
     u8* fileData = assetsData->mainExeData;
 
-    if (assetsData->assetsRead == AssetsRead_Amiga_Orig) {
-        // Load model data
-        Assets_LoadModelPointers16BE(fileData + 0x28804, 300, &sceneSetup->assets.models);
-
-        // Flip model words
-        ARRAY_REWRITE_BE16(fileData + 0x289e4, 0xffee);
-
-        // Galaxy models
-        Assets_LoadModelPointers32BE(fileData + 0x39ea0, 16,  &sceneSetup->assets.galmapModels);
-    } else if (assetsData->assetsRead == AssetsRead_Amiga_EliteClub) {
-        Assets_LoadModelPointers32BE(fileData + 0x28804, 300, &sceneSetup->assets.models);
-
-        // Flip model words
-        ARRAY_REWRITE_BE16(fileData + 0x28c8c, 0x11698);
-    } else if (assetsData->assetsRead == AssetsRead_Amiga_EliteClub2) {
-        Assets_LoadModelPointers32BE(fileData + 0x28804, 300, &sceneSetup->assets.models);
-
-        // Flip model words
-        ARRAY_REWRITE_BE16(fileData + 0x28c8c, 0x11698);
-
-        ARRAY_REWRITE_BE16(fileData + 0x310fe, 92); // 61
-        ARRAY_REWRITE_BE16(fileData + 0x31472, 398); // 63
-        ARRAY_REWRITE_BE16(fileData + 0x31960, 142); // 65
-        ARRAY_REWRITE_BE16(fileData + 0x31b4c, 92); // 69
-        ARRAY_REWRITE_BE16(fileData + 0x31bf6, 76); // 70
-        ARRAY_REWRITE_BE16(fileData + 0x31d58, 336); // 72
-        ARRAY_REWRITE_BE16(fileData + 0x32236, 86); // 73
-        ARRAY_REWRITE_BE16(fileData + 0x3234a, 72); // 74
-        ARRAY_REWRITE_BE16(fileData + 0x32452, 16); // 75
-        ARRAY_REWRITE_BE16(fileData + 0x324cc, 72); // 76
-    }
+    Assets_LoadAmigaMainModels(assetsData);
+    sceneSetup->assets.models = assetsData->mainModels;
 
     sceneSetup->debug.modelDataFileStartAddress = fileData;
     sceneSetup->debug.fontModelDataFileStartAddress = fileData;
-    sceneSetup->assets.galmapModels = assetsData->galmapModels;
+    sceneSetup->assets.fonts = assetsData->galmapModels;
     sceneSetup->assets.bitmapFontData = assetsData->bitmapFontData;
     sceneSetup->assets.mainStrings = assetsData->mainStrings;
     sceneSetup->moduleStrings = sceneSetup->assets.mainStrings;
@@ -95,7 +48,6 @@ void ModelViewer_InitAmiga(ModelViewer* viewer, AssetsDataAmiga* assetsData) {
 }
 
 void ModelViewer_Free(ModelViewer* viewer) {
-    MArrayFree(viewer->sceneSetup.assets.models);
 }
 
 void ModelViewer_ResetForModel(ModelViewer* viewer) {

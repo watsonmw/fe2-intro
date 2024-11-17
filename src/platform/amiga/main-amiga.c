@@ -678,17 +678,17 @@ __stdargs int main(int argc, char** argv) {
     memset(&introSceneSetup, 0, sizeof(introEntity));
     Render_Init(&introSceneSetup, &raster);
 
-    AssetsDataAmiga assetsDataAmiga;
+    AssetsData assetsData;
 
     // Load intro file data
-    Assets_LoadAmigaFiles(&assetsDataAmiga, &amigaExeData, assetsRead);
+    Assets_LoadAmigaFiles(&assetsData, &amigaExeData, assetsRead);
 
     if (sModToPlay) {
         Audio_Init(&sAudioContext, amigaExeData.data, amigaExeData.size);
         Audio_ModStart(&sAudioContext, sModToPlay);
     }
 
-    Intro_InitAmiga(&sIntro, &introSceneSetup, &assetsDataAmiga);
+    Intro_InitAmiga(&sIntro, &introSceneSetup, &assetsData);
 
     // Read model overrides if exists
     ModelsArray overrideModels;
@@ -922,7 +922,7 @@ __stdargs int main(int argc, char** argv) {
     Raster_Free(&raster);
     Surface_Free(&surface);
     Render_Free(&introSceneSetup);
-    Assets_FreeAmigaFiles(&assetsDataAmiga);
+    Assets_Free(&assetsData);
 
     MArrayFree(overrideModels);
     if (overridesFile.data) {

@@ -3553,7 +3553,8 @@ MINTERNAL VertexData* TransformVertexRecursive(RenderContext* rc, RenderFrame* r
 }
 
 MINTERNAL FontModelData* GetFontModel(SceneSetup* sceneSetup, u16 offset) {
-    return (FontModelData*)MArrayGet(sceneSetup->assets.galmapModels, offset);
+    // The two fonts (indexes 0 and 1) are stored in the galmap model list
+    return (FontModelData*)MArrayGet(sceneSetup->assets.fonts, offset);
 }
 
 MINTERNAL u8* GetFontByteCodeForCharacter(FontModelData* fontModel, u16 offset) {
