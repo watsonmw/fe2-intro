@@ -108,6 +108,14 @@ add_executable(
         src/renderinternal.h
 )
 
+add_executable(
+        test
+        src/mlib.h
+        src/mlib.c
+        src/fmath_test.c
+        src/platform/mlib-log-stdlib.c
+)
+
 # Define DEBUG c/c++ macro when compiling in debug mode
 set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG -DM_ASSERT -fno-strict-aliasing")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG -DM_MEM_DEBUG -DM_ASSERT -fno-strict-aliasing")

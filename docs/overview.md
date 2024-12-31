@@ -294,7 +294,8 @@ colour merging / palette compression at all.   This is the version I've implemen
 
 The 68K processor could only do 16-bit multiplies and divides, and each took many cycles to complete
 (MULS - Multiply Signed: took 70 cycles, DIVS - Divide Signed - took a whooping 158 cycles, compare this to add /
-subtract which took around 6 cycles). Hardware supported floating point was very rare as it required an upgraded or
+subtract which took around 6 cycles). Variable integer divides being relatively slow is common today as well as it
+happens.  Hardware supported floating point was very rare as it required an upgraded or
 expensive Amiga.  Not much software supported HW floating point and for real time 3D it often wasn't faster than a
 fixed point scheme anyway (as much of the precision is unneeded / can be worked around).  Anyway, end result,
 the Frontier engine implemented its own fixed point & floating point code using integer instructions.
@@ -676,7 +677,6 @@ But I tried to be true to the original version, and not change the overall feel 
 - Clipping fixes for curved surfaces, circles, and complex polygons
 - Cylinder render fixes - e.g. courier engines not rendering correctly at some angles
 - RTG support for Amiga: 256 colours (like PC version)
-- Liberal use of integer divides (unlike any version)
 
 Here's the same screenshot as above but from the original:
 

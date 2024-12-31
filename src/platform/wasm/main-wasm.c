@@ -298,7 +298,7 @@ void render(u32 currentTimestampMs) {
     } else {
         u32 elapsedMs = currentTimestampMs - sLoopContext.prevClock;
         sLoopContext.prevClock = currentTimestampMs;
-        sLoopContext.updateFpsTimer += elapsedMs;
+        sLoopContext.updateFpsTimer += (int)elapsedMs;
         if (sLoopContext.updateFpsTimer > 1000) {
             sLoopContext.fps = sLoopContext.fpsFrames - 1;
             sLoopContext.fpsFrames = 0;

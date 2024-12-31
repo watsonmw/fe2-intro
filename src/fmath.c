@@ -310,7 +310,7 @@ int I64FormatDistance(i64 distance, char* buffer, u32 bufferSize) {
 
 int Float16FormatDistance(Float16 distance, char* buffer, u32 bufferSize) {
     i64 distance64 = 0;
-    i16 p = distance.p - 15;
+    i16 p = (i16)(distance.p - 15);
     if (p > 0) {
         distance64 = ((i64)distance.v) << p;
     }
@@ -319,7 +319,7 @@ int Float16FormatDistance(Float16 distance, char* buffer, u32 bufferSize) {
 
 int Float32FormatDistance(Float32 distance, char* buffer, u32 bufferSize) {
     i64 distance64 = 0;
-    i16 p = distance.p - 15;
+    i16 p = (i16)(distance.p - 31);
     if (p > 0) {
         distance64 = ((i64)distance.v) << p;
     }

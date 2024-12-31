@@ -128,10 +128,10 @@ MINTERNAL b32 ClipLineY(i16* restrict x1, i16* restrict y1, i16* restrict x2, i1
     i32 yLen = *y2 - *y1;
 
     if (clip1 == 0x1) {
-        *x1 = *x1 + (xLen * ((i32)h - (i32)*y1)) / yLen;
+        *x1 = (i16)(*x1 + (xLen * ((i32)h - (i32)*y1)) / yLen);
         *y1 = h;
     } else if (clip1 == 0x2) {
-        *x1 = *x1 + (xLen * (0 - (i32)*y1)) / yLen;
+        *x1 = (i16)(*x1 + (xLen * (0 - (i32)*y1)) / yLen);
         *y1 = 0;
     }
 
@@ -140,10 +140,10 @@ MINTERNAL b32 ClipLineY(i16* restrict x1, i16* restrict y1, i16* restrict x2, i1
 
     if (clip2 == 0x1) {
         i32 val2 = (xLen * ((i32)h - ((i32)*y2)));
-        *x2 = *x2 + val2 / yLen;
+        *x2 = (i16)(*x2 + val2 / yLen);
         *y2 = h;
     } else if (clip2 == 0x2) {
-        *x2 = *x2 + (xLen * (0 - (i32)*y2)) / yLen;
+        *x2 = (i16)(*x2 + (xLen * (0 - (i32)*y2)) / yLen);
         *y2 = 0;
     }
 
@@ -166,14 +166,14 @@ MINTERNAL u8 GetClipBits(Vec2i16* p, u16 w, u16 h) {
 }
 
 MINTERNAL b32 ClipLinePoint(Vec2i16* restrict p1, Vec2i16* restrict p2, u16 w, u16 h, u8 clip) {
-    i16 xLen = p2->x - p1->x;
-    i16 yLen = p2->y - p1->y;
+    i16 xLen = (i16)(p2->x - p1->x);
+    i16 yLen = (i16)(p2->y - p1->y);
 
     Vec2i16 r;
 
     if (clip & 0x1) {
         // point is left of clip plane
-        r.y = p1->y + (yLen * (0 - p1->x)) / xLen;
+        r.y = (i16)(p1->y + (yLen * (0 - p1->x)) / xLen);
         r.x = 0;
         if (r.y < 0) {
             clip = 0x4;
@@ -184,8 +184,8 @@ MINTERNAL b32 ClipLinePoint(Vec2i16* restrict p1, Vec2i16* restrict p2, u16 w, u
         }
     } else if (clip & 0x2) {
         // point is right of clip plane
-        r.y = p1->y + (yLen * (w - p1->x)) / xLen;
-        r.x = w;
+        r.y = (i16)(p1->y + (yLen * (w - p1->x)) / xLen);
+        r.x = (i16)w;
         if (r.y < 0) {
             clip = 0x4;
         } else if (r.y > h) {
@@ -197,21 +197,21 @@ MINTERNAL b32 ClipLinePoint(Vec2i16* restrict p1, Vec2i16* restrict p2, u16 w, u
 
     if (clip == 0x4) {
         // point is above the clip plane
-        r.x = p1->x + (xLen * (0 - p1->y)) / yLen;
+        r.x = (i16)(p1->x + (xLen * (0 - p1->y)) / yLen);
         r.y = 0;
         if (r.x < 0 || r.x >= w) {
             return FALSE;
         }
     } else if (clip == 0x8) {
         // point is below the clip plane
-        r.x = p1->x + (xLen * (h - p1->y)) / yLen;
-        r.y = h;
+        r.x = (i16)(p1->x + (xLen * (h - p1->y)) / yLen);
+        r.y = (i16)h;
         if (r.x < 0 || r.x >= w) {
             return FALSE;
         }
     }
 
-    done:
+done:
     p1->x = r.x;
     p1->y = r.y;
 
@@ -651,7 +651,7 @@ void Surface_DrawTriFill(Surface* surface, Vec2i16 points[3], u8 colour) {
     int yPos = points[0].y;
 
     if (dfx2 < dfx1) {
-        MSWAP(dfx1, dfx2, int);
+        MSWAP(dfx1, dfx2, int)
         incX = 1;
     }
 
@@ -662,14 +662,14 @@ void Surface_DrawTriFill(Surface* surface, Vec2i16 points[3], u8 colour) {
     }
 
     u8* pixelsLine = surface->pixels + (SURFACE_WIDTH * yPos);
-    int xx1, xx2;
+    i16 xx1, xx2;
     for (; spansToDraw > 0; --spansToDraw) {
-        xx1 = fx1 >> 16;
-        xx2 = fx2 >> 16;
+        xx1 = (i16)(fx1 >> 16);
+        xx2 = (i16)(fx2 >> 16);
 #ifdef FINTRO_INSPECTOR
         i16 xx3 = xx1;
         for (; xx3 < xx2; ++xx3) {
-            int d = pixelsLine - surface->pixels;
+            long d = pixelsLine - surface->pixels;
             surface->insOffset[d + xx3] = surface->insOffsetTmp;
         }
 #endif
@@ -709,17 +709,17 @@ void Surface_DrawTriFill(Surface* surface, Vec2i16 points[3], u8 colour) {
     }
 
     if (fx1 > fx2) {
-        MSWAP(dfx1, dfx2, int);
-        MSWAP(fx1, fx2, int);
+        MSWAP(dfx1, dfx2, int)
+        MSWAP(fx1, fx2, int)
     }
 
     for (; spansToDraw > 0; --spansToDraw) {
-        xx1 = fx1 >> 16;
-        xx2 = fx2 >> 16;
+        xx1 = (i16)(fx1 >> 16);
+        xx2 = (i16)(fx2 >> 16);
 #ifdef FINTRO_INSPECTOR
         i16 xx3 = xx1;
         for (; xx3 < xx2; ++xx3) {
-            int d = pixelsLine - surface->pixels;
+            long d = pixelsLine - surface->pixels;
             surface->insOffset[d + xx3] = surface->insOffsetTmp;
         }
 #endif
@@ -762,7 +762,7 @@ void Surface_DrawQuadFill(Surface* surface, Vec2i16 points[4], u8 colour) {
     int yPos = points[0].y;
 
     if (dfx2 < dfx1) {
-        MSWAP(dfx1, dfx2, int);
+        MSWAP(dfx1, dfx2, int)
         incX = 1;
     }
 
@@ -775,18 +775,18 @@ void Surface_DrawQuadFill(Surface* surface, Vec2i16 points[4], u8 colour) {
     dy2 -= spansToDraw;
 
     u8* pixelsLine = surface->pixels + (SURFACE_WIDTH * yPos);
-    int x1,x2;
+    i16 x1,x2;
     for (; spansToDraw > 0; --spansToDraw) {
-        x1 = fx1 >> 16;
-        x2 = fx2 >> 16;
+        x1 = (i16)(fx1 >> 16);
+        x2 = (i16)(fx2 >> 16);
 #ifdef FINTRO_INSPECTOR
         i16 xx3 = x1;
         for (; xx3 < x2; ++xx3) {
-            int d = pixelsLine - surface->pixels;
+            long d = pixelsLine - surface->pixels;
             surface->insOffset[d + xx3] = surface->insOffsetTmp;
         }
 #endif
-        DrawSpanNoClip(pixelsLine, x1, x2, colour);
+        DrawSpanNoClip(pixelsLine, (i16)x1, (i16)x2, colour);
         fx1 += dfx1;
         fx2 += dfx2;
         pixelsLine += SURFACE_WIDTH;
@@ -841,20 +841,20 @@ void Surface_DrawQuadFill(Surface* surface, Vec2i16 points[4], u8 colour) {
     }
 
     if (fx1 > fx2) {
-        MSWAP(dfx1, dfx2, int);
-        MSWAP(fx1, fx2, int);
+        MSWAP(dfx1, dfx2, int)
+        MSWAP(fx1, fx2, int)
         incX = 1;
     } else {
         incX = 0;
     }
 
     for (; spansToDraw > 0; --spansToDraw) {
-        x1 = fx1 >> 16;
-        x2 = fx2 >> 16;
+        x1 = (i16)(fx1 >> 16);
+        x2 = (i16)(fx2 >> 16);
 #ifdef FINTRO_INSPECTOR
         i16 xx3 = x1;
         for (; xx3 < x2; ++xx3) {
-            int d = pixelsLine - surface->pixels;
+            long d = pixelsLine - surface->pixels;
             surface->insOffset[d + xx3] = surface->insOffsetTmp;
         }
 #endif
@@ -902,17 +902,17 @@ void Surface_DrawQuadFill(Surface* surface, Vec2i16 points[4], u8 colour) {
     }
 
     if (fx1 > fx2) {
-        MSWAP(dfx1, dfx2, int);
-        MSWAP(fx1, fx2, int);
+        MSWAP(dfx1, dfx2, int)
+        MSWAP(fx1, fx2, int)
     }
 
     for (; spansToDraw > 0; --spansToDraw) {
-        x1 = fx1 >> 16;
-        x2 = fx2 >> 16;
+        x1 = (i16)(fx1 >> 16);
+        x2 = (i16)(fx2 >> 16);
 #ifdef FINTRO_INSPECTOR
         i16 xx3 = x1;
         for (; xx3 < x2; ++xx3) {
-            int d = pixelsLine - surface->pixels;
+            long d = pixelsLine - surface->pixels;
             surface->insOffset[d + xx3] = surface->insOffsetTmp;
         }
 #endif
@@ -1105,21 +1105,21 @@ void DrawFlareLayer(Surface* surface, i16 x, i16 y, const u8* flareData, int col
             continue;
         }
 
-        i16 x1 = x - width;
+        i16 x1 = (i16)(x - width);
         width = (width << 1) - 1;
         DrawSpanClipped(surface, x1, y + i, x1 + width, colourIndex);
         DrawSpanClipped(surface, x1, y + (HIGHLIGHTS_SIZE - 2) - i, x1 + width, colourIndex);
     }
 
     u8 width = flareData[i];
-    i16 x1 = x - width;
+    i16 x1 = (i16)(x - width);
     width = (width << 1) - 1;
 
     DrawSpanClipped(surface, x1, y + i, x1 + width, colourIndex);
 }
 
 void Surface_DrawFlare(Surface* surface, i16 x, i16 y, int diameter, u16 colour1, u16 colour2) {
-    i16 offset = (diameter + HIGHLIGHTS_SMALL) * HIGHLIGHTS_SIZE;
+    i16 offset = (i16)((i16)(diameter + HIGHLIGHTS_SMALL) * HIGHLIGHTS_SIZE);
     u8* flareData;
 #if HIGHLIGHTS_SIZE == 16
     flareData = sDrawFlareGraphics16;
@@ -1249,21 +1249,21 @@ MINTERNAL void SpanRenderer_InsertPoint(SpanLine* restrict spanLine, i16 x1) {
 }
 
 MINTERNAL void SpanRenderer_AddLine(SpanRenderer* spans, i16 x1, i16 y1, i16 x2, i16 y2) {
-    if (!ClipLineY(&x1, &y1, &x2, &y2, spans->height)) {
+    if (!ClipLineY(&x1, &y1, &x2, &y2, (i16)spans->height)) {
         return;
     }
 
     if (y1 > y2) {
-        MSWAP(x1, x2, i16);
-        MSWAP(y1, y2, i16);
+        MSWAP(x1, x2, i16)
+        MSWAP(y1, y2, i16)
     }
 
     if (y2 - 1 > spans->spanEnd) {
         if (y2 > spans->height) {
-            y2 = spans->height;
+            y2 = (i16)(spans->height);
         }
 
-        spans->spanEnd = y2 - 1;
+        spans->spanEnd = (i16)(y2 - 1);
     }
 
     if (y1 < spans->spanStart) {
@@ -1281,9 +1281,9 @@ MINTERNAL void SpanRenderer_AddLine(SpanRenderer* spans, i16 x1, i16 y1, i16 x2,
     i32 x32 = x1 << 16;
 
     SpanLine* spanLine = spans->spans + y1;
-    i16 yRemain = y2 - y1;
+    i16 yRemain = (i16)(y2 - y1);
     for (; yRemain > 0; yRemain--) {
-        i16 x = x32 >> 16;
+        i16 x = (i16)(x32 >> 16);
         SpanRenderer_InsertPoint(spanLine, x);
         x32 += ddx;
         spanLine++;
@@ -1308,7 +1308,7 @@ MINTERNAL void SpanRenderer_AddLinesForBezier(SpanRenderer *spans, Vec2i16* pts)
         i32 x2 = subDivision.x >> 16;
         i32 y2 = subDivision.y >> 16;
 
-        SpanRenderer_AddLine(spans, x1, y1, x2, y2);
+        SpanRenderer_AddLine(spans, (i16)x1, (i16)y1, (i16)x2, (i16)y2);
     }
 }
 
@@ -1336,7 +1336,7 @@ MINTERNAL void SpanRenderer_Init(SpanRenderer *spanRenderer, u16 height) {
     }
 
     spanRenderer->height = height;
-    spanRenderer->spanStart = height + 1;
+    spanRenderer->spanStart = (i16)(height + 1);
     spanRenderer->spanEnd = 0;
 
     for (int i = 0; i < height; i++) {
@@ -1372,7 +1372,7 @@ MINTERNAL void SpanRenderer_Draw(SpanRenderer *spans, Surface *surface, u8 colou
     // SpanPrint(spans, surface);
     u8* pixelsLine = surface->pixels + (spans->spanStart * SURFACE_WIDTH);
     SpanLine* spanLine = spans->spans + spans->spanStart;
-    i16 rowsLeft =  spans->spanEnd - spans->spanStart;
+    i16 rowsLeft =  (i16)(spans->spanEnd - spans->spanStart);
     for (; rowsLeft >= 0; rowsLeft--) {
         for (u16 i = 0; (i + 1) < spanLine->num; i += 2) {
             i16 x1 = spanLine->span[i];
@@ -1389,7 +1389,7 @@ MINTERNAL void SpanRenderer_Draw(SpanRenderer *spans, Surface *surface, u8 colou
 #ifdef FINTRO_INSPECTOR
             i16 x3 = x1;
             for (; x3 < x2; ++x3) {
-                int d = pixelsLine - surface->pixels;
+                long d = pixelsLine - surface->pixels;
                 surface->insOffset[d + x3] = surface->insOffsetTmp;
             }
 #endif
@@ -1433,7 +1433,7 @@ MINTERNAL void BodySpans_Init(BodySpanRenderer* spanRenderer, u16 height) {
     u16 maxSpansPerLine = 4;
 
     spanRenderer->maxSpan = height;
-    spanRenderer->spanStart = height;
+    spanRenderer->spanStart = (i16)height;
     spanRenderer->spanEnd = -1;
     spanRenderer->maxSpansPerLine = maxSpansPerLine;
 
@@ -1449,7 +1449,7 @@ MINTERNAL void BodySpans_ToggleColour(BodySpanRenderer* spans, u16 offset, u16 c
 }
 
 MINTERNAL void BodySpans_InsertPoint(BodySpan* bodySpan, i16 x1, u16 colour) {
-    i16 num = bodySpan->num;
+    i16 num = (i16)(bodySpan->num);
     if (num < BODY_MAX_SPANS) {
         Span* span = bodySpan->s + num;
         while (num > 0) {
@@ -1470,21 +1470,21 @@ MINTERNAL void BodySpans_InsertPoint(BodySpan* bodySpan, i16 x1, u16 colour) {
 
 MINTERNAL void BodySpans_AddLine(BodySpanRenderer* spans, i16 x1, i16 y1, i16 x2, i16 y2, u16 colour) {
     // MLogf("%d,%d -> %d,%d", x1, y1, x2, y2);
-    if (!ClipLineY(&x1, &y1, &x2, &y2, spans->height)) {
+    if (!ClipLineY(&x1, &y1, &x2, &y2, (i16)spans->height)) {
         return;
     }
 
     if (y1 > y2) {
-        MSWAP(x1, x2, i16);
-        MSWAP(y1, y2, i16);
+        MSWAP(x1, x2, i16)
+        MSWAP(y1, y2, i16)
     }
 
     if (y2 >= spans->height) {
-        y2 = spans->height;
+        y2 = (i16)(spans->height);
     }
 
     if (y2 - 1 > spans->spanEnd) {
-        spans->spanEnd = y2 - 1;
+        spans->spanEnd = (i16)(y2 - 1);
     }
 
     if (y1 < spans->spanStart) {
@@ -1499,11 +1499,11 @@ MINTERNAL void BodySpans_AddLine(BodySpanRenderer* spans, i16 x1, i16 y1, i16 x2
     }
 
     int decInc = (dx << 16) / dy;
-    int d1 = x1 << 16;
+    i32 d1 = x1 << 16;
 
     BodySpan* spanLine = spans->spans + y1;
     for (; y1 < y2; y1 += 1) {
-        i16 x = d1 >> 16;
+        i16 x = (i16)(d1 >> 16);
         BodySpans_InsertPoint(spanLine, x, colour);
         d1 += decInc;
         spanLine++;
@@ -1528,7 +1528,7 @@ MINTERNAL void BodySpans_AddBezier(BodySpanRenderer* spanRenderer, Vec2i16* pts,
         i32 x2 = subDivision.x >> 16;
         i32 y2 = subDivision.y >> 16;
 
-        BodySpans_AddLine(spanRenderer, x1, y1, x2, y2, colour);
+        BodySpans_AddLine(spanRenderer, (i16)x1, (i16)y1, (i16)x2, (i16)y2, colour);
     }
 }
 
@@ -1608,7 +1608,7 @@ MINTERNAL void BodySpans_Draw(BodySpanRenderer* spans, Surface* surface) {
         u16 beginColour = *rowBeginColours;
         u16 prevEncodedColour = endColourEncoded;
         endColourEncoded = prevEncodedColour ^ beginColour;
-        u16 nSpansRow = bodySpan->num;
+        i16 nSpansRow = (i16)bodySpan->num;
 
         if (nSpansRow > 1) {
             u16 curColour = beginColour;
@@ -1701,7 +1701,7 @@ void Surface_DrawLine(Surface* surface, int x1, int y1, int x2, int y2, u8 colou
 #ifdef FINTRO_INSPECTOR
             i16 x3 = x1;
             for (; x3 < x2; ++x3) {
-                int d = pixelsLine - surface->pixels;
+                long d = pixelsLine - surface->pixels;
                 surface->insOffset[d + x3] = surface->insOffsetTmp;
             }
 #endif
@@ -1718,8 +1718,8 @@ MINTERNAL void Surface_DrawBezierLine(Surface* surface, Vec2i16* pts, u8 colour)
 
     for (i32 i = 0; i <= subDivision.steps; i++) {
         Vec2i16 start;
-        start.x = subDivision.x >> 16;
-        start.y = subDivision.y >> 16;
+        start.x = (i16)(subDivision.x >> 16);
+        start.y = (i16)(subDivision.y >> 16);
 
         subDivision.x += subDivision.dx;
         subDivision.dx += subDivision.d2x;
@@ -2672,7 +2672,7 @@ MINTERNAL u16 ByteCodeRead16u(RenderFrame* rf) {
 }
 
 MINTERNAL i16 ByteCodeRead16i(RenderFrame* rf) {
-    u16 v = *((i16*)rf->byteCodePos);
+    i16 v = *((i16*)rf->byteCodePos);
     rf->byteCodePos += 2;
     return v;
 }
@@ -2853,8 +2853,8 @@ DEPTHNODE_ADD_FUNC(AddHighlightNode, DRAW_FUNC_FLARE, DrawParamsFlare)
 DEPTHNODE_ADD_FUNC(AddQuadNode, DRAW_FUNC_QUAD, DrawParamsQuad)
 
 MINTERNAL Vec2i16 ScreenCoords(Vec2i16 pos) {
-    pos.x = pos.x + (SURFACE_WIDTH >> 1);
-    pos.y = (SURFACE_HEIGHT >> 1) - pos.y;
+    pos.x = (i16)(pos.x + (SURFACE_WIDTH >> 1));
+    pos.y = (i16)((SURFACE_HEIGHT >> 1) - pos.y);
     return pos;
 }
 
@@ -2916,6 +2916,30 @@ MINTERNAL Vec2i16 ZProject(i32 x, i32 y, i32 z) {
         }
     }
 
+#ifdef __GNUC__
+    i32 v = 0;
+    if (x1 < 0) {
+        v |= -x1;
+    } else {
+        v |= x1;
+    }
+    if (y1 < 0) {
+        v |= -y1;
+    } else {
+        v |= y1;
+    }
+
+    i16 scale = __builtin_clz(v);
+    if (scale >= 18) {
+        scale = 0;
+    } else {
+        scale = (i16)(18 - scale);
+    }
+    if (scale) {
+        x1 >>= scale;
+        y1 >>= scale;
+    }
+#else
     if (x1 > 0) {
         while (x1 >= (i32)0x4000) {
             x1 >>= 1;
@@ -2939,7 +2963,7 @@ MINTERNAL Vec2i16 ZProject(i32 x, i32 y, i32 z) {
             y1 >>= 1;
         }
     }
-
+#endif
     Vec2i16 r = {(i16)x1, (i16)y1};
     return r;
 }
@@ -3187,7 +3211,7 @@ MINTERNAL VertexData* TransformProjectVertexRecursive(RenderContext* rc, RenderF
             // screenspace average of two projected vertices (project them first if needed)
             // do for requested vertex and its sibling
             i16 v1i = vertexEvenIndex;
-            i16 v2i = vertexEvenIndex + 1;
+            i16 v2i = (i16)(vertexEvenIndex + 1);
 
             VertexData* v1 = rf->vertexTrans + v1i;
             VertexData* v2 = rf->vertexTrans + v2i;
@@ -3239,9 +3263,9 @@ MINTERNAL VertexData* TransformProjectVertexRecursive(RenderContext* rc, RenderF
         case 0x06: {
             // Negate vertex (x,y,z) and project
             i16 v1i = vertexEvenIndex;
-            i16 v2i = vertexEvenIndex + 1;
+            i16 v2i = (i16)(vertexEvenIndex + 1);
             i16 v3i = lo8s(vertexData2);
-            i16 v4i = v3i ^ 0x1;
+            i16 v4i = (i16)(v3i ^ 0x1);
 
             VertexData* v1 = rf->vertexTrans + v1i;
             VertexData* v2 = rf->vertexTrans + v2i;
@@ -3273,9 +3297,9 @@ MINTERNAL VertexData* TransformProjectVertexRecursive(RenderContext* rc, RenderF
         case 0x08: {
             // Add random vector of given size to vertex and project
             i16 v1i = vertexEvenIndex;
-            i16 v2i = vertexEvenIndex + 1;
+            i16 v2i = (i16)(vertexEvenIndex + 1);
             i16 v3i = lo8s(vertexData2);
-            i16 v4i = v3i ^ 0x1;
+            i16 v4i = (i16)(v3i ^ 0x1);
 
             VertexData* v1 = rf->vertexTrans + v1i;
             VertexData* v2 = rf->vertexTrans + v2i;
@@ -3484,20 +3508,18 @@ MINTERNAL VertexData* TransformProjectVertexRecursive(RenderContext* rc, RenderF
                     Vec3i32 vNew;
                     Vec3i32Sub(vertex2->rVec, vertex1->rVec, vNew);
 
-                    i8 cl = GetScaleBelow(vNew, 0x3fff);
-                    Vec3i32ShiftRight(vNew, cl);
+                    i8 scale = GetScaleBelow0x4000(vNew);
+                    Vec3i32ShiftRight(vNew, scale);
 
                     vNew[0] = vNew[0] * p1;
                     vNew[1] = vNew[1] * p1;
                     vNew[2] = vNew[2] * p1;
 
-                    cl -= 0xf;
-
-                    if (cl > 0) {
-                        Vec3i32ShiftLeft(vNew, cl);
-                    } else if (cl < 0) {
-                        cl = -cl;
-                        Vec3i32ShiftRight(vNew, cl);
+                    scale -= 0xf;
+                    if (scale > 0) {
+                        Vec3i32ShiftLeft(vNew, scale);
+                    } else if (scale < 0) {
+                        Vec3i32ShiftRight(vNew, (i8)(-scale));
                     }
 
                     Vec3i32Add(vNew, vertex1->rVec, vOrig->rVec);
@@ -3603,7 +3625,7 @@ MINTERNAL u16 CalcNormalLightTint(RenderFrame* rf, u8 normalIndex) {
         }
     }
 
-    i16 viewDirScale = rf->scale - rf->viewDirScale;
+    i16 viewDirScale = (i16)(rf->scale - rf->viewDirScale);
     if (viewDirScale > 0) {
         viewToVertex[0] <<= viewDirScale;
         viewToVertex[1] <<= viewDirScale;
@@ -3695,8 +3717,8 @@ MINTERNAL Vec2i16 ClipLineZVec3i32(const Vec3i32 v1, const Vec3i32 v2) {
     }
 
     Vec2i16 pos;
-    pos.x = ((i16)x3) + (SURFACE_WIDTH >> 1);
-    pos.y = (SURFACE_HEIGHT >> 1) - ((i16)y3);
+    pos.x = (i16)(((i16)x3) + (SURFACE_WIDTH >> 1));
+    pos.y = (i16)((SURFACE_HEIGHT >> 1) - ((i16)y3));
     return pos;
 }
 
@@ -3726,17 +3748,17 @@ static u16 sMatrixRotationOffsets3[] = {
 MINTERNAL i16 FlipMatrixAxis(RenderFrame* rf, Matrix3x3i16 matrixDest, u16 flipCommand) {
     u16 flipOffset = (flipCommand & 0x7) << 2;
 
-    i16 newWinding = rf->matrixWinding ^ sMatrixAxisSwaps[flipOffset];
+    i16 newWinding = (i16)(rf->matrixWinding ^ sMatrixAxisSwaps[flipOffset]);
 
     i16 x = rf->entityToView[0][0];
     i16 y = rf->entityToView[0][1];
     i16 z = rf->entityToView[0][2];
 
     if (flipCommand & 0x20) {
-        x = -x;
-        y = -y;
-        z = -z;
-        newWinding = ~newWinding;
+        x = (i16)-x;
+        y = (i16)-y;
+        z = (i16)-z;
+        newWinding = (i16)~newWinding;
     }
 
     u16 di = sMatrixAxisSwaps[flipOffset + 1];
@@ -3749,10 +3771,10 @@ MINTERNAL i16 FlipMatrixAxis(RenderFrame* rf, Matrix3x3i16 matrixDest, u16 flipC
     z = rf->entityToView[1][2];
 
     if (flipCommand & 0x10) {
-        x = -x;
-        y = -y;
-        z = -z;
-        newWinding = ~newWinding;
+        x = (i16)-x;
+        y = (i16)-y;
+        z = (i16)-z;
+        newWinding = (i16)~newWinding;
     }
 
     di = sMatrixAxisSwaps[flipOffset + 2];
@@ -3765,10 +3787,10 @@ MINTERNAL i16 FlipMatrixAxis(RenderFrame* rf, Matrix3x3i16 matrixDest, u16 flipC
     z = rf->entityToView[2][2];
 
     if (flipCommand & 0x08) {
-        x = -x;
-        y = -y;
-        z = -z;
-        newWinding = ~newWinding;
+        x = (i16)-x;
+        y = (i16)-y;
+        z = (i16)-z;
+        newWinding = (i16)~newWinding;
     }
 
     di = sMatrixAxisSwaps[flipOffset + 3];
@@ -3782,18 +3804,18 @@ MINTERNAL i16 FlipMatrixAxis(RenderFrame* rf, Matrix3x3i16 matrixDest, u16 flipC
 MINTERNAL void TransformLightAndViewVectors(RenderContext *scene) {
     RenderFrame* rf = GetRenderFrame(scene);
 
-    i8 scale = GetScaleBelow(rf->entityPos, 0x3f00);
+    i8 scale = GetScaleBelow0x4000(rf->entityPos);
 
     Vec3i32 objectDir;
     // Normalize object direction
     Vec3i32Copy(rf->entityPos, objectDir);
     Vec3i32ShiftRight(objectDir, scale);
 
-    rf->viewDirScale = scale;
+    rf->viewDirScale = (u8)scale;
 
-    scale = scale + 7 - rf->scale;
+    scale = (i8)(scale + 7 - rf->scale);
     if (scale < 0) {
-        scale = -scale;
+        scale = (i8)(-scale);
         rf->viewDirScale += scale;
         Vec3i32ShiftRight(objectDir, scale);
     }
@@ -3987,12 +4009,12 @@ MINTERNAL i32 ClipSpanLine(RenderContext* renderContext, VertexData* v1, VertexD
 }
 
 MINTERNAL i32 CalcVec3i32DepthOffset(RenderFrame* rf, const Vec3i32 v, i32 depthOffset) {
-    i16 scale = 3 - rf->depthScale;
+    i16 scale = (i16)(3 - rf->depthScale);
     i32 z = depthOffset + v[2];
     if (scale <= 0) {
         scale += 24;
         if (z >= 0) {
-            scale = scale & 0x3f;
+            scale = (i16)(scale & 0x3f);
             if (scale) {
                 z >>= scale;
             }
@@ -4025,16 +4047,16 @@ MINTERNAL i32 CalcVec3i32DepthOffset(RenderFrame* rf, const Vec3i32 v, i32 depth
 }
 
 MINTERNAL i32 CalcVec3i32Depth(RenderFrame* rf, const Vec3i32 v) {
-    i16 scale = 3 - rf->depthScale;
+    i16 scale = (i16)(3 - rf->depthScale);
     i32 z = v[2];
     if (scale <= 0) {
         scale += 24;
         if (z >= 0) {
-            scale = scale & 0x3f;
+            scale = (i16)(scale & 0x3f);
             if (scale) {
                 z >>= scale;
             }
-            z = z | 0x80000000;
+            z = (i32)(z | 0x80000000);
         }
     } else {
         i32 y = v[1];
@@ -4051,13 +4073,11 @@ MINTERNAL i32 CalcVec3i32Depth(RenderFrame* rf, const Vec3i32 v) {
 
         y >>= 3;
         z = y + z;
-
         if (z < 0) {
             return 1;
         }
 
         z >>= scale;
-
         if (!z) {
             return 1;
         }
@@ -4067,16 +4087,16 @@ MINTERNAL i32 CalcVec3i32Depth(RenderFrame* rf, const Vec3i32 v) {
 }
 
 MINTERNAL i32 CalcObjectOffsetDepth(RenderFrame* rf, i32 depthOffset) {
-    i16 scale = 3 - rf->depthScale;
+    i16 scale = (i16)(3 - rf->depthScale);
     i32 z = depthOffset + rf->entityPos[2];
     if (scale <= 0) {
         scale += 24;
         if (z > 0) {
-            scale = scale & 0x3f;
+            scale = (i16)(scale & 0x3f);
             if (scale) {
                 z >>= scale;
             }
-            z = z | 0x80000000;
+            z = (i32)(z | 0x80000000);
         }
     }
 
@@ -4653,11 +4673,11 @@ void Render_DrawBitmapText(SceneSetup* sceneSetup, const i8* text, Vec2i16 pos, 
         if (c & 0x80) {
             if (c == 0xfe) {
                 u8 x = text[i++];
-                pos.x = x * 2;
+                pos.x = (i16)(x * 2);
             } else if (c == 0xff) {
                 u8 y = text[i++];
                 u8 x = text[i++];
-                pos.x = x * 2;
+                pos.x = (i16)(x * 2);
                 pos.y = y;
             } else if (c == 0xed) {
                 pos.y += FONT_NEW_LINE;
@@ -4671,9 +4691,9 @@ void Render_DrawBitmapText(SceneSetup* sceneSetup, const i8* text, Vec2i16 pos, 
         } else {
             if (pos.x >= 0 && pos.x < (SURFACE_WIDTH - FONT_MIN_WIDTH)) {
                 if (drawShadow) {
-                    DrawBitmapChar(bitmapFontData, pixels, pos.x + 1, pos.y + 1, c,0);
+                    DrawBitmapChar(bitmapFontData, pixels, (i16)(pos.x + 1), (i16)(pos.y + 1), c,0);
                 }
-                pos.x += DrawBitmapChar(bitmapFontData, pixels, pos.x, pos.y, c, colour);
+                pos.x = pos.x + (i16)DrawBitmapChar(bitmapFontData, pixels, pos.x, pos.y, c, colour);
             }
         }
         c = text[i++];
@@ -5257,7 +5277,7 @@ MINTERNAL int RComplexCircle(RenderContext* renderContext, u16 funcParam) {
         axis2[1] = (F16_FOUR_THIRDS * scale) >> 15;
         axis2[2] = 0;
     } else {
-        i32 len = FMath_SqrtFunc32(lenSqrd);
+        i32 len = (i32)FMath_SqrtFunc32(lenSqrd);
         scale <<= 1;
 
         i32 y1 = rf->complexNormal[0] << 14;
@@ -5419,8 +5439,8 @@ MINTERNAL void AddHighlightOrBacklitCircle(RenderContext* renderContext, RenderF
             i32 depth = CalcVec3i32Depth(rf, v->vVec);
             drawParams = AddRingedCircleNode(renderContext->depthTree, depth);
         }
-        drawParams->x = screenX - 1;
-        drawParams->y = screenY - 1;
+        drawParams->x = (i16)(screenX - 1);
+        drawParams->y = (i16)(screenY - 1);
         drawParams->diameter = diameter;
         drawParams->innerColour = Palette_GetIndexFor12bitColour(renderContext->palette, colour);
         u16 colour2 = ((colour & 0xeee) >> 1) + 0x111;
@@ -5453,7 +5473,7 @@ MINTERNAL void AddHighlight(RenderContext* renderContext, RenderFrame* rf, Verte
 MINTERNAL void RenderCircleParams(RenderContext* renderContext, RenderFrame* rf, VertexData* v, i16 diameter, i32 radiusParam,
                                   i16 screenX, i16 screenY, u16 colourParam, u16 extraColour, b32 lightSource) {
 
-    i32 radius = diameter >> 1;
+    i16 radius = (i16)(diameter >> 1);
 
     b32 isVisible = IsCircleVisible(screenX, screenY, radius);
     if (!isVisible) {
@@ -5491,7 +5511,7 @@ MINTERNAL void RenderCircleParams(RenderContext* renderContext, RenderFrame* rf,
 
                 if (d) {
                     d >>= 3;
-                    i16 diameter2 = sDrawHighlightIndex[d & 0x1f];
+                    i16 diameter2 = (i16)sDrawHighlightIndex[d & 0x1f];
 
                     AddHighlight(renderContext, rf, v, diameter2, screenX, screenY, colour);
                 } else {
@@ -5550,25 +5570,25 @@ MINTERNAL void RenderCircleParams(RenderContext* renderContext, RenderFrame* rf,
 
                 i32 light2d2 = ((i32)rf->lightDirView[0] * (i32)rf->lightDirView[0]) +
                                ((i32)rf->lightDirView[1] * (i32)rf->lightDirView[1]);
-                i32 light2d = FMath_SqrtFunc32(light2d2);
+                i32 light2d = (i32)FMath_SqrtFunc32(light2d2);
 
-                i32 vx;
-                i32 vy;
+                i16 vx;
+                i16 vy;
                 if (light2d != 0) {
-                    vx = (((i32)rf->lightDirView[0]) << 15) / light2d;
-                    vy = ((-(i32)rf->lightDirView[1]) << 15) / light2d;
+                    vx = (i16)((((i32)rf->lightDirView[0]) << 15) / light2d);
+                    vy = (i16)(((-(i32)rf->lightDirView[1]) << 15) / light2d);
                 } else {
-                    vx = (rf->lightDirView[0] >> 15) ^ 0x7fff;
-                    vy = (rf->lightDirView[1] >> 15) ^ 0x7fff;
+                    vx = (i16)((rf->lightDirView[0] >> 15) ^ 0x7fff);
+                    vy = (i16)((rf->lightDirView[1] >> 15) ^ 0x7fff);
                 }
 
-                i16 shadeAxisY = -(vx * radius) >> 15;
-                i16 ctrlPointXOffset = (shadeAxisY * F16_FOUR_THIRDS) >> 15;
+                i16 shadeAxisY = (i16)((i32)(-(vx * radius)) >> 15);
+                i16 ctrlPointXOffset = (i16)((shadeAxisY * F16_FOUR_THIRDS) >> 15);
 
-                i16 shadeAxisX = (vy * radius) >> 15;
-                i16 ctrlPointYOffset = (-shadeAxisX * F16_FOUR_THIRDS) >> 15;
+                i16 shadeAxisX = (i16)((i32)(vy * radius) >> 15);
+                i16 ctrlPointYOffset = (i16)((-shadeAxisX * F16_FOUR_THIRDS) >> 15);
 
-                Vec2i16 pt1 = {screenX + shadeAxisX, screenY + shadeAxisY};
+                Vec2i16 pt1 = {(i16)(screenX + shadeAxisX), (i16)(screenY + shadeAxisY)};
                 bz1->pts[0] = pt1;
                 bz2->pts[3] = pt1;
                 bz3->pts[0] = pt1;
@@ -5582,7 +5602,7 @@ MINTERNAL void RenderCircleParams(RenderContext* renderContext, RenderFrame* rf,
                 pt1.y += (ctrlPointYOffset << 1);
                 bz3->pts[1] = pt1;
 
-                Vec2i16 pt2 = {screenX - shadeAxisX, screenY - shadeAxisY};
+                Vec2i16 pt2 = {(i16)(screenX - shadeAxisX), (i16)(screenY - shadeAxisY)};
 
                 bz1->pts[3] = pt2;
                 bz2->pts[0] = pt2;
@@ -5643,7 +5663,7 @@ MINTERNAL int RenderSubModel(RenderContext* renderContext, RenderFrame* rf, u16 
     i32 y = objectPosition->vVec[1];
     i32 z = objectPosition->vVec[2];
 
-    if (!IsInViewport(radius, x, y, z)) {
+    if (!IsInViewport((i32)radius, x, y, z)) {
 #ifdef FINTRO_INSPECTOR
         rf->debug->modelsSkipped++;
 #endif
@@ -5756,16 +5776,16 @@ MINTERNAL int RenderCircle(RenderContext* renderContext, u16 funcParam) {
     VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi1);
 
     u32 radiusParam = GetValueForParam16(rf, param1);
-    i32 radius = radiusParam >> 1;
+    i32 radius = (i32)(radiusParam >> 1);
 
-    i16 scale = rf->scale - 7;
+    i16 scale = (i16)(rf->scale - 7);
     if (scale >= 0) {
         scale &= 0x3f;
         if (scale) {
             radius <<= scale;
         }
     } else {
-        scale = -scale;
+        scale = (i16)-scale;
         radius >>= scale;
     }
 
@@ -5783,9 +5803,10 @@ MINTERNAL int RenderCircle(RenderContext* renderContext, u16 funcParam) {
             centreZ >>= 1;
         }
 
-        i16 diameter = (radius1 << ZSCALE) / centreZ;
+        i16 diameter = (i16)((radius1 << ZSCALE) / centreZ);
 
-        RenderCircleParams(renderContext, rf, v1, diameter, radius, v1->sVec.x, v1->sVec.y, colourParam, extraColour, lightSource);
+        RenderCircleParams(renderContext, rf, v1, diameter, radius, v1->sVec.x,
+                           v1->sVec.y, colourParam, extraColour, lightSource);
     } else {
         u32 radius1 = radius >> 1;
         if (centreZ < radius1) {
@@ -5832,7 +5853,7 @@ MINTERNAL int RenderCircle(RenderContext* renderContext, u16 funcParam) {
             }
         }
 
-        i32 r16 = radius1 >> 16;
+        i32 r16 = (i32)(radius1 >> 16);
         i32 rSqrd = (r16 * r16);
 
         i32 x16 = x >> 16;
@@ -5854,16 +5875,16 @@ MINTERNAL int RenderCircle(RenderContext* renderContext, u16 funcParam) {
         i32 x2 = (x16 * distRatio) >> 16;
         i32 y2 = (y16 * distRatio) >> 16;
 
-        i32 radiusRatio = (radius1 >> (15 - ZSCALE)) / depthSqrd;
+        i32 radiusRatio = (i32)((radius1 >> (15 - ZSCALE)) / depthSqrd);
 
         i32 distSqrd = (dz + dx + dy);
-        i32 dist = FMath_SqrtFunc32(distSqrd);
+        i32 dist = (i32)FMath_SqrtFunc32(distSqrd);
 
         i32 diameter = (dist * radiusRatio) >> 16;
-        i16 screenX = x2 + (renderContext->width / 2);
-        i16 screenY = (renderContext->height / 2) - y2;
+        i16 screenX = (i16)(x2 + (renderContext->width / 2));
+        i16 screenY = (i16)((renderContext->height / 2) - y2);
 
-        RenderCircleParams(renderContext, rf, v1, diameter, radius, screenX, screenY, colourParam, extraColour, lightSource);
+        RenderCircleParams(renderContext, rf, v1, (i16)diameter, radius, screenX, screenY, colourParam, extraColour, lightSource);
     }
 
     return 0;
@@ -6131,7 +6152,7 @@ MINTERNAL int RenderTeardrop(RenderContext* renderContext, u16 funcParam) {
     i32 dx2 = dx * dx;
     i32 dy2 = dy * dy;
 
-    i32 vDist2d = FMath_SqrtFunc32(dx2 + dy2);
+    i32 vDist2d = (i32)FMath_SqrtFunc32(dx2 + dy2);
 
     if (vDist2d < (blobSize >> 4)) {
         RenderLineWithVerts(renderContext, rf, v1, v2, colour);
@@ -6225,9 +6246,9 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
     SetupNewTransformMatrix(rc, newRenderFrame, rf, param2 >> 8);
 
     if (newRenderFrame->matrixWinding < 0) {
-        newRenderFrame->entityToView[0][0] = -newRenderFrame->entityToView[0][0];
-        newRenderFrame->entityToView[0][1] = -newRenderFrame->entityToView[0][1];
-        newRenderFrame->entityToView[0][2] = -newRenderFrame->entityToView[0][2];
+        newRenderFrame->entityToView[0][0] = (i16)-newRenderFrame->entityToView[0][0];
+        newRenderFrame->entityToView[0][1] = (i16)-newRenderFrame->entityToView[0][1];
+        newRenderFrame->entityToView[0][2] = (i16)-newRenderFrame->entityToView[0][2];
     }
 
     u16 fontIndex = (param1 >> 12);
@@ -6311,7 +6332,7 @@ MINTERNAL int RenderVectorTextNewFrame(RenderContext* rc, RenderFrame* rf, u16 p
 #endif
                 u8* charByteCode = GetFontByteCodeForCharacter(font, charModelOffset + 1);
                 i16 val = (*(i16 *)(charByteCode - 2));
-                vertexIndex = val >> 6;
+                vertexIndex = (i16)(val >> 6);
             }
 
             if (vertexIndex) {
@@ -6437,11 +6458,11 @@ MINTERNAL int RenderIfNot(RenderContext* renderContext, u16 funcParam) {
     } else if (rf->entityPos[2] > 0) {
         i16 scale;
         if (param1 & 0x1) {
-            scale = renderContext->planetDetail;
+            scale = (i16)renderContext->planetDetail;
         } else {
-            scale = renderContext->renderDetail;
+            scale = (i16)renderContext->renderDetail;
         }
-        scale += rf->scale;
+        scale = (i16)(scale + rf->scale);
         i32 zCmp = param1;
         while (scale > 0) {
             zCmp = zCmp << 1;
@@ -6648,7 +6669,7 @@ MINTERNAL int ProjectConePoints(RenderContext* renderContext, VertexData* v, Vec
     Vec3i32 vx;
     CopyVertexView(v, vx);
 
-    u8 pow2 = GetScaleBelow(vx, 0x3fff);
+    u8 pow2 = GetScaleBelow0x4000(vx);
     vx[0] >>= pow2;
     vx[1] >>= pow2;
     vx[2] >>= pow2;
@@ -6843,12 +6864,12 @@ MINTERNAL void RenderConeParams(RenderContext* renderContext, RenderFrame* rf, u
 
             i32 dot1 = Vec3i32DotProd(cap1Axis2, lightSplitAxis);
             i32 r = dot1 / (area + 3);
-            i16 index = (r >> 9) & 0x7f;
+            i16 index = (i16)((r >> 9) & 0x7f);
             i16 lightCutoffAngle = FMath_arccos[index];
 
             i32 dot2 = Vec3i16i32DotProd(rf->lightDirView, cap1Axis);
             if (dot2 < 0) {
-                lightCutoffAngle = -lightCutoffAngle;
+                lightCutoffAngle = (i16)-lightCutoffAngle;
                 MSWAP(colourLit, colour, u16);
             }
 
@@ -6884,17 +6905,17 @@ MINTERNAL void RenderConeParams(RenderContext* renderContext, RenderFrame* rf, u
             AddBezierLinePathToBatch(renderContext, &subDivision2, end);
 
             DrawParamsPoint* spanCont = BatchSpanLineCont(renderContext->depthTree);
-            spanCont->x = subDivision1.x >> 16;
-            spanCont->y = subDivision1.y >> 16;
+            spanCont->x = (i16)(subDivision1.x >> 16);
+            spanCont->y = (i16)(subDivision1.y >> 16);
 
             DrawParamsColour* draw = BatchSpanDraw(renderContext->depthTree);
             draw->colour = Palette_GetIndexFor12bitColour(renderContext->palette, colour);
 
             DrawParamsLine* line = BatchSpanLine(renderContext->depthTree);
-            line->x1 = subDivision1.x >> 16;
-            line->y1 = subDivision1.y >> 16;
-            line->x2 = subDivision2.x >> 16;
-            line->y2 = subDivision2.y >> 16;
+            line->x1 = (i16)(subDivision1.x >> 16);
+            line->y1 = (i16)(subDivision1.y >> 16);
+            line->x2 = (i16)(subDivision2.x >> 16);
+            line->y2 = (i16)(subDivision2.y >> 16);
 
             AddBezierLinePathToBatch(renderContext, &subDivision2, 0);
 
@@ -6903,8 +6924,8 @@ MINTERNAL void RenderConeParams(RenderContext* renderContext, RenderFrame* rf, u
             spanCont->y = cap2BezierPts[3].y;
 
             spanPoint = BatchSpanPoint(renderContext->depthTree);
-            spanPoint->x = subDivision1.x >> 16;
-            spanPoint->y = subDivision1.y >> 16;
+            spanPoint->x = (i16)(subDivision1.x >> 16);
+            spanPoint->y = (i16)(subDivision1.y >> 16);
 
             AddBezierLinePathToBatch(renderContext, &subDivision1, 0);
 
@@ -7011,8 +7032,8 @@ MINTERNAL int RenderIfVar(RenderContext* renderContext, u16 funcParam) {
 MINTERNAL int RenderIfNotVar(RenderContext* renderContext, u16 funcParam) {
     RenderFrame* rf = GetRenderFrame(renderContext);
     u16 param1 = ByteCodeRead16u(rf);
-    i16 val = GetValueForParam8(rf, param1 & 0xff);
-    i16 bit = param1 >> 8;
+    i16 val = (i16)GetValueForParam8(rf, param1 & 0xff);
+    i16 bit = (i16)(param1 >> 8);
 
     if (bit) {
         bit--;
@@ -7038,14 +7059,12 @@ MINTERNAL int RenderDepthTreePushPop(RenderContext* renderContext, u16 funcParam
     RenderFrame* rf = GetRenderFrame(renderContext);
 
     if (funcParam & 0x8000) {
-        // pop unbase
         DepthTree_PopSubTree(renderContext->depthTree);
         return 0;
     }
 
     u16 param0 = funcParam >> 5;
-
-    i16 vi = param0 & 0xff;
+    i16 vi = lo8s(param0);
     VertexData* v = TransformVertex(renderContext, rf, vi);
 
     i32 depth = CalcVec3i32Depth(rf, v->vVec);
@@ -7082,7 +7101,7 @@ MINTERNAL int RenderLineBezier(RenderContext* renderContext, u16 funcParam) {
     i16 vi2 = hi8s(param2);
     VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi2);
 
-    if (v2->vVec[2] < ZCLIPNEAR || v4->vVec[2] < ZCLIPNEAR || v2->vVec[2] < ZCLIPNEAR || v1->vVec[2] < ZCLIPNEAR) {
+    if (v1->vVec[2] < ZCLIPNEAR || v2->vVec[2] < ZCLIPNEAR || v3->vVec[2] < ZCLIPNEAR || v4->vVec[2] < ZCLIPNEAR) {
         return 0;
     }
 
@@ -7168,19 +7187,19 @@ MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
         width = sizeParam ^ 0x8000;
     } else {
         i32 z = rf->entityPos[2];
-        i16 cl = rf->scale - 7;
+        i16 scale = (i16)(rf->scale - 7);
         u32 screenSpaceWidth;
 
-        if (cl >= 0) {
-            cl &= 0x3f;
-            if (cl) {
-                screenSpaceWidth = ((u32)sizeParam) << cl;
+        if (scale >= 0) {
+            scale &= 0x3f;
+            if (scale) {
+                screenSpaceWidth = ((u32)sizeParam) << scale;
             } else {
                 screenSpaceWidth = sizeParam;
             }
         } else {
-            cl = -cl;
-            screenSpaceWidth = ((u32)sizeParam) >> cl;
+            scale = (i16)-scale;
+            screenSpaceWidth = ((u32)sizeParam) >> scale;
         }
 
         if (z <= 0) {
@@ -7193,12 +7212,12 @@ MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
             return 0;
         }
 
-        while (z >= 0x8000) {
-            screenSpaceWidth >>= 1;
-            z >>= 1;
-        }
+        // while (z >= 0x8000) {
+        //    screenSpaceWidth >>= 1;
+        //    z >>= 1;
+        // }
 
-        width = (screenSpaceWidth << ZSCALE) / z;
+        width = (i32)((screenSpaceWidth << ZSCALE) / z);
     }
 
     DrawParamsCircles* drawParams;
@@ -7225,10 +7244,10 @@ MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
         VertexData* v1 = TransformAndProjectVertex(renderContext, rf, vi);
 
         if (v1->vVec[2] >= ZCLIPNEAR) {
-            i16 x = v1->sVec.x - 1;
-            i16 y = v1->sVec.y - 1;
+            i16 x = (i16)(v1->sVec.x - 1);
+            i16 y = (i16)(v1->sVec.y - 1);
 
-            if (IsCircleVisible(x, y, width / 2)) {
+            if (IsCircleVisible(x, y, (i16)(width / 2))) {
                 drawParams->pos[i++] = x;
                 drawParams->pos[i++] = y;
             }
@@ -7242,10 +7261,10 @@ MINTERNAL int RenderCircles(RenderContext* renderContext, u16 funcParam) {
         VertexData* v2 = TransformAndProjectVertex(renderContext, rf, vi);
 
         if (v2->vVec[2] >= ZCLIPNEAR) {
-            i16 x = v2->sVec.x - 1;
-            i16 y = v2->sVec.y - 1;
+            i16 x = (i16)(v2->sVec.x - 1);
+            i16 y = (i16)(v2->sVec.y - 1);
 
-            if (IsCircleVisible(x, y, width / 2)) {
+            if (IsCircleVisible(x, y, (i16)(width / 2))) {
                 drawParams->pos[i++] = x;
                 drawParams->pos[i++] = y;
             }
@@ -7320,7 +7339,7 @@ MINTERNAL int RenderColour(RenderContext* scene, u16 funcParam) {
     if (colourListProvided) {
         u16 p1 = GetValueForParam8(rf, colourListProvided);
         p1 &= 0x7;
-        u32 skipBytes;
+        int skipBytes;
         if (p1) {
             ByteCodeSkipBytes(rf, (p1-1) * 2);
             colourParam = ByteCodeRead16u(rf);
@@ -7359,9 +7378,9 @@ MINTERNAL int RenderModelScale(RenderContext* scene, u16 funcParam) {
     i16 scale;
     if (param2 & 0x800) {
         u16 ix = param2 >> 0xc;
-        scale = rf->tmpVariable[ix];
+        scale = (i16)rf->tmpVariable[ix];
     } else {
-        scale = ((i16)(param2)) >> 0xc;
+        scale = (i16)(((i16)(param2)) >> 0xc);
     }
 
     return RenderSubModel(scene, rf, funcParam, param1, vi, scale, baseColour);
@@ -7497,10 +7516,10 @@ typedef struct sBodyWorkspace {
     i16 radiusMinusHorizonDistScale;
 
     i8 isMonoColour;
-    u16 startToggleColour; // start colour for first span (bottom, spans are rendered bottom to top)
+    i16 startToggleColour; // start colour for first span (bottom, spans are rendered bottom to top)
 
     u32 random;
-    u16 colour;
+    i16 colour;
 } BodyWorkspace;
 
 MINTERNAL void CalcSkyColour(RenderContext* scene, RenderFrame* rf, BodyWorkspace* workspace, u16 skyColour) {
@@ -7574,14 +7593,14 @@ MINTERNAL void PlanetProjectPoint(BodyWorkspace* workspace, Vec3i16 vec, BodyPoi
         len <<= 1;
     }
 
-    i32 distance = ((i32)workspace->arcRadius << 16) / len;
+    i32 distance = (i32)(((i32)workspace->arcRadius << 16) / len);
 
     Vec3i32 wVec;
     wVec[0] = (distance * vec[0]);
     wVec[1] = (distance * vec[1]);
     wVec[2] = (distance * vec[2]);
 
-    scale = 16 - scale;
+    scale = (i16)(16 - scale);
     if (scale) {
         wVec[0] >>= scale;
         wVec[1] >>= scale;
@@ -7590,9 +7609,9 @@ MINTERNAL void PlanetProjectPoint(BodyWorkspace* workspace, Vec3i16 vec, BodyPoi
 
     // If add circle on sphere add its offset
     Vec3i16 sVec;
-    sVec[0] = wVec[0] + workspace->arcCentre[0];
-    sVec[1] = wVec[1] + workspace->arcCentre[1];
-    sVec[2] = wVec[2] + workspace->arcCentre[2];
+    sVec[0] = (i16)(wVec[0] + workspace->arcCentre[0]);
+    sVec[1] = (i16)(wVec[1] + workspace->arcCentre[1]);
+    sVec[2] = (i16)(wVec[2] + workspace->arcCentre[2]);
 
     // Get vector offset to viewport
     Vec3i16 pVec;
@@ -7613,8 +7632,8 @@ MINTERNAL void PlanetProjectPoint(BodyWorkspace* workspace, Vec3i16 vec, BodyPoi
 
             result->clip = 0x9;
 
-            result->pt.x = wVec[0];
-            result->pt.y = wVec[1];
+            result->pt.x = (i16)(wVec[0]);
+            result->pt.y = (i16)(wVec[1]);
 
             return;
         }
@@ -7626,8 +7645,8 @@ MINTERNAL void PlanetProjectPoint(BodyWorkspace* workspace, Vec3i16 vec, BodyPoi
 
         Vec3i16Copy32(wVec, result->pos);
 
-        result->pt.x = wVec[0];
-        result->pt.y = wVec[1];
+        result->pt.x = (i16)(wVec[0]);
+        result->pt.y = (i16)(wVec[1]);
 
         return;
     }
@@ -7638,12 +7657,12 @@ MINTERNAL void PlanetProjectPoint(BodyWorkspace* workspace, Vec3i16 vec, BodyPoi
     point.x += PLANET_CLIP_BORDER;
     point.y += PLANET_CLIP_BORDER;
     if ((point.x < 0) || (point.x > (SURFACE_WIDTH + (2 * PLANET_CLIP_BORDER)))) {
-        result->clip = (result->clip & 0x21) | 0x40;
+        result->clip = (i16)((result->clip & 0x21) | 0x40);
         if ((point.y < 0) || (point.y > (SURFACE_HEIGHT + (2 * PLANET_CLIP_BORDER)))) {
             result->clip |= 0x4;
         }
     } else if ((point.y < 0) || (point.y > (SURFACE_HEIGHT + (2 * PLANET_CLIP_BORDER)))) {
-        result->clip = (result->clip & 0x21) | 0x42;
+        result->clip = (i16)((result->clip & 0x21) | 0x42);
     }
 
     Vec3i16Copy32(wVec, result->pos);
@@ -7691,14 +7710,14 @@ MINTERNAL void PlanetFeatureAddLineSeg(RenderContext* rc, RenderFrame* rf, BodyW
         // not clipped
         if (workspace->prevPt.clip < 0) {
             // prev point also not clipped
-            i16 x = workspace->prevPt.pt.x - spoke->pt.x;
+            i16 x = (i16)(workspace->prevPt.pt.x - spoke->pt.x);
             if (x < 0) {
-                x = -x;
+                x = (i16)-x;
             }
 
-            i16 y = workspace->prevPt.pt.y - spoke->pt.y;
+            i16 y = (i16)(workspace->prevPt.pt.y - spoke->pt.y);
             if (y < 0) {
-                y = -y;
+                y = (i16)-y;
             }
 
             // crude distance check to see if we need to subdivide further
@@ -7789,30 +7808,30 @@ MINTERNAL void PlanetCircle3(RenderContext* scene, RenderFrame* rf, BodyWorkspac
     // A - { -spokeVec[1], spokeVec[0], 0 }
     // B - {  spokeVec[0], spokeVec[1], spokeVec[2] }
     Vec3i16 p;
-    p[0] = ((i32)spokeVec[0] * spokeVec[2]) >> 15;
-    p[1] = ((i32)spokeVec[1] * spokeVec[2]) >> 15;
-    i16 x2 = ((i32)spokeVec[0] * spokeVec[0]) >> 15;
-    i16 y2 = ((i32)spokeVec[1] * spokeVec[1]) >> 15;
-    p[2] = -(x2 + y2);
+    p[0] = (i16)(((i32)spokeVec[0] * spokeVec[2]) >> 15);
+    p[1] = (i16)(((i32)spokeVec[1] * spokeVec[2]) >> 15);
+    i16 x2 = (i16)(((i32)spokeVec[0] * spokeVec[0]) >> 15);
+    i16 y2 = (i16)(((i32)spokeVec[1] * spokeVec[1]) >> 15);
+    p[2] = (i16)(-(x2 + y2));
 
     // Get a vector on the projected circle, by clearing z
     // This is 'A' above
     Vec3i16 vec2;
-    vec2[0] = -spokeVec[1];
+    vec2[0] = (i16)(-spokeVec[1]);
     vec2[1] = spokeVec[0];
     vec2[2] = 0;
 
     PlanetArcStart(workspace, vec2);
 
-    vec2[0] = -p[0];
-    vec2[1] = -p[1];
-    vec2[2] = -p[2];
+    vec2[0] = (i16)(-p[0]);
+    vec2[1] = (i16)(-p[1]);
+    vec2[2] = (i16)(-p[2]);
 
     PlanetArcProject(scene, rf, workspace, vec2);
 
     // -A
     vec2[0] = spokeVec[1];
-    vec2[1] = -spokeVec[0];
+    vec2[1] = (i16)(-spokeVec[0]);
     vec2[2] = 0;
 
     PlanetArcProject(scene, rf, workspace, vec2);
@@ -7848,17 +7867,17 @@ MINTERNAL void PlanetCircle(RenderContext* scene, RenderFrame* rf, BodyWorkspace
 
         Vec3i16 vec2;
         Vec3i16Copy(spokeVec, vec2);
-        vec2[0] += workspace->centre[0];
+        vec2[0] = (i16)(vec2[0] + workspace->centre[0]);
         if (vec2[0] < 0) {
-            vec2[0] = -vec2[0];
+            vec2[0] = (i16)(-vec2[0]);
         }
-        vec2[1] += workspace->centre[1];
+        vec2[1] = (i16)(vec2[1] + workspace->centre[1]);
         if (vec2[1] < 0) {
-            vec2[1] = -vec2[1];
+            vec2[1] = (i16)(-vec2[1]);
         }
-        vec2[2] += workspace->centre[2] + 0x200;
+        vec2[2] = (i16)(vec2[2] + (i16)(workspace->centre[2] + 0x200));
         if (vec2[2] < 0) {
-            vec2[2] = -vec2[2];
+            vec2[2] = (i16)(-vec2[2]);
         }
 
         u32 dist = vec2[0] + vec2[1] + vec2[2];
@@ -7906,7 +7925,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
             workspace->detailLevel += 2;
             return;
         } else {
-            detailParam -= workspace->detailLevel;
+            detailParam = (i16)(detailParam - workspace->detailLevel);
             if (detailParam < 20) {
                 Vec3i16 vec2;
                 Vec3i16Add(spoke->pos, workspace->prevPt.pos, vec2);
@@ -7929,7 +7948,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
                     if (a & 0x8000) {
                         Vec3i16Neg(vec3);
                     }
-                    Vec3i16ShiftRight(vec3, detailParam);
+                    Vec3i16ShiftRight(vec3, (i8)detailParam);
                     Vec3i16Add(vec3, vec2, vec2);
                 }
 
@@ -7941,7 +7960,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
                     if (a & 0x8000) {
                         Vec3i16Neg(vec3);
                     }
-                    Vec3i16ShiftRight(vec3, detailParam);
+                    Vec3i16ShiftRight(vec3, (i8)detailParam);
                     Vec3i16Add(vec3, vec2, vec2);
                 }
 
@@ -7953,7 +7972,7 @@ MINTERNAL void PlanetFeatureLineSegSplit(RenderContext* rc, RenderFrame* rf, Bod
                     if (a & 0x8000) {
                         Vec3i16Neg(vec3);
                     }
-                    Vec3i16ShiftRight(vec3, detailParam);
+                    Vec3i16ShiftRight(vec3, (i8)detailParam);
                     Vec3i16Add(vec3, vec2, vec2);
                 }
 
@@ -8221,9 +8240,9 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
                 workspace->detailParam = 0;
 
                 Vec3i16 vec;
-                vec[0] = -((i16)ByteCodeRead8i(rf) << 8);
-                vec[1] = -((i16)ByteCodeRead8i(rf) << 8);
-                vec[2] = -((i16)ByteCodeRead8i(rf) << 8);
+                vec[0] = (i16)-((i16)ByteCodeRead8i(rf) << 8);
+                vec[1] = (i16)-((i16)ByteCodeRead8i(rf) << 8);
+                vec[2] = (i16)-((i16)ByteCodeRead8i(rf) << 8);
 
                 Vec3i16 vecProjected;
                 MatrixMult_Vec3i16(vec, rf->entityToView, vecProjected);
@@ -8236,7 +8255,7 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
                 i16 arcRadius = (i16)(((i32)(workspace->radiusFeatureDraw * sine)) >> 15);
                 if (arcRadius >= 0x64) {
                     i16 arcOffset = (i16)(((i32)(workspace->radiusFeatureDraw * cosine)) >> 15);
-                    workspace->colour = featureCtrl & 0x1c;
+                    workspace->colour = (i16)(featureCtrl & 0x1c);
                     PlanetCircle(renderContext, rf, workspace, vecProjected, arcRadius, arcOffset);
                     if (featureCtrl & 0x40) {
                         // Mirror circle on other size of sphere
@@ -8248,12 +8267,12 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
                 // Render complex poly on sphere
                 i16 arcStarted = 0;
                 workspace->outsideSphere = 0;
-                workspace->colour = featureCtrl;
+                workspace->colour = (i16)featureCtrl;
                 workspace->arcRadius = workspace->radiusScaled;
                 Vec3i16Zero(workspace->arcCentre);
-                i16 detailLevel = ByteCodeRead8i(rf);
+                i16 detailLevel = (i16)ByteCodeRead8i(rf);
                 if (detailLevel) {
-                    workspace->detailParam = (detailLevel + workspace->relativeScale + 1) << 1;
+                    workspace->detailParam = (i16)((detailLevel + workspace->relativeScale + 1) << 1);
                 } else {
                     workspace->detailParam = 0;
                 }
@@ -8263,9 +8282,9 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
                     Vec3i16 vec;
                     Vec3i16 vecProjected;
 
-                    vec[0] = ((i16) paramX) << 8;
-                    vec[1] = ((i16) ByteCodeRead8i(rf)) << 8;
-                    vec[2] = ((i16) ByteCodeRead8i(rf)) << 8;
+                    vec[0] = (i16)(((i16) paramX) << 8);
+                    vec[1] = (i16)(((i16) ByteCodeRead8i(rf)) << 8);
+                    vec[2] = (i16)(((i16) ByteCodeRead8i(rf)) << 8);
 
                     MatrixMult_Vec3i16(vec, rf->entityToView, vecProjected);
 
@@ -8280,20 +8299,20 @@ MINTERNAL void PlanetRenderFeatures(RenderContext* renderContext, BodyWorkspace*
                         paramX = ByteCodeRead8i(rf);
                         if (paramX == 0) {
                             // Special check to control inside-out-ness
-                            i16 dist = ((i16) ByteCodeRead8i(rf)) << 8;
+                            i16 dist = (i16)(((i16)ByteCodeRead8i(rf)) << 8);
                             BodyPoint bodyPoint;
                             PlanetProjectPoint(workspace, vecProjected, &bodyPoint);
                             if (workspace->radiusScaled >= 0x1000) {
                                 Vec3i16 vec2;
                                 Vec3i16Add(workspace->centre, bodyPoint.pos, vec2);
                                 if (vec2[0] < 0) {
-                                    vec2[0] = -vec2[0];
+                                    vec2[0] = (i16)-vec2[0];
                                 }
                                 if (vec2[1] < 0) {
-                                    vec2[1] = -vec2[1];
+                                    vec2[1] = (i16)-vec2[1];
                                 }
                                 if (vec2[2] < 0) {
-                                    vec2[2] = -vec2[2];
+                                    vec2[2] = (i16)-vec2[2];
                                 }
                                 u32 d2 = vec2[0] + vec2[1] + vec2[2];
                                 i32 r = (workspace->radiusFeatureDraw * (i32)dist) >> 15;
@@ -8487,13 +8506,13 @@ MINTERNAL void PlanetDrawHalfMode(RenderContext* renderContext, BodyWorkspace* w
     DrawParamsLineColour *drawLine1 = BatchBodyLine(renderContext->depthTree);
     drawLine1->x1 = bezierPt[0].x;
     drawLine1->y1 = bezierPt[0].y;
-    drawLine1->x2 = screenSpaceFarX;
-    drawLine1->y2 = screenSpaceFarY;
+    drawLine1->x2 = (i16)screenSpaceFarX;
+    drawLine1->y2 = (i16)screenSpaceFarY;
     drawLine1->colour = 0;
 
     DrawParamsLineColour *drawLine2 = BatchBodyLine(renderContext->depthTree);
-    drawLine2->x1 = screenSpaceFarX;
-    drawLine2->y1 = screenSpaceFarY;
+    drawLine2->x1 = (i16)screenSpaceFarX;
+    drawLine2->y1 = (i16)screenSpaceFarY;
     drawLine2->x2 = bezierPt[3].x;
     drawLine2->y2 = bezierPt[3].y;
     drawLine2->colour = 0;
@@ -8511,18 +8530,18 @@ MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace
     i16 cpMinorScreen = cpMinorLenScreenSpace.v;
 
 #ifndef PLANET_4_BEZIER_OUTLINE
-    i16 pt0x = (workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15;
-    i16 pt0y = (workspace->nearMajorAxisDist.v * (i32) workspace->axisY) >> 15;
-    i16 pt1x = (workspace->farMajorAxisDist.v * (i32) workspace->axisX) >> 15;
-    i16 pt1y = (workspace->farMajorAxisDist.v * (i32) workspace->axisY) >> 15;
+    i16 pt0x = (i16)((workspace->nearMajorAxisDist.v * (i32) workspace->axisX) >> 15);
+    i16 pt0y = (i16)((workspace->nearMajorAxisDist.v * (i32) workspace->axisY) >> 15);
+    i16 pt1x = (i16)((workspace->farMajorAxisDist.v * (i32) workspace->axisX) >> 15);
+    i16 pt1y = (i16)((workspace->farMajorAxisDist.v * (i32) workspace->axisY) >> 15);
 
-    i16 cpAxisW = (cpMinorScreen * (i32) workspace->axisY) >> 15;
-    i16 cpAxisH = (cpMinorScreen * (i32) workspace->axisX) >> 15;
+    i16 cpAxisW = (i16)((cpMinorScreen * (i32) workspace->axisY) >> 15);
+    i16 cpAxisH = (i16)((cpMinorScreen * (i32) workspace->axisX) >> 15);
 
-    i16 cpt0x = pt0x - cpAxisW;
-    i16 cpt0y = pt0y + cpAxisH;
-    i16 cpt1x = pt1x - cpAxisW;
-    i16 cpt1y = pt1y + cpAxisH;
+    i16 cpt0x = (i16)(pt0x - cpAxisW);
+    i16 cpt0y = (i16)(pt0y + cpAxisH);
+    i16 cpt1x = (i16)(pt1x - cpAxisW);
+    i16 cpt1y = (i16)(pt1y + cpAxisH);
 
     Vec2i16 bezierPt[4];
     bezierPt[0].x = pt0x;
@@ -8542,10 +8561,10 @@ MINTERNAL void PlanetDrawFullOutline(RenderContext* renderContext, BodyWorkspace
 
     bezierPt[0].x = pt1x;
     bezierPt[0].y = pt1y;
-    bezierPt[1].x = (pt1x << 1) - cpt1x;
-    bezierPt[1].y = (pt1y << 1) - cpt1y;
-    bezierPt[2].x = (pt0x << 1) - cpt0x;
-    bezierPt[2].y = (pt0y << 1) - cpt0y;
+    bezierPt[1].x = (i16)((pt1x << 1) - cpt1x);
+    bezierPt[1].y = (i16)((pt1y << 1) - cpt1y);
+    bezierPt[2].x = (i16)((pt0x << 1) - cpt0x);
+    bezierPt[2].y = (i16)((pt0y << 1) - cpt0y);
     bezierPt[3].x = pt0x;
     bezierPt[3].y = pt0y;
 
@@ -8745,12 +8764,12 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
 
     u16 byteCodeSize = (funcParam >> 4) & 0xffe; // Size of data
 
-    u16 radiusParm = ByteCodeRead16u(rf);
+    i16 radiusParm = ByteCodeRead16i(rf);
     u16 param2 = ByteCodeRead16u(rf);
 
     // Save byte code offset
     workspace.initialCodeOffset = rf->byteCodePos;
-    workspace.detailLevel = 16 + renderContext->planetDetail;
+    workspace.detailLevel = (i16)(16 + renderContext->planetDetail);
 
     // Get centre vertex in view space coords
     i16 vertexIndex = (i16)(param2 & 0xff);
@@ -8759,9 +8778,9 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     Vec3i32 centreVec;
     Vec3i32Copy(workspace.vertex->vVec, centreVec);
 
-    i16 baseScale = rf->scale + 7;
+    i16 baseScale = (i16)(rf->scale + 7);
     i16 baseRadius = FloatRebase(&baseScale, radiusParm);
-    u16 centreScale = Vec3i16ScaleBelow(centreVec, 0x3f00);
+    u16 centreScale = Vec3i16ScaleBelow0x4000(centreVec);
     u16 relativeScale = 31 + centreScale - baseScale;
     i32 radiusRescaled = (i32)((((u32)((u16) baseRadius)) << 16) >> relativeScale);
     if (!radiusRescaled) {
@@ -8855,7 +8874,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
     renderContext->debug->planetAltitude = Float16Sub(Float32Sqrt(Float32Add(xyOffset2, z2)), workspace.radius);
 
     if (rf->modelData->scale2) {
-        i16 add = rf->modelData->scale2 + 7;
+        i16 add = (i16)(rf->modelData->scale2 + 7);
         renderContext->debug->planetAltitude.p += add;
         renderContext->debug->planetOutlineDist.p += add;
         renderContext->debug->planetRadius.p += add;
@@ -8874,7 +8893,7 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
         Float16 newRadius = Float32Sqrt(newRadius2);
         workspace.radius = newRadius;
         if (workspace.relativeScale) {
-            newRadius.v >>= workspace.relativeScale - 16;
+            newRadius.v = (i16)(newRadius.v >> ((i16)workspace.relativeScale - 16));
         } else {
             newRadius.v = 0;
         }
@@ -8998,15 +9017,15 @@ MINTERNAL int RenderPlanet(RenderContext* renderContext, u16 funcParam) {
 
         if (workspace.colourMode & 0x4) {
             // TODO: Check nearest fractions for these
-            i16 ardRadius1 = (arcRadius * (i32)0x7bef) >> 15;
+            i16 ardRadius1 = (i16)((arcRadius * (i32)0x7bef) >> 15);
             if (workspace.colourMode & 0x2) {
                 workspace.colour = 0x20;
-                PlanetCircle2(renderContext, rf, &workspace, rf->lightDirView, ardRadius1, arcRadius >> 2);
+                PlanetCircle2(renderContext, rf, &workspace, rf->lightDirView, ardRadius1, (i16)(arcRadius >> 2));
             }
 
-            i16 ardRadius2 = (arcRadius * (i32)0x7efe) >> 15;
+            i16 ardRadius2 = (i16)((arcRadius * (i32)0x7efe) >> 15);
             workspace.colour = 0x30;
-            PlanetCircle2(renderContext, rf, &workspace, rf->lightDirView, ardRadius2, arcRadius >> 3);
+            PlanetCircle2(renderContext, rf, &workspace, rf->lightDirView, ardRadius2, (i16)(arcRadius >> 3));
         }
     }
 
@@ -9054,7 +9073,7 @@ MINTERNAL void FrameRenderObjects(RenderContext* rc, ModelData* model) {
     int scale = rf->scale - (8 + rf->viewDirScale);
     if (scale > 0) {
         rf->viewDirScale += scale;
-        Vec3i16ShiftRight(rf->viewDirObject, scale);
+        Vec3i16ShiftRight(rf->viewDirObject, (i8)scale);
     }
 
 #if FRAME_MEM_USE_STACK_ALLOC
@@ -9198,7 +9217,7 @@ void Render_RenderScene(SceneSetup* sceneSetup, RenderEntity* entity) {
     rf->depthScale = entity->depthScale;
 
 #ifdef FINTRO_INSPECTOR
-    entity->modelScale =  modelData->scale1 + modelData->scale2;
+    entity->modelScale =  (i16)(modelData->scale1 + modelData->scale2);
     rf->debug->modelsVisited++;
 #endif
 

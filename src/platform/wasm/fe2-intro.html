@@ -145,6 +145,7 @@
             let started = false;
             let paused = false;
             let debug = false;
+            let wake_lock = null;
             let audio = Audio(renderAudioTicks);
 
             const memory = new WebAssembly.Memory({
@@ -329,27 +330,50 @@
                 }
             }
 
-            function start() {
+            const requestWakeLock = async () => {
+                try {
+                    if (wake_lock) {
+                        wake_lock.release();
+                    }
+                    wake_lock = await navigator.wakeLock.request();
+                    wake_lock.addEventListener('release', () => { wake_lock = null; });
+                } catch (err) {
+                    console.error(`${err.name}, ${err.message}`);
+                }
+            };
+
+            function releaseWakeLock() {
+                if (wake_lock) {
+                    wake_lock.release();
+                    wake_lock = null;
+                }
+            }
+
+            async function start() {
                 if (!started) {
                     started = true;
                     wasm_app.instance.exports.start_intro_after_interaction(currentTimestampMs());
                     audio.start();
+                    await requestWakeLock();
                 }
             }
 
             function pause() {
                 paused = true;
+                releaseWakeLock();
                 wasm_app.instance.exports.set_paused(true, currentTimestampMs());
                 audio.pause();
             }
 
-            function resume() {
+            async function resume() {
                 paused = false;
+                await requestWakeLock();
                 wasm_app.instance.exports.set_paused(false, currentTimestampMs());
                 audio.resume();
             }
 
             function toggleDebug() {
+                console.log(wasm_app.instance.exports)
                 debug = !debug;
                 wasm_app.instance.exports.set_debug_mode(debug);
             }
@@ -373,7 +397,8 @@
                 isPaused: () => { return paused; },
                 toggleDebug: toggleDebug,
                 volumeUp: volumeUp,
-                volumeDown: volumeDown
+                volumeDown: volumeDown,
+                requestWakeLock: requestWakeLock
             };
         });
 
@@ -509,9 +534,9 @@
         let userPaused = false;
 
         window.addEventListener("blur", (e) => { mainApp.pause(); });
-        window.addEventListener("focus", (e) => { if (!userPaused) mainApp.resume(); });
-        window.addEventListener("mousedown", (e) => { if (!mainApp.isStarted()) mainApp.start(); });
-        window.addEventListener("keydown", (e) => {
+        window.addEventListener("focus", async(e) => { if (!userPaused) await mainApp.resume(); });
+        window.addEventListener("mousedown", async(e) => { if (!mainApp.isStarted()) await mainApp.start(); });
+        window.addEventListener("keydown", async(e) => {
             switch (e.key) {
                 case '`':
                     mainApp.toggleDebug();
@@ -519,7 +544,7 @@
                 case ' ':
                     if (mainApp.isPaused()) {
                         userPaused = false;
-                        mainApp.resume();
+                        await mainApp.resume();
                     } else {
                         userPaused = false;
                         mainApp.pause();
@@ -531,6 +556,13 @@
                 case '0':
                     mainApp.volumeDown();
                     break;
+            }
+        });
+
+        document.addEventListener('visibilitychange',  async() => {
+            // Keep screen on when made visible again
+            if (document.visibilityState === 'visible' && !mainApp.isPaused()) {
+                await mainApp.requestWakeLock();
             }
         });
 

@@ -403,7 +403,9 @@ i16 shadeRamps[8][8] = {
 };
 
 int main(int, char**) {
+#ifndef NDEBUG
     MMemDebugInit();
+#endif
 
     AssetsReadEnum assetsRead = AssetsRead_Amiga_EliteClub2;
 
@@ -1662,7 +1664,9 @@ int main(int, char**) {
     SDL_DestroyWindow(window);
     SDL_Quit();
 
+#ifndef NDEBUG
     MMemDebugDeinit();
+#endif
 
     return 0;
 }

@@ -102,7 +102,7 @@ MINLINE b32 FMath_RangedCheck(i32 val, u32 maxValue) {
 }
 
 MINLINE i32 FMath_Distance3i32(i32 x, i32 y, i32 z) {
-    return FMath_SqrtFunc32((x * x) + (y * y) + (z * z));
+    return (i32)FMath_SqrtFunc32((u32)((x * x) + (y * y) + (z * z)));
 }
 
 MINLINE i32 Vec3i32Length(const Vec3i32 v) {
@@ -118,7 +118,7 @@ MINLINE void LookupSineAndCosine(u16 angle, i16* sine, i16* cosine) {
     u16 mask = 1 << 0xf;
     if (angle & mask) {
         u16 lookupAngle = (angle ^ mask) >> 4;
-        *sine = -FMath_sine[lookupAngle];
+        *sine = (i16)(-FMath_sine[lookupAngle]);
     } else {
         *sine = FMath_sine[angle >> 4];
     }
@@ -126,7 +126,7 @@ MINLINE void LookupSineAndCosine(u16 angle, i16* sine, i16* cosine) {
     angle += 0x4000;
     if (angle & mask) {
         u16 lookupAngle = (angle ^ mask) >> 4;
-        *cosine = -FMath_sine[lookupAngle];
+        *cosine = (i16)(-FMath_sine[lookupAngle]);
     } else {
         *cosine = FMath_sine[angle >> 4];
     }
@@ -171,27 +171,27 @@ MINLINE void MatrixMult_Vec3i32(const Vec3i32 v, const Matrix3x3i16 m, Vec3i32 d
 // d = v * m (row vector on right)
 //   row vector on the left
 MINLINE void MatrixMult_Vec3i16(const Vec3i16 v, const Matrix3x3i16 m, Vec3i16 d) {
-    d[0] = (m[0][0] * (i32) v[0] + m[1][0] * (i32) v[1] + m[2][0] * (i32) v[2]) >> 15;
-    d[1] = (m[0][1] * (i32) v[0] + m[1][1] * (i32) v[1] + m[2][1] * (i32) v[2]) >> 15;
-    d[2] = (m[0][2] * (i32) v[0] + m[1][2] * (i32) v[1] + m[2][2] * (i32) v[2]) >> 15;
+    d[0] = (i16)((m[0][0] * (i32) v[0] + m[1][0] * (i32) v[1] + m[2][0] * (i32) v[2]) >> 15);
+    d[1] = (i16)((m[0][1] * (i32) v[0] + m[1][1] * (i32) v[1] + m[2][1] * (i32) v[2]) >> 15);
+    d[2] = (i16)((m[0][2] * (i32) v[0] + m[1][2] * (i32) v[1] + m[2][2] * (i32) v[2]) >> 15);
 }
 
 // d = v * transpose(m)
 //   if m is a rotation, this inverts the rotation
 //   row vector on the left
 MINLINE void MatrixMult_Vec3i16_T(const Vec3i16 v, const Matrix3x3i16 m, Vec3i16 d) {
-    d[0] = (m[0][0] * (i32) v[0] + m[0][1] * (i32) v[1] + m[0][2] * (i32) v[2]) >> 15;
-    d[1] = (m[1][0] * (i32) v[0] + m[1][1] * (i32) v[1] + m[1][2] * (i32) v[2]) >> 15;
-    d[2] = (m[2][0] * (i32) v[0] + m[2][1] * (i32) v[1] + m[2][2] * (i32) v[2]) >> 15;
+    d[0] = (i16)((m[0][0] * (i32) v[0] + m[0][1] * (i32) v[1] + m[0][2] * (i32) v[2]) >> 15);
+    d[1] = (i16)((m[1][0] * (i32) v[0] + m[1][1] * (i32) v[1] + m[1][2] * (i32) v[2]) >> 15);
+    d[2] = (i16)((m[2][0] * (i32) v[0] + m[2][1] * (i32) v[1] + m[2][2] * (i32) v[2]) >> 15);
 }
 
 // d = v * transpose(m)
 //   if m is a rotation, this inverts the rotation
 //   row vector on the left
 MINLINE void MatrixMult_Vec3i32_T(const Vec3i32 v, const Matrix3x3i16 m, Vec3i16 d) {
-    d[0] = (m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2]) >> 15;
-    d[1] = (m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2]) >> 15;
-    d[2] = (m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2]) >> 15;
+    d[0] = (i16)((m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2]) >> 15);
+    d[1] = (i16)((m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2]) >> 15);
+    d[2] = (i16)((m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2]) >> 15);
 }
 
 MINLINE void Matrix3i16Copy(const Matrix3x3i16 src, Matrix3x3i16 dest) {
@@ -259,9 +259,9 @@ MINLINE void Vec3i16Copy(const Vec3i16 v, Vec3i16 dest) {
 }
 
 MINLINE void Vec3i16Copy32(const Vec3i32 v, Vec3i16 dest) {
-    dest[0] = v[0];
-    dest[1] = v[1];
-    dest[2] = v[2];
+    dest[0] = (i16)v[0];
+    dest[1] = (i16)v[1];
+    dest[2] = (i16)v[2];
 }
 
 MINLINE void Vec3i32Copy(const Vec3i32 v, Vec3i32 dest) {
@@ -283,15 +283,15 @@ MINLINE void Vec3i32ShiftLeft(Vec3i32 v, i8 shiftLeft) {
 }
 
 MINLINE void Vec3i16ShiftRight(Vec3i16 v, i8 shiftRight) {
-    v[0] = v[0] >> shiftRight;
-    v[1] = v[1] >> shiftRight;
-    v[2] = v[2] >> shiftRight;
+    v[0] = (i16)(v[0] >> shiftRight);
+    v[1] = (i16)(v[1] >> shiftRight);
+    v[2] = (i16)(v[2] >> shiftRight);
 }
 
 MINLINE void Vec3i16ShiftLeft(Vec3i16 v, i8 shiftLeft) {
-    v[0] = v[0] << shiftLeft;
-    v[1] = v[1] << shiftLeft;
-    v[2] = v[2] << shiftLeft;
+    v[0] = (i16)(v[0] << shiftLeft);
+    v[1] = (i16)(v[1] << shiftLeft);
+    v[2] = (i16)(v[2] << shiftLeft);
 }
 
 MINLINE void Vec3132Midpoint(const Vec3i32 v1, const Vec3i32 v2, Vec3i32 dest) {
@@ -301,9 +301,9 @@ MINLINE void Vec3132Midpoint(const Vec3i32 v1, const Vec3i32 v2, Vec3i32 dest) {
 }
 
 MINLINE void Vec3i16Neg(Vec3i16 v) {
-    v[0] = -v[0];
-    v[1] = -v[1];
-    v[2] = -v[2];
+    v[0] = (i16)(-v[0]);
+    v[1] = (i16)(-v[1]);
+    v[2] = (i16)(-v[2]);
 }
 
 MINLINE void Vec3i16Zero(Vec3i16 v) {
@@ -313,15 +313,15 @@ MINLINE void Vec3i16Zero(Vec3i16 v) {
 }
 
 MINLINE void Vec3i16Multi16(const Vec3i16 v, i32 s, Vec3i16 dest) {
-    dest[0] = (s * v[0]) >> 15;
-    dest[1] = (s * v[1]) >> 15;
-    dest[2] = (s * v[2]) >> 15;
+    dest[0] = (i16)((s * v[0]) >> 15);
+    dest[1] = (i16)((s * v[1]) >> 15);
+    dest[2] = (i16)((s * v[2]) >> 15);
 }
 
 MINLINE void Vec3i16Add(const Vec3i16 v1, const Vec3i16 v2, Vec3i16 dest) {
-    dest[0] = v1[0] + v2[0];
-    dest[1] = v1[1] + v2[1];
-    dest[2] = v1[2] + v2[2];
+    dest[0] = (i16)(v1[0] + v2[0]);
+    dest[1] = (i16)(v1[1] + v2[1]);
+    dest[2] = (i16)(v1[2] + v2[2]);
 }
 
 MINLINE void Vec3i32Neg(Vec3i32 v) {
@@ -352,7 +352,7 @@ MINLINE void Vec3i32CrossProd(const Vec3i32 v1, const Vec3i32 v2, Vec3i32 dest) 
  * Calc cross product & permutate x,y,z -> y,z,x
  *
  * This permutation is equivalent to rotating 120 degrees around {1,1,1}, or
- * two 90 degree rotations around the y then x axis.
+ * two 90 degree rotations around the y then x-axis.
  */
 MINLINE void Vec3i32CrossProdNormal(const Vec3i32 v1, const Vec3i16 v2, Vec3i32 dest) {
     dest[0] = (v1[2] * v2[0] - v1[0] * v2[2]) >> 15; // y
@@ -376,15 +376,25 @@ MINLINE void Vec3i16Normalise(const Vec3i16 in, Vec3i16 out) {
     i32 d = in[0] * (i32)in[0] + in[1] * (i32)in[1] + in[2] * (i32)in[2];
     u32 scale = FMath_SqrtFunc32(d);
     u32 scaleInv = 0x7fffffff / scale;
-    out[0] = (in[0] * (i32)scaleInv) >> 16;
-    out[1] = (in[1] * (i32)scaleInv) >> 16;
-    out[2] = (in[2] * (i32)scaleInv) >> 16;
+    out[0] = (i16)((in[0] * (i32)scaleInv) >> 16);
+    out[1] = (i16)((in[1] * (i32)scaleInv) >> 16);
+    out[2] = (i16)((in[2] * (i32)scaleInv) >> 16);
 }
 
 MINLINE i8 GetScaleBelow(const Vec3i32 v, i32 max) {
-    i32 x = abs(v[0]);
-    i32 y = abs(v[1]);
-    i32 z = abs(v[2]);
+    i32 x = v[0];
+    i32 y = v[1];
+    i32 z = v[2];
+
+    if (x < 0) {
+        x = -x;
+    }
+    if (y < 0) {
+        y = -y;
+    }
+    if (z < 0) {
+        z = -z;
+    }
 
     u32 o = x | y | z;
     i8 scale = 0;
@@ -396,42 +406,42 @@ MINLINE i8 GetScaleBelow(const Vec3i32 v, i32 max) {
     return scale;
 }
 
-MINLINE i8 GetScaleBelow_noAbs(i32 x, i32 y, i32 z, i32 max) {
+MINLINE i8 GetScaleBelow0x4000(const Vec3i32 v) {
+    i32 x = v[0];
     if (x < 0) {
         x = -x;
     }
 
+    i32 y = v[1];
     if (y < 0) {
         y = -y;
     }
 
+    i32 z = v[2];
     if (z < 0) {
         z = -z;
     }
 
-    u8 cl = 0;
-    while (x > max) {
-        cl++;
-        x = x >> 1;
+    u32 o = x | y | z;
+#ifdef __GNUCC__
+    i8 scale = 0;
+    while (o >= 0x4000) {
+        o >>= 1;
+        scale++;
     }
-
-    y >>= cl;
-    while (y > max) {
-        cl++;
-        y = y >> 1;
+#else
+    i8 scale = (i8)__builtin_clz(o);
+    if (scale >= 18) {
+        scale = 0;
+    } else {
+        scale = (i8)(18 - scale);
     }
-
-    z >>= cl;
-    while (z > max) {
-        cl++;
-        z = z >> 1;
-    }
-
-    return cl;
+#endif
+    return scale;
 }
 
-MINLINE i16 Vec3i16ScaleBelow(Vec3i32 v, i32 max) {
-    i8 scale = GetScaleBelow(v, max);
+MINLINE i16 Vec3i16ScaleBelow0x4000(Vec3i32 v) {
+    i8 scale = GetScaleBelow0x4000(v);
     v[0] >>= scale;
     v[1] >>= scale;
     v[2] >>= scale;
@@ -464,7 +474,7 @@ MINLINE Float32 Float32MakeFromInt(i32 val) {
         f32.v = 0;
         f32.p = -0x7;
     } else {
-        f32.p = F16_FRAC_BITS; // input size matches internal value size
+        f32.p = F32_FRAC_BITS; // input size matches internal value size
         // count number of leading 0s or 1s (0 for positive numbers, 1 for neg), minus 1 (for the sign bit).
         while (val > 0 == !(val & 0x40000000)) {
             val <<= 1;
@@ -502,48 +512,84 @@ MINLINE Float16 Float16uRebase(Float16 val) {
 
         param >>= 1;
         val.p++;
-        val.v = param;
+        val.v = (i16)param;
     }
 
     return val;
 }
 
-MINLINE Float32 _Float32Rebase(Float32 f32) {
+MINLINE Float32 Float32Rebase(Float32 f32) {
     // count number of leading 0s or 1s (0 for positive numbers, 1 for neg), minus 1 (for the sign bit).
     // this can be achieved in asm quite easily using the overflow and carry flags set by <<
-    while (f32.v > 0 == !(f32.v & 0x40000000)) {
-        f32.v <<= 1;
-        f32.p--;
+    if (f32.v > 0) {
+#ifdef __GNUC__
+        int c = __builtin_clz(f32.v);
+        if (c > 1) {
+            f32.v = (i32)(f32.v << (i32)(c - 1));
+            f32.p = (i16)(f32.p - (i16)(c - 1));
+        }
+#else
+        while (!(f32.v & 0x40000000)) {
+            f32.v <<= 1;
+            f32.p--;
+        }
+#endif
+    } else if (f32.v < 0) {
+        i32 v = (i32)(((i32)~f32.v)+1);
+#ifdef __GNUC__
+        int c = __builtin_clz(v);
+        if (c > 1) {
+            v = (i32)(v << (i32)(c - 1));
+            f32.p = (i16)(f32.p - (i16)(c - 1));
+        }
+#else
+        while (!(v & 0x40000000)) {
+            v <<= 1;
+            f32.p--;
+        }
+#endif
+        f32.v = (i32)(~((i32)v-1));
     }
+
     return f32;
 }
 
 MINLINE Float16 Float16Rebase(Float16 f16) {
+#ifdef __GNUC__
+    if (f16.v > 0) {
+        int c = __builtin_clz(f16.v) - 16;
+        if (c > 1) {
+            f16.v = (i16)(f16.v << (i16)(c - 1));
+            f16.p = (i16)(f16.p - (i16)(c - 1));
+        }
+    } else if (f16.v < 0) {
+        i16 v = (i16)(((i16)~f16.v) + 1);
+        int c = __builtin_clz(v) - 16;
+        if (c > 1) {
+            v = (i16)(v << (i16)(c - 1));
+            f16.p = (i16)(f16.p - (i16)(c - 1));
+        }
+        f16.v = (i16)(~((i16)v-1));
+    }
+#else
     // count number of leading 0s or 1s (0 for positive numbers, 1 for neg), minus 1 (for the sign bit).
     // this can be achieved in asm quite easily using the overflow and carry flags set by <<
     while (f16.v > 0 == !(f16.v & 0x4000)) {
         f16.v <<= 1;
         f16.p--;
     }
+#endif
     return f16;
-}
-
-MINLINE Float32 Float32Rebase(Float32 f32) {
-    if (f32.v == 0) {
-        return f32;
-    } else {
-        return _Float32Rebase(f32);
-    }
 }
 
 MINLINE Float16 Float16Mult(Float16 f1, Float16 f2) {
     Float16 f16;
-    f16.p = f1.p + f2.p;
+    f16.p = (i16)(f1.p + f2.p);
     i32 v1 = f1.v;
     i32 v2 = f2.v;
-    i16 x = (i16) ((v1 * v2) >> 16);
+    i16 x = (i16)((v1 * v2) >> 16);
     if (x < 0x4000) {
-        f16.v = x << 1;
+        f16.v = (i16)(x << 1);
     } else {
         f16.v = x;
         f16.p += 1;
@@ -553,7 +599,7 @@ MINLINE Float16 Float16Mult(Float16 f1, Float16 f2) {
 
 MINLINE Float32 Float16Mult32(Float16 f1, Float16 f2) {
     Float32 f32;
-    f32.p = f1.p + f2.p;
+    f32.p = (i16)(f1.p + f2.p);
     i16 v1 = f1.v;
     i16 v2 = f2.v;
     i32 x = ((i32)v1 * v2);
@@ -568,7 +614,7 @@ MINLINE Float32 Float16Mult32(Float16 f1, Float16 f2) {
 
 MINLINE Float32 Float32Add(Float32 f1, Float32 f2) {
     Float32 f32;
-    i16 dp = f1.p - f2.p;
+    i16 dp = (i16)(f1.p - f2.p);
     i16 p;
     if (dp > 0) {
         if (dp >= F32_FRAC_BITS) {
@@ -577,7 +623,7 @@ MINLINE Float32 Float32Add(Float32 f1, Float32 f2) {
         f2.v >>= dp;
         p = f1.p;
     } else if (dp < 0) {
-        dp = -dp;
+        dp = (i16)(-dp);
         p = f2.p;
         if (dp >= F32_FRAC_BITS) {
             return f2;
@@ -586,23 +632,35 @@ MINLINE Float32 Float32Add(Float32 f1, Float32 f2) {
     } else {
         p = f2.p;
     }
-    // todo: use intrinsics, this is kind of an absurd way to deal with overflows/underflows
+
+#ifdef __GNUC__
+    if (__builtin_add_overflow(f1.v, f2.v, &f32.v)) {
+        f32.v = (i32)((f1.v >> 1) + (f2.v >> 1));
+        f32.p = (i16)(p + 1);
+        return f32;
+    } else {
+        f32.v = (i32)(f1.v + f2.v);
+        f32.p = p;
+        return Float32Rebase(f32);
+    }
+#else
     i32 v = f1.v + f2.v;
-    if (((f1.v < 0) && (f2.v < 0) && (f1.v + f2.v > 0)) ||
-        ((f1.v > 0) && (f2.v > 0) && (f1.v + f2.v < 0))) {
+    if (((f1.v < 0) && (f2.v < 0) && (v >= 0)) ||
+        ((f1.v > 0) && (f2.v > 0) && (v < 0))) {
         f32.v = (f1.v >> 1) + (f2.v >> 1);
         f32.p = p + 1;
         return f32;
     } else {
         f32.v = v;
         f32.p = p;
-        return _Float32Rebase(f32);
+        return Float32Rebase(f32);
     }
+#endif
 }
 
 MINLINE Float32 Float32Sub(Float32 f1, Float32 f2) {
     Float32 f32;
-    i16 dp = f1.p - f2.p;
+    i16 dp = (i16)(f1.p - f2.p);
     i16 p;
     if (dp > 0) {
         if (dp >= F32_FRAC_BITS) {
@@ -611,7 +669,7 @@ MINLINE Float32 Float32Sub(Float32 f1, Float32 f2) {
         f2.v >>= dp;
         p = f1.p;
     } else if (dp < 0) {
-        dp = -dp;
+        dp = (i16)(-dp);
         p = f2.p;
         if (dp >= F32_FRAC_BITS) {
             f1.v = 0;
@@ -621,18 +679,45 @@ MINLINE Float32 Float32Sub(Float32 f1, Float32 f2) {
     } else {
         p = f2.p;
     }
-    i32 v = f1.v - f2.v;
-    // todo: use intrinsics, this is kind of an absurd way to deal with overflows/underflows
-    if (((f1.v < 0) && (f2.v > 0) && (v > 0)) ||
-        ((f1.v > 0) && (f2.v < 0) && (v < 0))) {
+#ifdef __GNUC__
+    if (__builtin_sub_overflow(f1.v, f2.v, &f32.v)) {
         f32.v = (f1.v >> 1) - (f2.v >> 1);
-        f32.p = p + 1;
+        f32.p = (i16)(p + 1);
+        return f32;
+    } else {
+        f32.v = f1.v - f2.v;
+        f32.p = p;
+        return Float32Rebase(f32);
+    }
+#else
+    i32 v = f1.v - f2.v;
+    if (((f1.v < 0) && (f2.v > 0) && (v > 0)) ||
+        ((f1.v >= 0) && (f2.v < 0) && (v < 0))) {
+        f32.v = (f1.v >> 1) - (f2.v >> 1);
+        f32.p = (i16)(p + 1);
         return f32;
     } else {
         f32.v = v;
         f32.p = p;
-        return _Float32Rebase(f32);
+        return Float32Rebase(f32);
     }
+#endif
+}
+
+MINLINE Float32 Float32Div(Float32 v1, Float32 v2) {
+    if (v2.v == 0) {
+        return (Float32) {(i16)0x7fffffff, 0x40};
+    }
+    i16 p = (i16)(v1.p - v2.p);
+    i64 v = (i64)v1.v << 30;
+    v /= v2.v;
+    i32 v32 = (i32) v;
+    if (v32 < 0x40000000 && v32 > -0x40000000) {
+        v32 <<= 1;
+    } else {
+        p += 1;
+    }
+    return (Float32) {v32, p};
 }
 
 MINLINE Float16 Float32Convert16(Float32 f32) {
@@ -651,77 +736,100 @@ MINLINE Float32 Float16Convert32(Float16 f16) {
 
 MINLINE Float16 Float16Add(Float16 f1, Float16 f2) {
     Float16 f16;
-    i16 dp = f1.p - f2.p;
+    i16 dp = (i16)(f1.p - f2.p);
     i16 p;
     if (dp > 0) {
         if (dp >= 0xf) {
             return f1;
         }
-        f2.v >>= dp;
+        f2.v = (i16)(f2.v >> dp);
         p = f1.p;
     } else if (dp < 0) {
-        dp = -dp;
+        dp = (i16)(-dp);
         p = f2.p;
         if (dp >= 0xf) {
             return f2;
         }
-        f1.v >>= dp;
+        f2.v = (i16)(f2.v >> dp);
     } else {
         p = f2.p;
     }
-    f16.v = f1.v + f2.v;
-    f16.p = p;
-    if (((f1.v & 0x8000) != (f2.v & 0x8000))) {
-        return Float16Rebase(f16);
-    } else if ((f16.v & 0x8000) != (f1.v & 0x8000)) {
-        f16.v = (f1.v >> 1) + (f2.v >> 1);
-        f16.p = p + 1;
+#ifdef __GNUC__
+    if (__builtin_add_overflow(f1.v, f2.v, &f16.v)) {
+        f16.v = (i16)((f1.v >> 1) + (f2.v >> 1));
+        f16.p = (i16)(p + 1);
         return f16;
     } else {
+        f16.v = (i16)(f1.v + f2.v);
+        f16.p = p;
         return Float16Rebase(f16);
     }
-}
-
-MINLINE Float16 Float16Sub(Float16 f1, Float16 f2) {
-    Float16 f16;
-    i16 dp = f1.p - f2.p;
-    i16 p;
-    if (dp > 0) {
-        if (dp >= 0xf) {
-            return f1;
-        }
-        f2.v >>= dp;
-        p = f1.p;
-    } else if (dp < 0) {
-        dp = -dp;
-        p = f2.p;
-        if (dp >= 0xf) {
-            f1.v = 0;
-        } else {
-            f1.v >>= dp;
-        }
-    } else {
-        p = f1.p;
-    }
-    i16 v = f1.v - f2.v;
-    // todo: use intrinsics, this is kind of an absurd way to deal with overflows/underflows
-    if (((f1.v < 0) && (f2.v > 0) && (v > 0)) ||
-        ((f1.v > 0) && (f2.v < 0) && (v < 0))) {
-        f16.v = (f1.v >> 1) - (f2.v >> 1);
-        f16.p = p + 1;
+#else
+    i16 v = (i16)(f1.v + f2.v);
+    if (((f1.v < 0) && (f2.v < 0) && (v >= 0)) ||
+        ((f1.v > 0) && (f2.v > 0) && (v < 0))) {
+        f16.v = (i16)((f1.v >> 1) + (f2.v >> 1));
+        f16.p = (i16)(p + 1);
         return f16;
     } else {
         f16.v = v;
         f16.p = p;
         return Float16Rebase(f16);
     }
+#endif
+}
+
+MINLINE Float16 Float16Sub(Float16 f1, Float16 f2) {
+    Float16 f16;
+    i16 dp = (i16)(f1.p - f2.p);
+    i16 p;
+    if (dp > 0) {
+        if (dp >= 0xf) {
+            return f1;
+        }
+        f2.v = (i16)(f2.v >> dp);
+        p = f1.p;
+    } else if (dp < 0) {
+        dp = (i16)(-dp);
+        p = f2.p;
+        if (dp >= 0xf) {
+            f1.v = 0;
+        } else {
+            f1.v = (i16)(f1.v >> dp);
+        }
+    } else {
+        p = f1.p;
+    }
+#ifdef __GNUC__
+    if (__builtin_sub_overflow(f1.v, f2.v, &f16.v)) {
+        f16.v = (i16)((f1.v >> 1) - (f2.v >> 1));
+        f16.p = (i16)(p + 1);
+        return f16;
+    } else {
+        f16.v = (i16)(f1.v - f2.v);
+        f16.p = p;
+        return Float16Rebase(f16);
+    }
+#else
+    i16 v = (i16)(f1.v - f2.v);
+    if (((f1.v < 0) && (f2.v > 0) && (v > 0)) ||
+        ((f1.v > 0) && (f2.v < 0) && (v < 0))) {
+        f16.v = (i16)((f1.v >> 1) - (f2.v >> 1));
+        f16.p = (i16)(p + 1);
+        return f16;
+    } else {
+        f16.v = v;
+        f16.p = p;
+        return Float16Rebase(f16);
+    }
+#endif
 }
 
 MINLINE Float16 Float16Div(Float16 v1, Float16 v2) {
     if (v2.v == 0) {
         return (Float16) {(i16)0x7fff, 0x40};
     }
-    i16 p = v1.p - v2.p;
+    i16 p = (i16)(v1.p - v2.p);
     i32 v = v1.v << 14;
     v /= v2.v;
     i16 v16 = (i16) v;
@@ -734,16 +842,16 @@ MINLINE Float16 Float16Div(Float16 v1, Float16 v2) {
 }
 
 MINLINE Float16 Float16Mult16(Float16 v1, Float16 v2) {
-    i16 p = v2.p + v1.p;
+    i16 p = (i16)(v2.p + v1.p);
     i32 v = v2.v;
     v *= (i32) v1.v;
     i16 v16 = (i16) (v >> 15);
-    return (Float16) {.v = v16, .p = p};
+    return (Float16){.v = v16, .p = p};
 }
 
 // Extract whole number
 MINLINE Float16 Float16Extract(Float16 v1) {
-    v1.p = 15 - v1.p;
+    v1.p = (i16)(15 - v1.p);
     if (v1.v == 0) {
         return v1;
     } else if (v1.p < 0) {
@@ -753,15 +861,15 @@ MINLINE Float16 Float16Extract(Float16 v1) {
             return (Float16) {0x7fff, 0};
         }
     }
-    i16 v = (v1.v >> v1.p);
-    return (Float16) {v, v1.p};
+    i16 v = (i16)(v1.v >> v1.p);
+    return (Float16){v, v1.p};
 }
 
 MINLINE Float16 Float32Sqrt(Float32 f1) {
     u32 v = f1.v;
     i16 p = f1.p;
     if (p & 0x1) {
-        p = (p >> 1) + 1;
+        p = (i16)((p >> 1) + 1);
     } else {
         v <<= 1;
         p >>= 1;
@@ -775,7 +883,7 @@ MINLINE Float16 Float16Sqrt(Float16 f1) {
     u16 v = f1.v;
     i16 p = f1.p;
     if (p & 0x1) {
-        p = (p >> 1) + 1;
+        p = (i16)((p >> 1) + 1);
     } else {
         v <<= 1;
         p >>= 1;

@@ -139,6 +139,14 @@ namespace ImGui
 
 #include <assert.h>
 
+#ifdef NDEBUG
+
+#define IM_ASSERT(_EXPR) ((void)0)
+
+#else
+
+#ifdef WIN32
+
 _CRTIMP void __cdecl __MINGW_ATTRIB_NORETURN _assert ();
 
 static void my_im_assert(const char *_Message, const char *_File, unsigned _Line) {
@@ -150,3 +158,17 @@ static void my_im_assert(const char *_Message, const char *_File, unsigned _Line
  (void) \
  ((!!(_EXPR)) || \
   (my_im_assert(#_EXPR,__FILE__,__LINE__),0))
+
+#else
+
+static void my_im_assert(const char *_Func, const char *_Message, const char *_File, unsigned _Line) {
+    __assert_rtn(_Func, _File, _Line, _Message);
+}
+
+#define IM_ASSERT(_EXPR) \
+ (void) \
+ ((!!(_EXPR)) || \
+  (my_im_assert(__func__,#_EXPR,__FILE__,__LINE__),0))
+#endif
+
+#endif
